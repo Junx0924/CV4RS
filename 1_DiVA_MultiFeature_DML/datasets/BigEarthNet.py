@@ -1,21 +1,33 @@
 from datasets.basic_dataset_scaffold import BaseDataset
-import os
+import numpy as np
+from pathlib import Path
+import json
+#datapath = ""
 
 def Give(opt, datapath):
-    image_sourcepath  = datapath+'/images'
-    image_classes     = sorted([x for x in os.listdir(image_sourcepath) if '._' not in x], key=lambda x: int(x.split('.')[0]))
-    conversion        = {int(x.split('.')[0]):x.split('.')[-1] for x in image_classes}
-    image_list        = {int(key.split('.')[0]):sorted([image_sourcepath+'/'+key+'/'+x for x in os.listdir(image_sourcepath+'/'+key) if '._' not in x]) for key in image_classes}
-    image_list        = [[(key,img_path) for img_path in image_list[key]] for key in image_list.keys()]
-    image_list        = [x for y in image_list for x in y]
+    with open(datapath + 'label_indices.json', 'rb') as f:
+        label_indices = json.load(f)
+    
+    conversion    = {i:x for x,i in label_indices['original_labels']}
 
-    image_dict    = {}
-    for key, img_path in image_list:
-        key = key-1
-        if not key in image_dict.keys():
-            image_dict[key] = []
-        image_dict[key].append(img_path)
-
+    image_dict  = {}
+    for entry in Path(datapath).iterdir():
+        if entry.is_dir:
+            patch_name = entry.name
+            patch_folder_path = datapath +'\\'+ patch_name  
+            # count the number of tif files
+            a = len([p.suffix for p in Path(patch_folder_path).iterdir() if p.suffix =='.tif'])
+            if a == 12:
+                patch_json_path = patch_folder_path + '\\' + patch_name +  '_labels_metadata.json'
+                with open(patch_json_path, 'rb') as f:
+                    patch_json = json.load(f)
+                original_labels = patch_json['labels']
+                for label in original_labels:
+                    key = label_indices['original_labels'][label]
+                    if not key in image_dict.keys():
+                        image_dict[key] = []
+                    image_dict[key].append( patch_folder_path+ '\\'+ patch_name )
+                
     keys = sorted(list(image_dict.keys()))
     #Following "Deep Metric Learning via Lifted Structured Feature Embedding", we use the first half of classes for training.
     train,test      = keys[:len(keys)//2], keys[len(keys)//2:]
@@ -23,13 +35,14 @@ def Give(opt, datapath):
     if opt.train_val_split!=1:
         if opt.train_val_split_by_class:
             train_val_split = int(len(train)*opt.train_val_split)
-            train, val      = train[:train_val_split], train[train_val_split:]
-            train_image_dict, val_image_dict, test_image_dict = {key:image_dict[key] for key in train}, {key:image_dict[key] for key in val}, {key:image_dict[key] for key in test}
+            train, val = train[:train_val_split], train[train_val_split:]
+            train_image_dict = {key:image_dict[key] for key in train}
+            val_image_dict = {key:image_dict[key] for key in val}
+            test_image_dict = {key:image_dict[key] for key in test}
         else:
             train_image_dict, val_image_dict = {},{}
 
             for key in train:
-                # train_ixs = np.random.choice(len(image_dict[key]), int(len(image_dict[key])*opt.train_val_split), replace=False)
                 train_ixs   = np.array(list(set(np.round(np.linspace(0,len(image_dict[key])-1,int(len(image_dict[key])*opt.train_val_split)))))).astype(int)
                 val_ixs     = np.array([x for x in range(len(image_dict[key])) if x not in train_ixs])
                 train_image_dict[key] = np.array(image_dict[key])[train_ixs]

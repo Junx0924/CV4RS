@@ -2,7 +2,12 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import numpy as np
 from PIL import Image
+import cv2
+import gdal
 
+# Spectral band names to read related GeoTIFF files
+band_names = ['B01', 'B02', 'B03', 'B04', 'B05',
+              'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
 
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
@@ -75,16 +80,46 @@ class BaseDataset(Dataset):
 
         self.is_init = True
 
-
+   # for images like png, jpg etc
     def ensure_3dim(self, img):
         if len(img.size)==2:
             img = img.convert('RGB')
         return img
+    
+    # for Geotiff images
+    def read_Geotiff(self, img):
+        tif_img = []
+        for band_name in band_names:
+            img_path = img +'_' + band_name + '.tif'
+            band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+            raster_band = band_ds.GetRasterBand(1)
+            band_data = np.array(raster_band.ReadAsArray()) 
 
+            # make sure the size is (256,256)
+            # create target image and copy sample image into it
+            (wt, ht) = (256,256) # target image size
+            (h, w) = band_data.shape # given image size
+            fx = w / wt
+            fy = h / ht
+            f = max(fx, fy)
+            # scale according to f (result at least 1 and at most wt or ht)
+            newSize = (max(min(wt, int(w / f)), 1),max(min(ht, int(h / f)), 1)) 
+            #INTER_CUBIC interpolation 
+            new_img = cv2.resize(band_data, newSize, interpolation=cv2.INTER_CUBIC) 
+            target = np.ones([ht, wt]) * 255 
+            target[0:newSize[1], 0:newSize[0]] = new_img
+            tif_img.append(target)
+        return np.array(tif_img)
 
     def __getitem__(self, idx):
-        input_image = self.ensure_3dim(Image.open(self.image_list[idx][0]))
-        imrot_class = -1
+        # for images like png,jpg etc
+        if (("jpg" in self.image_list[idx][0]) or ("png" in self.image_list[idx][0]) ):
+            input_image = self.ensure_3dim(Image.open(self.image_list[idx][0]))
+            imrot_class = -1
+        else:
+            input_image = self.read_Geotiff(Image.open(self.image_list[idx][0]))
+            imrot_class = -1
+
 
         if self.include_aux_augmentations:
             im_a = self.real_transform(input_image) if self.pars.realistic_main_augmentation else self.normal_transform(input_image)

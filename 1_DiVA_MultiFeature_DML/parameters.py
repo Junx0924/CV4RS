@@ -92,7 +92,7 @@ def diva_parameters(parser):
 def wandb_parameters(parser):
     ### Wandb Log Arguments
     parser.add_argument('--log_online',      action='store_true')
-    parser.add_argument('--wandb_key',       default='<your_api_key_here>',  type=str,   help='Options are currently: wandb & comet')
+    parser.add_argument('--wandb_key',       default='3e2d26edd7a78aa9e725fbed6f42cfdda1cbcfeb',  type=str,   help='Options are currently: wandb & comet')
     parser.add_argument('--project',         default='DiVA_Sample_Runs',  type=str,   help='Appendix to save folder name if any special information is to be included.')
     parser.add_argument('--group',           default='Sample_Run',  type=str,   help='Appendix to save folder name if any special information is to be included.')
 
