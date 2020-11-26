@@ -2,6 +2,8 @@ import datasets.cub200
 import datasets.cars196
 import datasets.stanford_online_products
 import datasets.inshop
+import datasets.BigEarthNet
+import datasets.MLRSNet
 
 
 def select(dataset, opt, data_path):

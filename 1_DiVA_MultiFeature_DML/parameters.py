@@ -3,8 +3,8 @@ import argparse, os
 
 #######################################
 def basic_training_parameters(parser):
-    parser.add_argument('--dataset',         default='cub200',   type=str,   help='Dataset to use.')
-    parser.add_argument('--train_val_split', default=1,          type=float, help='Percentage with which the training dataset is split into training/validation.')
+    parser.add_argument('--dataset',         default='MLRSNet',   type=str,   help='Dataset to use.')
+    parser.add_argument('--train_val_split', default=0.80,          type=float, help='Percentage of training dataset is split into training/validation.')
 
 
     ### General Training Parameters
@@ -41,10 +41,10 @@ def basic_training_parameters(parser):
     parser.add_argument('--realistic_main_augmentation', action='store_true')
 
     ##### Setup Parameters
-    parser.add_argument('--gpu',          default=[1], nargs='+', type=int,   help='Random seed for reproducibility.')
+    parser.add_argument('--gpu',          default=[0], nargs='+', type=int,   help='Random seed for reproducibility.')
     parser.add_argument('--savename',     default='group_plus_seed',   type=str,   help='Appendix to save folder name if any special information is to be included.')
-    parser.add_argument('--source_path',  default=os.getcwd()+'/../../Datasets',   type=str, help='Path to training data.')
-    parser.add_argument('--save_path',    default=os.getcwd()+'/Training_Results', type=str, help='Where to save everything.')
+    parser.add_argument('--source_path',  default="/media/jun/Intenso/Dataset",   type=str, help='Path to training data.')
+    parser.add_argument('--save_path',    default="/home/jun/Documents/CV4RS/Diva", type=str, help='Where to save everything.')
 
     return parser
 

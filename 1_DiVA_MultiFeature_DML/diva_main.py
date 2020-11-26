@@ -204,9 +204,9 @@ LOG = logger.LOGGER(opt, sub_loggers=sub_loggers, start_new=True, log_online=opt
 batchminer   = bmine.select(opt.batch_mining, opt)
 criterion_dict = {}
 
-for key in opt.diva_features:
-    if 'discriminative' in key:
-        criterion_dict[key], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer)
+
+if 'discriminative' in opt.diva_features:
+    criterion_dict['discriminative'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer)
 
 if len(opt.diva_decorrelations):
     criterion_dict['separation'],     to_optim  = criteria.select('adversarial_separation', opt, to_optim, None)

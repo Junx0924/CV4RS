@@ -1,4 +1,9 @@
-import numpy as np, os, pickle as pkl, torch, torch.nn as nn, faiss
+import numpy as np
+import os
+import pickle as pkl
+import torch
+import torch.nn as nn
+import faiss
 from tqdm import tqdm
 import architectures as archs
 import datasampler   as dsamplers
@@ -8,7 +13,7 @@ import metrics       as metrics
 import batchminer    as bmine
 import evaluation    as eval
 
-RERUN SPECIFIC RUNS!
+#RERUN SPECIFIC RUNS!
 
 networks   = ['CUB_DiVA-IBN-512_V2_s2', 'CAR_DiVA-IBN-512_V2_s3', 'SOP_DiVA-IBN-512_V2_s4', 'CUB_DiVA-R50-512_V1_s1', 'CAR_DiVA-R50-512_V2_s0', 'SOP_DiVA-R50-512_V1_s0']
 for network in networks:
