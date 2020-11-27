@@ -2,17 +2,17 @@ from datasets.basic_dataset_scaffold import BaseDataset
 import numpy as np
 from pathlib import Path
 import json
-#datapath = ""
+import random
 
 def Give(opt, datapath):
-    with open(datapath + 'label_indices.json', 'rb') as f:
+    with open(datapath + '/label_indices.json', 'rb') as f:
         label_indices = json.load(f)
-    
-    conversion    = {i:x for x,i in label_indices['original_labels']}
 
+    conversion ={}
     image_dict  = {}
+    count =0
     for entry in Path(datapath).iterdir():
-        if entry.is_dir:
+        if entry.is_dir()==True and count <10000:
             patch_name = entry.name
             patch_folder_path = datapath +'/'+ patch_name  
             # count the number of tif files
@@ -24,9 +24,11 @@ def Give(opt, datapath):
                 original_labels = patch_json['labels']
                 for label in original_labels:
                     key = label_indices['original_labels'][label]
+                    conversion[key] = label
                     if not key in image_dict.keys():
                         image_dict[key] = []
                     image_dict[key].append( patch_folder_path+ '/'+ patch_name )
+            count = count + 1
                 
     keys = sorted(list(image_dict.keys()))
     # train/test 50%/50% split balanced in class.

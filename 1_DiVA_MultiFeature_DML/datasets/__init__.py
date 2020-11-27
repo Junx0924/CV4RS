@@ -5,7 +5,6 @@ import datasets.inshop
 import datasets.BigEarthNet
 import datasets.MLRSNet
 
-
 def select(dataset, opt, data_path):
     if 'cub200' in dataset:
         return cub200.Give(opt, data_path)

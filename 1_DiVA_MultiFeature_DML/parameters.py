@@ -43,8 +43,8 @@ def basic_training_parameters(parser):
     ##### Setup Parameters
     parser.add_argument('--gpu',          default=[0], nargs='+', type=int,   help='Random seed for reproducibility.')
     parser.add_argument('--savename',     default='group_plus_seed',   type=str,   help='Appendix to save folder name if any special information is to be included.')
-    parser.add_argument('--source_path',  default="/media/jun/Intenso/Dataset",   type=str, help='Path to training data.')
-    parser.add_argument('--save_path',    default="/home/jun/Documents/CV4RS/Diva", type=str, help='Where to save everything.')
+    parser.add_argument('--source_path',  default="../Dataset",   type=str, help='Path to training data.')
+    parser.add_argument('--save_path',    default="../Diva", type=str, help='Where to save everything.')
 
     return parser
 

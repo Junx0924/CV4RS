@@ -90,7 +90,7 @@ if opt.savename=='group_plus_seed':
 ### If wandb-logging is turned on, initialize the wandb-run here:
 if opt.log_online:
     import wandb
-    _ = os.system('wandb login {}'.format(opt.wandb_key))
+    _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     os.environ['WANDB_API_KEY'] = opt.wandb_key
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
@@ -292,7 +292,8 @@ for epoch in range(opt.n_epochs):
     loss_collect = {'train':[], 'separation':[]}
     data_iterator = tqdm(dataloaders['training'], desc='Epoch {} Training...'.format(epoch))
 
-    for i,(class_labels, input, input_indices, aux_input, imrot_labels) in enumerate(data_iterator):
+    for i, (class_labels, input, input_indices, aux_input, imrot_labels) in enumerate(data_iterator):
+
         ###################
         if 'invariantspread' in criterion_dict:
             input = torch.cat([input[:len(input)//2,:], aux_input[:len(input)//2]], dim=0)

@@ -24,8 +24,9 @@ def Give(opt, datapath):
     image_folder  = datapath +'/Images/'
     image_list =[] # image path
     image_labels =[]
+     
     for entry in Path(label_folder).iterdir():
-        if entry.suffix ==".csv":
+        if entry.suffix ==".csv" :
             with open(label_folder + entry.name) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 label_names =next(csv_reader,None)[1:]
