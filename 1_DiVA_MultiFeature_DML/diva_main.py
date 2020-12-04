@@ -201,7 +201,7 @@ LOG = logger.LOGGER(opt, sub_loggers=sub_loggers, start_new=True, log_online=opt
 
 """============================================================================"""
 #################### LOSS SETUP ####################
-batchminer   = bmine.select(opt.batch_mining, opt)
+batchminer   = bmine.select(opt.batch_mining, opt) # batch miner method: distance
 criterion_dict = {}
 
 

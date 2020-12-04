@@ -10,7 +10,7 @@ import copy
 def select(loss, opt, to_optim, batchminer=None):
     #####
     losses = {'triplet': triplet,
-              'margin':margin,
+              'margin':margin, # "discriminative","intra","shared"
               'proxynca':proxynca,
               'npair':npair,
               'oproxy':oproxy,
@@ -28,7 +28,7 @@ def select(loss, opt, to_optim, batchminer=None):
               'moco': moco,
               'dc':dc,
               'imrot':imrot,
-              'fast_moco':fast_moco,
+              'fast_moco':fast_moco, # "selfsimilarity"
               'invariantspread':invariant_spread}
 
 

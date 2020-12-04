@@ -10,9 +10,9 @@ def Give(opt, datapath):
 
     conversion ={}
     image_dict  = {}
-    count =0
+     
     for entry in Path(datapath).iterdir():
-        if entry.is_dir()==True and count <10000:
+        if entry.is_dir()==True:
             patch_name = entry.name
             patch_folder_path = datapath +'/'+ patch_name  
             # count the number of tif files
@@ -28,7 +28,7 @@ def Give(opt, datapath):
                     if not key in image_dict.keys():
                         image_dict[key] = []
                     image_dict[key].append( patch_folder_path+ '/'+ patch_name )
-            count = count + 1
+            
                 
     keys = sorted(list(image_dict.keys()))
     # train/test 50%/50% split balanced in class.
