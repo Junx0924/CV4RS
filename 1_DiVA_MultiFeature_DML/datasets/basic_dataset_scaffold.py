@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import numpy as np
 from PIL import Image
-import gdal
+from osgeo import gdal
 from skimage.transform import resize
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import scale, normalize

@@ -4,7 +4,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-import os, sys, numpy as np, argparse, imp, datetime, pandas as pd, copy
+import os, sys, numpy as np, argparse, imp, datetime,copy
 import time, pickle as pkl, random, json, collections, itertools as it
 
 import matplotlib
