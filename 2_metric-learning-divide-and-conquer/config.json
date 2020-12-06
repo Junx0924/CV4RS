@@ -4,11 +4,11 @@
     "save_model": true,
     "cuda_device": 0,
     "sz_embedding": 128,
-    "backend": "faiss-gpu",
+    "backend": "faiss",
     "nb_epochs": 200,
     "nb_clusters": 8,
     "finetune_epoch": 100,
-    "dataset_selected": "sop",
+    "dataset_selected": "bigearth",
     "dataset": {
         "vid": {
             "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0",
@@ -28,11 +28,27 @@
             }
         },
         "sop": {
-            "root": "/export/home/vtschern/data/sop",
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products",
             "classes": {
                 "train": "range(0, 11318)",
                 "init": "range(0, 11318)",
                 "eval": "range(11318, 22634)"
+            }
+        },
+        "bigearth": {
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp",
+            "classes": {
+                "train": "train",
+                "init": "init",
+                "eval": "eval"
+            }
+        },
+        "mlrsnet": {
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet",
+            "classes": {
+                "train": "train",
+                "init": "init",
+                "eval": "eval"
             }
         }
     },

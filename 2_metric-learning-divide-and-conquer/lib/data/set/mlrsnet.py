@@ -1,6 +1,7 @@
 from .base import *
 
-class VehicleID(BaseDataset):
+
+class BigEarth(BaseDataset):
     def __init__(self, root, classes, transform = None):
         BaseDataset.__init__(self, root, classes, transform)
         # amount of images deviates slightly from what's reported online

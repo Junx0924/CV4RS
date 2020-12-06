@@ -66,6 +66,7 @@ def init_splitted(layer, nb_clusters, sz_embedding):
                 sz_embedding
             )
         ).long()
+
         _layer = torch.nn.Linear(layer.weight.shape[1], len(i))
         layer.weight.data[i] = xavier_normal_(_layer.weight.data, gain = 1)
         layer.bias.data[i] = _layer.bias.data

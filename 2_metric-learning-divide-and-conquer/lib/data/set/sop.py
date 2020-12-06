@@ -1,8 +1,10 @@
 from .base import *
 
+
 class SOProducts(BaseDataset):
     nb_train_all = 59551
     nb_test_all = 60502
+
     def __init__(self, root, classes, transform=None):
         BaseDataset.__init__(self, root, classes, transform)
 
