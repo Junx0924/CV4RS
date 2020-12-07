@@ -395,7 +395,7 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Evaluate -
     _ = model.eval()
-    if opt.dataset in ['BigEarthNet', 'BigEarthNet']:
+    if opt.dataset in ['BigEarthNet', 'MLRSNet']:
         test_dataloaders = [dataloaders['testing']]
      
 
