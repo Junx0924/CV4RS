@@ -87,9 +87,6 @@ def merge(dls_non_iter):
 
     for j in range(nb_batches):
         for i in I:
-            print("j=", j)
-            print("i=", i)
-            print("dls[i] attributes: ", dls[i].__dict__.keys())
             b = next(dls[i], None)
             if b == None:
                 # initialize new dataloader in case no batches left
