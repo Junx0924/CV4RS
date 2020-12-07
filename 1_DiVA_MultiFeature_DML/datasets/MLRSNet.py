@@ -5,79 +5,129 @@ import csv
 import random
 import xlrd
 import itertools
+import json
 
+def split(image_dict,split_ratio):
+    train_image_dict  = {} 
+    keys = sorted(list(image_dict.keys()))
+    values = np.unique(list(itertools.chain.from_iterable(image_dict.values())))
+    flag =  {ind:"nontrain" for ind in values}
+
+    for key in keys:
+        samples_ind = image_dict[key]
+        random.shuffle(samples_ind)
+        sample_num = len(samples_ind)
+        train_image_dict[key] =[]
+        # check if there are some sample id already in train, add them to train dict
+        for ind in samples_ind:
+            if flag[ind] =="train":
+                if len(train_image_dict[key])< int(sample_num*split_ratio):
+                    train_image_dict[key].append(ind)
+        # if the lenth of train is less than required, add new file into train
+        for ind in samples_ind:
+            if len(train_image_dict[key])< int(sample_num*split_ratio):
+                if flag[ind] =="nontrain":
+                    train_image_dict[key].append(ind)
+                    flag[ind] ="train"
+    return train_image_dict,flag
+
+def read_csv(datapath,csv_filename):
+    file_list, file_label =[],[]
+    with open(datapath + csv_filename) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader: 
+            file_list.append(datapath+ str(row[0]))
+            file_label.append(row[1:])
+    file_list = np.array(file_list)
+    file_label = np.array(file_label,dtype=int)
+    file_image_dict  = {i:file_list[np.where(file_label[:,i]==1)[0]] for i in range(file_label.shape[1])}
+    return file_image_dict
 
 def Give(opt, datapath):
-    # get the category names and label names
-    category = {}
-    category_path = datapath + '/Categories_names.xlsx'
-    book = xlrd.open_workbook(category_path)
-    sheet = book.sheet_by_index(1)
-    for i in range(2,sheet.nrows):
-        category_name = sheet.cell_value(rowx=i, colx=1)
-        temp_label_name = np.unique(np.array([sheet.cell_value(rowx=i, colx=j).strip() for j in range(2,sheet.ncols) if sheet.cell_value(rowx=i, colx=j)!=""]))
-        category[category_name] = temp_label_name
+    # check the split train/test/val existed or not
+    if not Path(datapath+'/split/train.csv').exists():
+        category = {}
+        category_path = datapath + '/Categories_names.xlsx'
+        book = xlrd.open_workbook(category_path)
+        sheet = book.sheet_by_index(1)
+        for i in range(2,sheet.nrows):
+            category_name = sheet.cell_value(rowx=i, colx=1)
+            temp_label_name = np.unique(np.array([sheet.cell_value(rowx=i, colx=j).strip() for j in range(2,sheet.ncols) if sheet.cell_value(rowx=i, colx=j)!=""]))
+            category[category_name] = temp_label_name
+
+        label_folder = datapath +'/labels/'
+        image_folder  = datapath +'/Images/'
+        image_list =[] # image path
+        image_labels =[]
+            
+        for entry in Path(label_folder).iterdir():
+            if entry.suffix ==".csv" :
+                with open(label_folder + entry.name) as csv_file:
+                    csv_reader = csv.reader(csv_file, delimiter=',')
+                    label_names =next(csv_reader,None)[1:]
+                    sort_ind =  np.argsort(label_names)
+                    if len(label_names)==60:
+                        for row in csv_reader: 
+                            image_path = image_folder + entry.stem +'/'+row[0]
+                            #image_list.append(image_path)
+                            image_list.append('/Images/'+ entry.stem +'/'+row[0])
+                            temp = np.array(row[1:])
+                            image_labels.append(temp[sort_ind])
+                    
+        label_names = np.sort(label_names)
+        label_names_dict = {} # to record the label names
+        label_names_dict= {i:x for i,x in enumerate(label_names)}  
+
+        for key in category.keys():
+            labels = category[key]
+            label_ind = [str(np.where(label_names==item)[0][0]) for item in labels ]
+            category[key] = label_ind
+
+        image_list = np.array(image_list)
+        image_labels = np.array(image_labels,dtype=int)
+        image_dict  = {i:np.where(image_labels[:,i]==1)[0] for i in range(len(label_names))}
+
+        # split data into train/test 50%/50% balanced in class.
+        temp_image_dict,flag_test =split(image_dict, 0.5)
+        # split train into train/val 40%/10% balanced in class
+        temp_image_dict,flag_val =split(temp_image_dict, 0.8)
+
+        train   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="train"]
+        val  = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="nontrain"]
+        test   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_test.keys())) if flag_test[ind]=="nontrain"]
+
+        with open(datapath +'/split/label_name.json', 'w+') as label_file:
+            json.dump(label_names_dict, label_file,separators=(",", ":"),allow_nan=False,indent=4)
+        with open(datapath +'/split/category.json', 'w+') as category_file:
+            json.dump(category, category_file,separators=(",", ":"),allow_nan=False,indent=4)
+        with open(datapath +'/split/train.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(train)
+        with open(datapath +'/split/test.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(test)
+        with open(datapath +'/split/val.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(val)
     
+    # train/val/test split exists
+    with open(datapath +'/split/category.json') as json_file:
+            category = json.load(json_file)
+    with open(datapath +'/split/label_name.json') as json_file:
+        conversion= json.load(json_file)
+    train_image_dict = read_csv(datapath,'/split/train.csv')
+    test_image_dict = read_csv(datapath,'/split/test.csv')
+    val_image_dict = read_csv(datapath,'/split/val.csv')
     
 
-    label_folder = datapath +'/labels/'
-    image_folder  = datapath +'/Images/'
-    image_list =[] # image path
-    image_labels =[]
-     
-    for entry in Path(label_folder).iterdir():
-        if entry.suffix ==".csv" :
-            with open(label_folder + entry.name) as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter=',')
-                label_names =next(csv_reader,None)[1:]
-                sort_ind =  np.argsort(label_names)
-                if len(label_names)==60:
-                    for row in csv_reader: 
-                        image_path = image_folder + entry.stem +'/'+row[0]
-                        image_list.append(image_path)
-                        temp = np.array(row[1:])
-                        image_labels.append(temp[sort_ind])
-                
-    label_names = np.sort(label_names)
-    conversion = {} # to record the label names
-    conversion= {i:x for i,x in enumerate(label_names)}  
-
-    image_list = np.array(image_list)
-    image_labels = np.array(image_labels,dtype=int)
-    # use image_dict to store label number(0-59), image path
-    image_dict  = {i:image_list[np.where(image_labels[:,i]==1)[0]] for i in range(len(label_names))}
-    
-    keys = sorted(list(image_dict.keys()))
-
-    # train/test 50%/50% split balanced in class.
-    train_image_dict,test_image_dict ={},{}
-    for key in keys:
-        random.shuffle(image_dict[key])
-        sample_num = len(image_dict[key])
-        samples = image_dict[key]
-        train_image_dict[key] = samples[:sample_num//2]
-        test_image_dict[key] = samples[sample_num//2:]
-
-    # Percentage with which the training dataset is split into training/validation.
-    if opt.train_val_split!=1:
-        val_image_dict = {}
-        for key in keys:
-            temp = np.array(train_image_dict[key])
-            train_ixs   = np.array(list(set(np.round(np.linspace(0,len(temp)-1,int(len(temp)*opt.train_val_split)))))).astype(int)
-            val_ixs     = np.array([x for x in range(len(temp)) if x not in train_ixs])
-            train_image_dict[key] = temp[train_ixs]
-            val_image_dict[key]   = temp[val_ixs]
-        
-        val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
-        val_dataset.conversion   = conversion
-    else:
-        val_dataset = None
+    val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
+    val_dataset.conversion   = conversion
 
     train_dataset = BaseDataset(train_image_dict, opt)
     train_dataset.conversion = conversion
 
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
-    test_dataset.conversion  = conversion
+    test_dataset.conversion  =  conversion
 
     eval_dataset  = BaseDataset(train_image_dict, opt, is_validation=True)
     eval_dataset.conversion  = conversion

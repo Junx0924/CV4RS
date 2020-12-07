@@ -6,11 +6,11 @@ import random
 import csv
 
 # csv_file contains the patch_name
-def read_csv(csv_file,datapath,label_indices):
+def read_csv(csv_filename,datapath,label_indices):
     image_dict = {}
     conversion ={}
 
-    with open(datapath +'/'+csv_file) as csv_file:
+    with open(datapath +csv_filename) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader: 
             patch_name = row[0]
@@ -31,17 +31,15 @@ def Give(opt, datapath):
     with open(datapath + '/label_indices.json', 'rb') as f:
         label_indices = json.load(f)
 
-    train_image_dict,train_conversion = read_csv('train.csv',datapath,label_indices)
-    test_image_dict,test_conversion = read_csv('test.csv',datapath,label_indices)
+    train_image_dict,train_conversion = read_csv('/split/train.csv',datapath,label_indices)
+    test_image_dict,test_conversion = read_csv('/split/test.csv',datapath,label_indices)
+    val_image_dict,val_conversion = read_csv('/split/val.csv',datapath,label_indices)   
 
     # Percentage with which the training dataset is split into training/validation.
-    if opt.train_val_split!=1:
-        val_image_dict,val_conversion = read_csv('val.csv',datapath,label_indices)
-        
-        val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
-        val_dataset.conversion   = val_conversion
-    else:
-        val_dataset = None
+    
+    val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
+    val_dataset.conversion   = val_conversion
+  
 
     train_dataset = BaseDataset(train_image_dict, opt)
     train_dataset.conversion = train_conversion
