@@ -95,5 +95,5 @@ def merge(dls_non_iter):
                 # initialize new dataloader in case no batches left
                 dls[i] = iter(dls_non_iter[i])
                 b = next(dls[i])
-            yield b, dls[i].dataset
+            yield b, dls[i]._dataset # changed .dataset to ._dataset (there was no attribute 'dataset')
 

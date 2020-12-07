@@ -549,3 +549,389 @@
 2020-12-06 19:40:43,774 R@8 : 50.811
 2020-12-06 19:45:55,773 Training for 200 epochs.
 2020-12-06 19:45:55,777 Not enough classes to sample batches: have=16,required=20
+2020-12-07 12:50:15,148 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-07 12:50:16,620 Evaluating initial model...
+2020-12-07 12:56:15,444 R@1 : 4.054
+2020-12-07 12:56:15,451 R@2 : 6.892
+2020-12-07 12:56:15,458 R@4 : 21.757
+2020-12-07 12:56:15,465 R@8 : 50.811
+2020-12-07 13:02:19,460 Training for 200 epochs.
+2020-12-07 13:02:19,462 Not enough classes to sample batches: have=16,required=20
+2020-12-07 13:03:13,152 Probably too many positives, because of lacking classes in the current cluster. n_anchors=8, n_pos=7, n_neg= 8
+2020-12-07 13:03:13,159 Probably too many positives, because of lacking classes in the current cluster. n_anchors=15, n_pos=14, n_neg= 15
+2020-12-07 13:03:13,159 Probably too many positives, because of lacking classes in the current cluster. n_anchors=22, n_pos=21, n_neg= 22
+2020-12-07 13:03:13,159 Probably too many positives, because of lacking classes in the current cluster. n_anchors=29, n_pos=28, n_neg= 29
+2020-12-07 13:03:13,160 Probably too many positives, because of lacking classes in the current cluster. n_anchors=36, n_pos=39, n_neg= 36
+2020-12-07 13:03:13,160 Probably too many positives, because of lacking classes in the current cluster. n_anchors=44, n_pos=47, n_neg= 44
+2020-12-07 13:03:13,160 Probably too many positives, because of lacking classes in the current cluster. n_anchors=52, n_pos=55, n_neg= 52
+2020-12-07 13:03:13,160 Probably too many positives, because of lacking classes in the current cluster. n_anchors=60, n_pos=63, n_neg= 60
+2020-12-07 13:03:13,322 Probably too many positives, because of lacking classes in the current cluster. n_anchors=68, n_pos=71, n_neg= 68
+2020-12-07 13:03:13,323 Probably too many positives, because of lacking classes in the current cluster. n_anchors=76, n_pos=79, n_neg= 76
+2020-12-07 13:03:13,323 Probably too many positives, because of lacking classes in the current cluster. n_anchors=84, n_pos=87, n_neg= 84
+2020-12-07 13:03:13,323 Probably too many positives, because of lacking classes in the current cluster. n_anchors=92, n_pos=95, n_neg= 92
+2020-12-07 13:03:13,323 Probably too many positives, because of lacking classes in the current cluster. n_anchors=100, n_pos=95, n_neg= 100
+2020-12-07 13:03:13,324 Probably too many positives, because of lacking classes in the current cluster. n_anchors=103, n_pos=98, n_neg= 103
+2020-12-07 13:03:13,324 Probably too many positives, because of lacking classes in the current cluster. n_anchors=106, n_pos=101, n_neg= 106
+2020-12-07 13:03:13,325 Probably too many positives, because of lacking classes in the current cluster. n_anchors=109, n_pos=104, n_neg= 109
+2020-12-07 13:03:13,326 Probably too many positives, because of lacking classes in the current cluster. n_anchors=112, n_pos=111, n_neg= 112
+2020-12-07 13:03:13,329 Probably too many positives, because of lacking classes in the current cluster. n_anchors=119, n_pos=118, n_neg= 119
+2020-12-07 13:03:13,330 Probably too many positives, because of lacking classes in the current cluster. n_anchors=126, n_pos=125, n_neg= 126
+2020-12-07 13:03:13,331 Probably too many positives, because of lacking classes in the current cluster. n_anchors=133, n_pos=132, n_neg= 133
+2020-12-07 13:03:13,331 Probably too many positives, because of lacking classes in the current cluster. n_anchors=140, n_pos=143, n_neg= 140
+2020-12-07 13:03:13,331 Probably too many positives, because of lacking classes in the current cluster. n_anchors=148, n_pos=151, n_neg= 148
+2020-12-07 13:03:13,331 Probably too many positives, because of lacking classes in the current cluster. n_anchors=156, n_pos=159, n_neg= 156
+2020-12-07 13:03:13,332 Probably too many positives, because of lacking classes in the current cluster. n_anchors=164, n_pos=167, n_neg= 164
+2020-12-07 13:03:13,615 Probably too many positives, because of lacking classes in the current cluster. n_anchors=172, n_pos=167, n_neg= 172
+2020-12-07 13:03:13,615 Probably too many positives, because of lacking classes in the current cluster. n_anchors=175, n_pos=170, n_neg= 175
+2020-12-07 13:03:13,615 Probably too many positives, because of lacking classes in the current cluster. n_anchors=178, n_pos=173, n_neg= 178
+2020-12-07 13:03:13,616 Probably too many positives, because of lacking classes in the current cluster. n_anchors=181, n_pos=176, n_neg= 181
+2020-12-07 13:03:13,616 Probably too many positives, because of lacking classes in the current cluster. n_anchors=184, n_pos=183, n_neg= 184
+2020-12-07 13:03:13,616 Probably too many positives, because of lacking classes in the current cluster. n_anchors=191, n_pos=190, n_neg= 191
+2020-12-07 13:03:13,616 Probably too many positives, because of lacking classes in the current cluster. n_anchors=198, n_pos=197, n_neg= 198
+2020-12-07 13:03:13,616 Probably too many positives, because of lacking classes in the current cluster. n_anchors=205, n_pos=204, n_neg= 205
+2020-12-07 13:03:13,617 Probably too many positives, because of lacking classes in the current cluster. n_anchors=212, n_pos=211, n_neg= 212
+2020-12-07 13:03:13,617 Probably too many positives, because of lacking classes in the current cluster. n_anchors=219, n_pos=218, n_neg= 219
+2020-12-07 13:03:13,617 Probably too many positives, because of lacking classes in the current cluster. n_anchors=226, n_pos=225, n_neg= 226
+2020-12-07 13:03:13,617 Probably too many positives, because of lacking classes in the current cluster. n_anchors=233, n_pos=232, n_neg= 233
+2020-12-07 13:03:13,618 Probably too many positives, because of lacking classes in the current cluster. n_anchors=240, n_pos=239, n_neg= 240
+2020-12-07 13:03:13,618 Probably too many positives, because of lacking classes in the current cluster. n_anchors=247, n_pos=246, n_neg= 247
+2020-12-07 13:03:13,618 Probably too many positives, because of lacking classes in the current cluster. n_anchors=254, n_pos=253, n_neg= 254
+2020-12-07 13:03:13,618 Probably too many positives, because of lacking classes in the current cluster. n_anchors=261, n_pos=260, n_neg= 261
+2020-12-07 13:03:13,618 Probably too many positives, because of lacking classes in the current cluster. n_anchors=268, n_pos=271, n_neg= 268
+2020-12-07 13:03:13,619 Probably too many positives, because of lacking classes in the current cluster. n_anchors=276, n_pos=279, n_neg= 276
+2020-12-07 13:03:13,620 Probably too many positives, because of lacking classes in the current cluster. n_anchors=284, n_pos=287, n_neg= 284
+2020-12-07 13:03:13,620 Probably too many positives, because of lacking classes in the current cluster. n_anchors=292, n_pos=295, n_neg= 292
+2020-12-07 13:03:13,620 Probably too many positives, because of lacking classes in the current cluster. n_anchors=300, n_pos=303, n_neg= 300
+2020-12-07 13:03:13,620 Probably too many positives, because of lacking classes in the current cluster. n_anchors=308, n_pos=311, n_neg= 308
+2020-12-07 13:03:13,620 Probably too many positives, because of lacking classes in the current cluster. n_anchors=316, n_pos=319, n_neg= 316
+2020-12-07 13:03:13,621 Probably too many positives, because of lacking classes in the current cluster. n_anchors=324, n_pos=327, n_neg= 324
+2020-12-07 13:03:13,621 Probably too many positives, because of lacking classes in the current cluster. n_anchors=332, n_pos=331, n_neg= 332
+2020-12-07 13:03:13,621 Probably too many positives, because of lacking classes in the current cluster. n_anchors=339, n_pos=338, n_neg= 339
+2020-12-07 13:03:13,621 Probably too many positives, because of lacking classes in the current cluster. n_anchors=346, n_pos=345, n_neg= 346
+2020-12-07 13:03:13,621 Probably too many positives, because of lacking classes in the current cluster. n_anchors=353, n_pos=352, n_neg= 353
+2020-12-07 13:03:13,622 Probably too many positives, because of lacking classes in the current cluster. n_anchors=360, n_pos=359, n_neg= 360
+2020-12-07 13:03:13,622 Probably too many positives, because of lacking classes in the current cluster. n_anchors=367, n_pos=366, n_neg= 367
+2020-12-07 13:03:13,622 Probably too many positives, because of lacking classes in the current cluster. n_anchors=374, n_pos=373, n_neg= 374
+2020-12-07 13:03:13,622 Probably too many positives, because of lacking classes in the current cluster. n_anchors=381, n_pos=380, n_neg= 381
+2020-12-07 13:03:13,622 Probably too many positives, because of lacking classes in the current cluster. n_anchors=388, n_pos=383, n_neg= 388
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=391, n_pos=386, n_neg= 391
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=394, n_pos=389, n_neg= 394
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=397, n_pos=392, n_neg= 397
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=400, n_pos=403, n_neg= 400
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=408, n_pos=411, n_neg= 408
+2020-12-07 13:03:13,623 Probably too many positives, because of lacking classes in the current cluster. n_anchors=416, n_pos=419, n_neg= 416
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=424, n_pos=427, n_neg= 424
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=432, n_pos=435, n_neg= 432
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=440, n_pos=443, n_neg= 440
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=448, n_pos=451, n_neg= 448
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=456, n_pos=459, n_neg= 456
+2020-12-07 13:03:13,624 Probably too many positives, because of lacking classes in the current cluster. n_anchors=464, n_pos=467, n_neg= 464
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=472, n_pos=475, n_neg= 472
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=480, n_pos=483, n_neg= 480
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=488, n_pos=491, n_neg= 488
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=496, n_pos=495, n_neg= 496
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=503, n_pos=502, n_neg= 503
+2020-12-07 13:03:13,625 Probably too many positives, because of lacking classes in the current cluster. n_anchors=510, n_pos=509, n_neg= 510
+2020-12-07 13:03:13,626 Probably too many positives, because of lacking classes in the current cluster. n_anchors=517, n_pos=516, n_neg= 517
+2020-12-07 13:03:13,626 Probably too many positives, because of lacking classes in the current cluster. n_anchors=524, n_pos=527, n_neg= 524
+2020-12-07 13:03:13,626 Probably too many positives, because of lacking classes in the current cluster. n_anchors=532, n_pos=535, n_neg= 532
+2020-12-07 13:03:13,626 Probably too many positives, because of lacking classes in the current cluster. n_anchors=540, n_pos=543, n_neg= 540
+2020-12-07 13:03:13,626 Probably too many positives, because of lacking classes in the current cluster. n_anchors=548, n_pos=551, n_neg= 548
+2020-12-07 13:03:58,472 Not enough classes to sample batches: have=5,required=20
+2020-12-07 13:03:58,479 Not enough classes to sample batches: have=5,required=20
+2020-12-07 13:12:36,139 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-07 13:12:37,368 Evaluating initial model...
+2020-12-07 13:18:48,400 R@1 : 4.054
+2020-12-07 13:18:48,409 R@2 : 6.892
+2020-12-07 13:18:48,417 R@4 : 21.757
+2020-12-07 13:18:48,426 R@8 : 50.811
+2020-12-07 13:25:40,149 Training for 200 epochs.
+2020-12-07 13:25:40,152 Not enough classes to sample batches: have=16,required=20
+2020-12-07 13:26:34,556 Probably too many positives, because of lacking classes in the current cluster. n_anchors=8, n_pos=7, n_neg= 8
+2020-12-07 13:26:34,563 Probably too many positives, because of lacking classes in the current cluster. n_anchors=15, n_pos=14, n_neg= 15
+2020-12-07 13:26:34,563 Probably too many positives, because of lacking classes in the current cluster. n_anchors=22, n_pos=21, n_neg= 22
+2020-12-07 13:26:34,563 Probably too many positives, because of lacking classes in the current cluster. n_anchors=29, n_pos=28, n_neg= 29
+2020-12-07 13:26:34,564 Probably too many positives, because of lacking classes in the current cluster. n_anchors=36, n_pos=39, n_neg= 36
+2020-12-07 13:26:34,564 Probably too many positives, because of lacking classes in the current cluster. n_anchors=44, n_pos=47, n_neg= 44
+2020-12-07 13:26:34,564 Probably too many positives, because of lacking classes in the current cluster. n_anchors=52, n_pos=55, n_neg= 52
+2020-12-07 13:26:34,564 Probably too many positives, because of lacking classes in the current cluster. n_anchors=60, n_pos=63, n_neg= 60
+2020-12-07 13:26:34,716 Probably too many positives, because of lacking classes in the current cluster. n_anchors=68, n_pos=71, n_neg= 68
+2020-12-07 13:26:34,716 Probably too many positives, because of lacking classes in the current cluster. n_anchors=76, n_pos=79, n_neg= 76
+2020-12-07 13:26:34,717 Probably too many positives, because of lacking classes in the current cluster. n_anchors=84, n_pos=87, n_neg= 84
+2020-12-07 13:26:34,717 Probably too many positives, because of lacking classes in the current cluster. n_anchors=92, n_pos=95, n_neg= 92
+2020-12-07 13:26:34,717 Probably too many positives, because of lacking classes in the current cluster. n_anchors=100, n_pos=95, n_neg= 100
+2020-12-07 13:26:34,723 Probably too many positives, because of lacking classes in the current cluster. n_anchors=103, n_pos=98, n_neg= 103
+2020-12-07 13:26:34,724 Probably too many positives, because of lacking classes in the current cluster. n_anchors=106, n_pos=101, n_neg= 106
+2020-12-07 13:26:35,016 Probably too many positives, because of lacking classes in the current cluster. n_anchors=109, n_pos=104, n_neg= 109
+2020-12-07 13:26:35,017 Probably too many positives, because of lacking classes in the current cluster. n_anchors=112, n_pos=111, n_neg= 112
+2020-12-07 13:26:35,018 Probably too many positives, because of lacking classes in the current cluster. n_anchors=119, n_pos=118, n_neg= 119
+2020-12-07 13:26:35,018 Probably too many positives, because of lacking classes in the current cluster. n_anchors=126, n_pos=125, n_neg= 126
+2020-12-07 13:26:35,018 Probably too many positives, because of lacking classes in the current cluster. n_anchors=133, n_pos=132, n_neg= 133
+2020-12-07 13:26:35,019 Probably too many positives, because of lacking classes in the current cluster. n_anchors=140, n_pos=143, n_neg= 140
+2020-12-07 13:26:35,019 Probably too many positives, because of lacking classes in the current cluster. n_anchors=148, n_pos=151, n_neg= 148
+2020-12-07 13:26:35,020 Probably too many positives, because of lacking classes in the current cluster. n_anchors=156, n_pos=159, n_neg= 156
+2020-12-07 13:26:35,020 Probably too many positives, because of lacking classes in the current cluster. n_anchors=164, n_pos=167, n_neg= 164
+2020-12-07 13:26:35,020 Probably too many positives, because of lacking classes in the current cluster. n_anchors=172, n_pos=167, n_neg= 172
+2020-12-07 13:26:35,020 Probably too many positives, because of lacking classes in the current cluster. n_anchors=175, n_pos=170, n_neg= 175
+2020-12-07 13:26:35,021 Probably too many positives, because of lacking classes in the current cluster. n_anchors=178, n_pos=173, n_neg= 178
+2020-12-07 13:26:35,021 Probably too many positives, because of lacking classes in the current cluster. n_anchors=181, n_pos=176, n_neg= 181
+2020-12-07 13:26:35,021 Probably too many positives, because of lacking classes in the current cluster. n_anchors=184, n_pos=183, n_neg= 184
+2020-12-07 13:26:35,021 Probably too many positives, because of lacking classes in the current cluster. n_anchors=191, n_pos=190, n_neg= 191
+2020-12-07 13:26:35,022 Probably too many positives, because of lacking classes in the current cluster. n_anchors=198, n_pos=197, n_neg= 198
+2020-12-07 13:26:35,022 Probably too many positives, because of lacking classes in the current cluster. n_anchors=205, n_pos=204, n_neg= 205
+2020-12-07 13:26:35,022 Probably too many positives, because of lacking classes in the current cluster. n_anchors=212, n_pos=211, n_neg= 212
+2020-12-07 13:26:35,022 Probably too many positives, because of lacking classes in the current cluster. n_anchors=219, n_pos=218, n_neg= 219
+2020-12-07 13:26:35,023 Probably too many positives, because of lacking classes in the current cluster. n_anchors=226, n_pos=225, n_neg= 226
+2020-12-07 13:26:35,023 Probably too many positives, because of lacking classes in the current cluster. n_anchors=233, n_pos=232, n_neg= 233
+2020-12-07 13:26:35,023 Probably too many positives, because of lacking classes in the current cluster. n_anchors=240, n_pos=239, n_neg= 240
+2020-12-07 13:26:35,023 Probably too many positives, because of lacking classes in the current cluster. n_anchors=247, n_pos=246, n_neg= 247
+2020-12-07 13:26:35,023 Probably too many positives, because of lacking classes in the current cluster. n_anchors=254, n_pos=253, n_neg= 254
+2020-12-07 13:26:35,024 Probably too many positives, because of lacking classes in the current cluster. n_anchors=261, n_pos=260, n_neg= 261
+2020-12-07 13:26:35,024 Probably too many positives, because of lacking classes in the current cluster. n_anchors=268, n_pos=271, n_neg= 268
+2020-12-07 13:26:35,723 Probably too many positives, because of lacking classes in the current cluster. n_anchors=276, n_pos=279, n_neg= 276
+2020-12-07 13:26:35,724 Probably too many positives, because of lacking classes in the current cluster. n_anchors=284, n_pos=287, n_neg= 284
+2020-12-07 13:26:35,724 Probably too many positives, because of lacking classes in the current cluster. n_anchors=292, n_pos=295, n_neg= 292
+2020-12-07 13:26:35,724 Probably too many positives, because of lacking classes in the current cluster. n_anchors=300, n_pos=303, n_neg= 300
+2020-12-07 13:26:35,725 Probably too many positives, because of lacking classes in the current cluster. n_anchors=308, n_pos=311, n_neg= 308
+2020-12-07 13:26:35,725 Probably too many positives, because of lacking classes in the current cluster. n_anchors=316, n_pos=319, n_neg= 316
+2020-12-07 13:26:35,725 Probably too many positives, because of lacking classes in the current cluster. n_anchors=324, n_pos=327, n_neg= 324
+2020-12-07 13:26:35,725 Probably too many positives, because of lacking classes in the current cluster. n_anchors=332, n_pos=331, n_neg= 332
+2020-12-07 13:26:35,726 Probably too many positives, because of lacking classes in the current cluster. n_anchors=339, n_pos=338, n_neg= 339
+2020-12-07 13:26:35,726 Probably too many positives, because of lacking classes in the current cluster. n_anchors=346, n_pos=345, n_neg= 346
+2020-12-07 13:26:35,726 Probably too many positives, because of lacking classes in the current cluster. n_anchors=353, n_pos=352, n_neg= 353
+2020-12-07 13:26:35,726 Probably too many positives, because of lacking classes in the current cluster. n_anchors=360, n_pos=359, n_neg= 360
+2020-12-07 13:26:35,727 Probably too many positives, because of lacking classes in the current cluster. n_anchors=367, n_pos=366, n_neg= 367
+2020-12-07 13:26:35,727 Probably too many positives, because of lacking classes in the current cluster. n_anchors=374, n_pos=373, n_neg= 374
+2020-12-07 13:26:35,727 Probably too many positives, because of lacking classes in the current cluster. n_anchors=381, n_pos=380, n_neg= 381
+2020-12-07 13:26:35,728 Probably too many positives, because of lacking classes in the current cluster. n_anchors=388, n_pos=383, n_neg= 388
+2020-12-07 13:26:35,728 Probably too many positives, because of lacking classes in the current cluster. n_anchors=391, n_pos=386, n_neg= 391
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=394, n_pos=389, n_neg= 394
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=397, n_pos=392, n_neg= 397
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=400, n_pos=403, n_neg= 400
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=408, n_pos=411, n_neg= 408
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=416, n_pos=419, n_neg= 416
+2020-12-07 13:26:35,729 Probably too many positives, because of lacking classes in the current cluster. n_anchors=424, n_pos=427, n_neg= 424
+2020-12-07 13:26:35,730 Probably too many positives, because of lacking classes in the current cluster. n_anchors=432, n_pos=435, n_neg= 432
+2020-12-07 13:26:35,730 Probably too many positives, because of lacking classes in the current cluster. n_anchors=440, n_pos=443, n_neg= 440
+2020-12-07 13:26:35,730 Probably too many positives, because of lacking classes in the current cluster. n_anchors=448, n_pos=451, n_neg= 448
+2020-12-07 13:26:35,731 Probably too many positives, because of lacking classes in the current cluster. n_anchors=456, n_pos=459, n_neg= 456
+2020-12-07 13:26:35,731 Probably too many positives, because of lacking classes in the current cluster. n_anchors=464, n_pos=467, n_neg= 464
+2020-12-07 13:26:35,731 Probably too many positives, because of lacking classes in the current cluster. n_anchors=472, n_pos=475, n_neg= 472
+2020-12-07 13:26:35,731 Probably too many positives, because of lacking classes in the current cluster. n_anchors=480, n_pos=483, n_neg= 480
+2020-12-07 13:26:35,732 Probably too many positives, because of lacking classes in the current cluster. n_anchors=488, n_pos=491, n_neg= 488
+2020-12-07 13:26:35,732 Probably too many positives, because of lacking classes in the current cluster. n_anchors=496, n_pos=495, n_neg= 496
+2020-12-07 13:26:35,732 Probably too many positives, because of lacking classes in the current cluster. n_anchors=503, n_pos=502, n_neg= 503
+2020-12-07 13:26:35,732 Probably too many positives, because of lacking classes in the current cluster. n_anchors=510, n_pos=509, n_neg= 510
+2020-12-07 13:26:35,732 Probably too many positives, because of lacking classes in the current cluster. n_anchors=517, n_pos=516, n_neg= 517
+2020-12-07 13:26:35,733 Probably too many positives, because of lacking classes in the current cluster. n_anchors=524, n_pos=527, n_neg= 524
+2020-12-07 13:26:35,733 Probably too many positives, because of lacking classes in the current cluster. n_anchors=532, n_pos=535, n_neg= 532
+2020-12-07 13:26:35,733 Probably too many positives, because of lacking classes in the current cluster. n_anchors=540, n_pos=543, n_neg= 540
+2020-12-07 13:26:35,733 Probably too many positives, because of lacking classes in the current cluster. n_anchors=548, n_pos=551, n_neg= 548
+2020-12-07 13:27:19,517 Not enough classes to sample batches: have=5,required=20
+2020-12-07 13:27:19,523 Not enough classes to sample batches: have=5,required=20
