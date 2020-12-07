@@ -1,30 +1,35 @@
 from .base import *
 import json
-import random
+from pathlib import Path
 
 
 class BigEarth(BaseDataset):
     def __init__(self, root, classes, transform=None):
         BaseDataset.__init__(self, root, classes, transform)
-        with open(root+"/label_indices.json", "r") as f:
-            label_indices = json.load(f)['original_labels']
 
-        all_patches = [name for name in os.listdir(root) if os.path.isdir(root + "/" + name)]
-        all_patches = all_patches[:500]
-        all_patches_half_len = len(all_patches) // 2
-        random.Random(5).shuffle(all_patches)
+        base_dir = Path(os.path.dirname(os.path.realpath(__file__)))
+        base_dir = str(base_dir.parent.parent.parent)
+
+        with open(base_dir + "/label_indicies/BigEarthNet/label_indices.json", "r") as f:
+            label_indices = json.load(f)['original_labels']
 
         # make a train/test split
         if (classes == "train") | (classes == "init"):
-            patches = all_patches[:all_patches_half_len]
+            with open(base_dir + "/data_splits/BigEarthNet/train.csv", "r") as f:
+                patches = f.readlines()
+            patches = [x.replace("\n", "") for x in patches]
         elif classes == "eval":
-            patches = all_patches[all_patches_half_len:]
+            with open(base_dir + "/data_splits/BigEarthNet/val.csv", "r") as f:
+                patches = f.readlines()
+            patches = [x.replace("\n", "") for x in patches]
         else:
             print('Unknown value for classes selected')
             raise Exception
 
         i = 0
         for patch_folder in patches:
+            if not os.path.isdir(root + "/" + patch_folder):
+                continue
             patch_folder_content = os.listdir(root + "/" + patch_folder)
             assert (len(patch_folder_content) == 13), "There are not 13 elements in the folder " + patch_folder
             patch_labels_name = [filename for filename in patch_folder_content if filename.endswith(".json")][0]
@@ -40,8 +45,10 @@ class BigEarth(BaseDataset):
                 i += 1
 
         if (classes == "train") | (classes == "init"):
+            print("Train", len(set(self.ys)))
             self.classes = range(0, len(set(self.ys)))
         elif classes == "eval":
+            print("Eval", len(set(self.ys)))
             self.classes = range(0, len(set(self.ys)))
 
     def nb_classes(self):
