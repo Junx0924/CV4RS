@@ -35,7 +35,7 @@ class ClassBalancedSampler(BatchSampler):
         self.count = 0
         is_not_enough_classes = len(self.C) < self.num_classes
         if is_not_enough_classes:
-            logging.warn(('Not enough classes to sample batches: have={},'
+            logging.warning(('Not enough classes to sample batches: have={},'
                          'required={}').format(len(self.C), self.num_classes))
         while self.count + self.batch_size < len(self.dataset):
             C = np.random.choice(
@@ -62,7 +62,7 @@ class ClassBalancedSampler(BatchSampler):
                     )
                 self.C_count[class_] += self.num_samples_per_class
                 if self.C_count[class_] + self.num_samples_per_class \
-                        > len( self.C_index[class_]):
+                        > len(self.C_index[class_]):
                     np.random.shuffle(self.C_index[class_])
                     self.C_count[class_] = 0
             yield indices

@@ -71,10 +71,10 @@ class Sampler(nn.Module):
         for i in range(len(d)):
             a_indices.extend([i] * num_neg)
             p_indices.extend(
-                np.atleast_1d(pos[i].nonzero().squeeze().cpu().numpy())
+                np.atleast_1d(torch.nonzero(pos[i]).squeeze().cpu().numpy())
             )
             n_indices.extend(
-                np.atleast_1d(neg[i].nonzero().squeeze().cpu().numpy())
+                np.atleast_1d(torch.nonzero(neg[i]).squeeze().cpu().numpy())
             )
 
             if len(a_indices) != len(p_indices) or len(a_indices) != len(n_indices):
