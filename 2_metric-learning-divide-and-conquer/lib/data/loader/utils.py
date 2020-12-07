@@ -6,7 +6,7 @@ import random
 
 import torch
 import numpy as np
-from ..set import VehicleID, InShop, SOProducts
+from ..set import VehicleID, InShop, SOProducts, BigEarth
 from ..set import transform
 from .sampler import ClassBalancedSampler
 
@@ -14,7 +14,8 @@ from .sampler import ClassBalancedSampler
 datasets = {
     'sop': SOProducts,
     'inshop': InShop,
-    'vid': VehicleID
+    'vid': VehicleID,
+    'bigearth': BigEarth
 }
 
 
@@ -51,7 +52,7 @@ def make(config, model, type, subset_indices = None, inshop_type = None):
             ds,
             # ignore batch_size, since batch_sampler enabled
             **{k: _c[k] for k in _c if k != 'batch_size'},
-            batch_size = -1,
+            batch_size = 1,# changed this from -1 to 1 due to ValueError in /Users/paulkaufmann/.pyenv/versions/3.7.9/lib/python3.7/site-packages/torch/utils/data/dataloader.py line 247
             batch_sampler = ClassBalancedSampler(
                 ds,
                 batch_size = config['dataloader']['batch_size'],
@@ -86,6 +87,9 @@ def merge(dls_non_iter):
 
     for j in range(nb_batches):
         for i in I:
+            print("j=", j)
+            print("i=", i)
+            print("dls[i] attributes: ", dls[i].__dict__.keys())
             b = next(dls[i], None)
             if b == None:
                 # initialize new dataloader in case no batches left

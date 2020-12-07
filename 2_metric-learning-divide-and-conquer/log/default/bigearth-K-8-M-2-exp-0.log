@@ -1,0 +1,551 @@
+2020-12-06 16:12:38,244 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-06 16:12:39,629 Evaluating initial model...
+2020-12-06 16:18:32,893 R@1 : 4.054
+2020-12-06 16:18:32,900 R@2 : 6.892
+2020-12-06 16:18:32,907 R@4 : 21.757
+2020-12-06 16:18:32,913 R@8 : 50.811
+2020-12-06 17:14:23,551 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-06 17:14:24,962 Evaluating initial model...
+2020-12-06 17:20:36,940 R@1 : 4.054
+2020-12-06 17:20:36,947 R@2 : 6.892
+2020-12-06 17:20:36,954 R@4 : 21.757
+2020-12-06 17:20:36,961 R@8 : 50.811
+2020-12-06 18:11:36,079 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-06 18:11:37,457 Evaluating initial model...
+2020-12-06 18:17:49,320 R@1 : 4.054
+2020-12-06 18:17:49,328 R@2 : 6.892
+2020-12-06 18:17:49,335 R@4 : 21.757
+2020-12-06 18:17:49,342 R@8 : 50.811
+2020-12-06 18:24:14,281 Training for 200 epochs.
+2020-12-06 18:24:14,283 Not enough classes to sample batches: have=16,required=20
+2020-12-06 18:59:43,491 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-06 18:59:44,878 Evaluating initial model...
+2020-12-06 19:05:13,223 R@1 : 4.054
+2020-12-06 19:05:13,230 R@2 : 6.892
+2020-12-06 19:05:13,237 R@4 : 21.757
+2020-12-06 19:05:13,244 R@8 : 50.811
+2020-12-06 19:11:21,232 Training for 200 epochs.
+2020-12-06 19:11:21,235 Not enough classes to sample batches: have=16,required=20
+2020-12-06 19:35:34,862 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 80,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "bigearth",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "bigearth-K-8-M-2-exp-0",
+        "path": "log/default"
+    },
+    "nb_clusters": 8,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 128,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-06 19:35:36,356 Evaluating initial model...
+2020-12-06 19:40:43,750 R@1 : 4.054
+2020-12-06 19:40:43,759 R@2 : 6.892
+2020-12-06 19:40:43,767 R@4 : 21.757
+2020-12-06 19:40:43,774 R@8 : 50.811
+2020-12-06 19:45:55,773 Training for 200 epochs.
+2020-12-06 19:45:55,777 Not enough classes to sample batches: have=16,required=20

@@ -76,8 +76,12 @@ def evaluate(model, dataloaders, logging, backend='faiss', config = None):
 
 
 def train_batch(model, criterion, opt, config, batch, dset, epoch):
-    X = batch[0].cuda(non_blocking=True) # images
-    T = batch[1].cuda(non_blocking=True) # class labels
+    if torch.cuda.is_available():
+        X = batch[0].cuda(non_blocking=True) # images
+        T = batch[1].cuda(non_blocking=True) # class labels
+    else:
+        X = batch[0]
+        T = batch[1]
     I = batch[2] # image ids
 
     opt.zero_grad()
@@ -103,11 +107,11 @@ def get_criterion(config):
         config['dataset'][ds_name]['classes']['train']
     )
     logging.debug('Create margin loss. #classes={}'.format(nb_classes))
-    criterion = [
-        lib.loss.MarginLoss(
-            nb_classes,
-        ).cuda() for i in range(config['nb_clusters'])
-    ]
+
+    if torch.cuda.is_available():
+        criterion = [lib.loss.MarginLoss(nb_classes,).cuda() for i in range(config['nb_clusters'])]
+    else:
+        criterion = [lib.loss.MarginLoss(nb_classes,) for i in range(config['nb_clusters'])]
     return criterion
 
 
@@ -172,7 +176,8 @@ def start(config):
         json_dumps(obj = config, indent=4, cls = JSONEncoder, sort_keys = True)
     )
 
-    torch.cuda.set_device(config['cuda_device'])
+    if torch.cuda.is_available():
+        torch.cuda.set_device(config['cuda_device'])
 
     if not os.path.isdir(config['log']['path']):
         os.mkdir(config['log']['path'])
@@ -186,7 +191,10 @@ def start(config):
 
     faiss_reserver.lock(config['backend'])
 
-    model = lib.model.make(config).cuda()
+    if torch.cuda.is_available():
+        model = lib.model.make(config).cuda()
+    else:
+        model = lib.model.make(config)
 
     start_epoch = 0
     best_epoch = -1
