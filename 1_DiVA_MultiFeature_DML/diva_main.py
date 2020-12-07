@@ -204,22 +204,22 @@ LOG = logger.LOGGER(opt, sub_loggers=sub_loggers, start_new=True, log_online=opt
 batchminer   = bmine.select(opt.batch_mining, opt) # batch miner method: distance
 criterion_dict = {}
 
-
+############# To learn Class-discriminative features: y_anchor = y_positive , y_anchor != y_negative
 if 'discriminative' in opt.diva_features:
-    criterion_dict['discriminative'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer)
+    criterion_dict['discriminative'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer) # margin loss, distance weighted sampler
 
 if len(opt.diva_decorrelations):
     criterion_dict['separation'],     to_optim  = criteria.select('adversarial_separation', opt, to_optim, None)
 if 'selfsimilarity' in opt.diva_features:
-    criterion_dict['selfsimilarity'], to_optim  = criteria.select(opt.diva_ssl, opt, to_optim, None)
+    criterion_dict['selfsimilarity'], to_optim  = criteria.select(opt.diva_ssl, opt, to_optim, None) # fast_momo, generate augument anchors 
 if 'invariantspread' in opt.diva_features:
     criterion_dict['invariantspread'], to_optim = criteria.select('invariantspread', opt, to_optim, batchminer)
 
 
-#############
+############# To learn Class-shared features: y_anchor = y_positive = y_negative
 if 'shared' in opt.diva_features:
     if opt.diva_sharing=='standard':
-        shared_batchminer        = bmine.select('shared_neg_distance', opt)
+        shared_batchminer        = bmine.select('shared_neg_distance', opt) 
         criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, shared_batchminer)
     elif opt.diva_sharing=='random':
         random_shared_batchminer = bmine.select('random_distance', opt)
@@ -230,7 +230,7 @@ if 'shared' in opt.diva_features:
     else:
         raise Exception('Sharing method {} not available!'.format(opt.diva_sharing))
 
-#############
+############# To learn Intra-class features: y_anchor != y_positive != y_negative
 if 'intra' in opt.diva_features:
     if opt.diva_intra=='random':
         intra_batchminer = bmine.select('intra_random', opt)
@@ -239,7 +239,7 @@ if 'intra' in opt.diva_features:
     criterion_dict['intra'], to_optim = criteria.select(opt.loss, opt, to_optim, intra_batchminer)
 
 
-#############
+#############  To learn Sample-specific features: 
 if 'dc' in opt.diva_features:
     criterion_dict['dc'], to_optim     = criteria.select('dc', opt, to_optim, batchminer)
 if 'imrot' in opt.diva_features:
@@ -250,6 +250,7 @@ for key in criterion_dict.keys():
 
 if 'selfsimilarity' in criterion_dict:
     criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dataloaders['training'], opt.device, opt_key='selfsimilarity')
+   
 if 'imrot' in criterion_dict:
     dataloaders['training'].dataset.predict_rotations = True
 
@@ -395,10 +396,9 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Evaluate -
     _ = model.eval()
-    if opt.dataset in ['cars196', 'cub200', 'online_products']:
+    if opt.dataset in ['BigEarthNet', 'BigEarthNet']:
         test_dataloaders = [dataloaders['testing']]
-    elif opt.dataset=='in-shop':
-        test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
+     
 
     eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device)
 
