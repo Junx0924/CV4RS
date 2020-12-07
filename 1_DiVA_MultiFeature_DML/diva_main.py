@@ -39,8 +39,7 @@ opt = parser.parse_args()
 
 
 """==================================================================================================="""
-if opt.dataset=='online_products':
-    opt.evaluation_metrics = ['e_recall@1', 'e_recall@10', 'e_recall@100', 'nmi', 'f1', 'mAP']
+opt.evaluation_metrics = ['e_recall@1', 'e_recall@10', 'e_recall@100', 'nmi', 'f1', 'mAP']
 
 if 'shared' in opt.diva_features and 'selfsimilarity' in opt.diva_features and len(opt.diva_features)==3:
     opt.diva_decorrelations = ['selfsimilarity-discriminative', 'shared-discriminative', 'shared-selfsimilarity']
