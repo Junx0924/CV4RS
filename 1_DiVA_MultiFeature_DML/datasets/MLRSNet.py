@@ -9,26 +9,34 @@ import json
 
 def split(image_dict,split_ratio):
     train_image_dict  = {} 
+    other_image_dict  = {} 
     keys = sorted(list(image_dict.keys()))
     values = np.unique(list(itertools.chain.from_iterable(image_dict.values())))
-    flag =  {ind:"nontrain" for ind in values}
+    flag =  {ind:"undefine" for ind in values}
 
     for key in keys:
         samples_ind = image_dict[key]
         random.shuffle(samples_ind)
         sample_num = len(samples_ind)
         train_image_dict[key] =[]
-        # check if there are some sample id already in train, add them to train dict
+        other_image_dict[key] =[]
+        # check if there are some sample id already in train/nontrain
         for ind in samples_ind:
-            if flag[ind] =="train":
+            if flag[ind] =="undefine":
                 if len(train_image_dict[key])< int(sample_num*split_ratio):
                     train_image_dict[key].append(ind)
-        # if the lenth of train is less than required, add new file into train
-        for ind in samples_ind:
-            if len(train_image_dict[key])< int(sample_num*split_ratio):
-                if flag[ind] =="nontrain":
-                    train_image_dict[key].append(ind)
                     flag[ind] ="train"
+                else:
+                    if len(other_image_dict[key])< (sample_num - int(sample_num*split_ratio)):
+                        other_image_dict[key].append(ind)
+                        flag[ind] ="nontrain"
+            elif flag[ind] =="train":
+                if len(train_image_dict[key])< int(sample_num*split_ratio):
+                    train_image_dict[key].append(ind)
+            else:
+                if len(other_image_dict[key])< (sample_num - int(sample_num*split_ratio)):
+                    other_image_dict[key].append(ind)
+            
     return train_image_dict,flag
 
 def read_csv(datapath,csv_filename):
