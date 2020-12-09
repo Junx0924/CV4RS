@@ -10,13 +10,6 @@ REQUIRES_OPTIM      = True
 ### MarginLoss with trainable class separation margin beta. Runs on Mini-batches as well.
 class Criterion(torch.nn.Module):
     def __init__(self, opt):
-        """
-        Args:
-            margin:             Triplet Margin.
-            nu:                 Regularisation Parameter for beta values if they are learned.
-            beta:               Class-Margin values.
-            n_classes:          Number of different classes during training.
-        """
         super().__init__()
         self.embed_dim  = opt.embed_dim
         self.proj_dim   = opt.diva_decorrnet_dim

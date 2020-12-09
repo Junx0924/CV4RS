@@ -10,7 +10,7 @@ class Criterion(torch.nn.Module):
     def __init__(self, opt):
         """
         Args:
-            margin: Triplet Margin.
+            margin: 
         """
         super(Criterion, self).__init__()
         self.par         = opt

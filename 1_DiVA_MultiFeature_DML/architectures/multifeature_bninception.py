@@ -5,9 +5,6 @@ import torch, torch.nn as nn
 import pretrainedmodels as ptm
 
 
-
-
-
 """============================================================="""
 class Network(torch.nn.Module):
     def __init__(self, opt):

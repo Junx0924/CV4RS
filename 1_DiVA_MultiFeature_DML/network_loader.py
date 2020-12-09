@@ -15,30 +15,23 @@ import evaluation    as eval
 
 #RERUN SPECIFIC RUNS!
 
-networks   = ['CUB_DiVA-IBN-512_V2_s2', 'CAR_DiVA-IBN-512_V2_s3', 'SOP_DiVA-IBN-512_V2_s4', 'CUB_DiVA-R50-512_V1_s1', 'CAR_DiVA-R50-512_V2_s0', 'SOP_DiVA-R50-512_V1_s0']
+networks   = ['BigEarthNet_DiVA-IBN-512_V2_s1', 'MLRSNet_DiVA-IBN-512_V2_s2', 'BigEarthNet_DiVA-R50-512_V1_s1', 'MLRSNet_DiVA-R50-512_V2_s0']
 for network in networks:
-    netfolder = 'Training_Results/ECCV2020/'
-    # netfolder = 'Training_Results/ECCV2020/CUB_DiVA/IBN/'
+    netfolder = 'Training_Results/'
     opt       = pkl.load(open(netfolder+network+'/hypa.pkl','rb'))
-    model     = archs.select('multifeature_resnet50' if 'resnet50' in opt.arch else 'multifeature_bninception', opt)
-    if 'bninception' in opt.arch and opt.dataset=='cub200':
+    model     = archs.select(opt.arch, opt)
+    if 'bninception' in opt.arch and opt.dataset=='MLRSNet':
         model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,1,1,1]]
-    elif 'bninception' in opt.arch and opt.dataset=='cars196':
+    elif 'bninception' in opt.arch and opt.dataset=='BigEarthNet':
         model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,2,2,2]]
-    elif 'bninception' in opt.arch and opt.dataset=='online_products':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-1-1-1-1_e_recall@1.pth.tar')['state_dict'])
-        weightslist     = [[1,1,1,1]]
-    elif 'resnet50' in opt.arch and opt.dataset=='cub200':
+    elif 'resnet50' in opt.arch and opt.dataset=='MLRSNet':
         model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,1,1,1]]
-    elif 'resnet50' in opt.arch and opt.dataset=='cars196':
+    elif 'resnet50' in opt.arch and opt.dataset=='BigEarthNet':
         model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,2,2,2]]
-    elif 'resnet50' in opt.arch and opt.dataset=='online_products':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-1-1-1-1_e_recall@1.pth.tar')['state_dict'])
-        weightslist     = [[1,1,1,1]]
     else:
         raise Exception('Setup not available!')
 
@@ -50,9 +43,9 @@ for network in networks:
 
     """==============================="""
     dataloaders     = {}
-    opt.source_path = '/home/karsten_dl/Dropbox/Projects/Datasets/'+opt.dataset
+    opt.source_path = '/media/jun/Intenso/Dataset/'+opt.dataset
     datasets        = dsets.select(opt.dataset, opt, opt.source_path)
-    device          = torch.device('cuda')
+    device          = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     dataloaders['evaluation'] = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
     dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
     dataloaders['testing']    = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)

@@ -8,10 +8,7 @@ REQUIRES_OPTIM      = True
 ### This implementation follows the pseudocode provided in the original paper.
 class Criterion(torch.nn.Module):
     def __init__(self, opt):
-        """
-        Args:
-            margin:             Triplet Margin.
-        """
+        
         super(Criterion, self).__init__()
         self.par = opt
 

@@ -8,10 +8,7 @@ REQUIRES_OPTIM      = False
 
 class Criterion(torch.nn.Module):
     def __init__(self, opt, batchminer):
-        """
-        Args:
-            margin:             Triplet Margin.
-        """
+        
         super(Criterion, self).__init__()
         self.batchminer = batchminer
 

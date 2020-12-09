@@ -126,7 +126,7 @@ class BaseDataset(Dataset):
             
 
         if self.include_aux_augmentations:
-            im_a = self.real_transform(input_image) if self.pars.realistic_main_augmentation else self.normal_transform(input_image)
+            im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
 
             if not self.predict_rotations:
                 im_b = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
@@ -149,7 +149,7 @@ class BaseDataset(Dataset):
 
             return (self.image_list[idx][-1], im_a, idx, im_b, imrot_class)
         else:
-            im_a = self.real_transform(input_image) if self.pars.realistic_main_augmentation else self.normal_transform(input_image)
+            im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
             if 'bninception' in self.pars.arch:
                 im_a = im_a[range(3)[::-1],:]
             return (self.image_list[idx][-1], im_a, idx)

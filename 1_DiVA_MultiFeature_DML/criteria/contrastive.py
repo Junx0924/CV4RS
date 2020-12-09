@@ -5,13 +5,10 @@ ALLOWED_MINING_OPS = ['random','semihard', 'distance', 'parametric', 'anticollap
 REQUIRES_BATCHMINER = True
 REQUIRES_OPTIM      = False
 
-### Standard Triplet Loss, finds triplets in Mini-batches.
+### Standard contrastive loss
 class Criterion(torch.nn.Module):
     def __init__(self, opt, batchminer):
-        """
-        Args:
-            margin:             Triplet Margin.
-        """
+        
         super(Criterion, self).__init__()
         self.pos_margin = opt.loss_contrastive_pos_margin
         self.neg_margin = opt.loss_contrastive_neg_margin

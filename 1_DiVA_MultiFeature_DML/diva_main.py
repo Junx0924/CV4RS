@@ -17,9 +17,6 @@ from tqdm import tqdm
 import parameters    as par
 import utilities.misc as misc
 
-
-
-
 """==================================================================================================="""
 ################### INPUT ARGUMENTS ###################
 parser = argparse.ArgumentParser()
@@ -33,10 +30,6 @@ parser = par.diva_parameters(parser)
 
 ##### Read in parameters
 opt = parser.parse_args()
-
-
-
-
 
 """==================================================================================================="""
 opt.evaluation_metrics = ['e_recall@1', 'e_recall@10', 'e_recall@100', 'nmi', 'f1', 'mAP_c']
@@ -94,8 +87,6 @@ if opt.log_online:
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
 
-
-
 """==================================================================================================="""
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
@@ -128,13 +119,11 @@ assert not opt.bs%opt.samples_per_class, 'Batchsize needs to fit number of sampl
 opt.pretrained = not opt.not_pretrained
 
 
-
 """==================================================================================================="""
 ################### GPU SETTINGS ###########################
 os.environ["CUDA_DEVICE_ORDER"]   ="PCI_BUS_ID"
 # if not opt.use_data_parallel:
 os.environ["CUDA_VISIBLE_DEVICES"]= str(opt.gpu[0])
-
 
 
 """==================================================================================================="""
@@ -143,14 +132,13 @@ torch.backends.cudnn.deterministic=True; np.random.seed(opt.seed); random.seed(o
 torch.manual_seed(opt.seed); torch.cuda.manual_seed(opt.seed); torch.cuda.manual_seed_all(opt.seed)
 
 
-
 """==================================================================================================="""
 ##################### NETWORK SETUP ##################
 #NOTE: Networks that can be used: 'bninception, resnet50, resnet101, alexnet...'
-#>>>>  see import pretrainedmodels; pretrainedmodels.model_names
-opt.device = torch.device('cuda')
-mfeat_net = 'multifeature_resnet50' if 'resnet' in opt.arch else 'multifeature_bninception'
-model      = archs.select(mfeat_net, opt)
+opt.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+#mfeat_net = 'multifeature_resnet50' if 'resnet' in opt.arch else 'multifeature_bninception'
+model      = archs.select(opt.arch, opt)
 opt.network_feature_dim = model.feature_dim
 
 print('{} Setup for {} with {} batchmining on {} complete with #weights: {}'.format(opt.loss.upper(), opt.arch.upper(), opt.batch_mining.upper(), opt.dataset.upper(), misc.gimme_params(model)))
@@ -164,7 +152,7 @@ else:
                          {'params':fc_params,'lr':opt.fc_lr,'weight_decay':opt.decay}]
 
 #####
-selfsim_model = archs.select(mfeat_net, opt)
+selfsim_model = archs.select(opt.arch, opt)
 selfsim_model.load_state_dict(model.state_dict())
 
 #####
@@ -191,7 +179,6 @@ opt.n_classes  = len(dataloaders['training'].dataset.avail_classes)
 
 
 
-
 """============================================================================"""
 #################### CREATE LOGGING FILES ###############
 sub_loggers = ['Train', 'Test', 'Model Grad']
@@ -203,56 +190,43 @@ LOG = logger.LOGGER(opt, sub_loggers=sub_loggers, start_new=True, log_online=opt
 batchminer   = bmine.select(opt.batch_mining, opt) # batch miner method: distance
 criterion_dict = {}
 
+############ To learn the decorrelations between features
+if len(opt.diva_decorrelations):
+    criterion_dict['separation'], to_optim  = criteria.select('adversarial_separation', opt, to_optim, None)  
+
+
 ############# To learn Class-discriminative features: y_anchor = y_positive , y_anchor != y_negative
 if 'discriminative' in opt.diva_features:
     criterion_dict['discriminative'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer) # margin loss, distance weighted sampler
 
-if len(opt.diva_decorrelations):
-    criterion_dict['separation'],     to_optim  = criteria.select('adversarial_separation', opt, to_optim, None)
-if 'selfsimilarity' in opt.diva_features:
-    criterion_dict['selfsimilarity'], to_optim  = criteria.select(opt.diva_ssl, opt, to_optim, None) # fast_momo, generate augument anchors 
-if 'invariantspread' in opt.diva_features:
-    criterion_dict['invariantspread'], to_optim = criteria.select('invariantspread', opt, to_optim, batchminer)
-
-
 ############# To learn Class-shared features: y_anchor = y_positive = y_negative
 if 'shared' in opt.diva_features:
-    if opt.diva_sharing=='standard':
-        shared_batchminer        = bmine.select('shared_neg_distance', opt) 
-        criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, shared_batchminer)
-    elif opt.diva_sharing=='random':
-        random_shared_batchminer = bmine.select('random_distance', opt)
-        criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, random_shared_batchminer)
-    elif opt.diva_sharing=='full':
-        full_shared_batchminer   = bmine.select('shared_full_distance', opt)
-        criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, full_shared_batchminer)
-    else:
-        raise Exception('Sharing method {} not available!'.format(opt.diva_sharing))
+    batchminer_shared        = bmine.select(opt.batch_mining_shared, opt) 
+    criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer_shared)
 
 ############# To learn Intra-class features: y_anchor != y_positive != y_negative
 if 'intra' in opt.diva_features:
-    if opt.diva_intra=='random':
-        intra_batchminer = bmine.select('intra_random', opt)
-    else:
-        raise Exception('Intra-Feature method {} not available!'.format(opt.diva_intra))
-    criterion_dict['intra'], to_optim = criteria.select(opt.loss, opt, to_optim, intra_batchminer)
-
+    batchminer_intra = bmine.select(opt.batch_mining_intra, opt)
+    criterion_dict['intra'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer_intra)
 
 #############  To learn Sample-specific features: 
+if 'selfsimilarity' in opt.diva_features:
+    criterion_dict['selfsimilarity'], to_optim  = criteria.select(opt.loss_ssl, opt, to_optim, None) # (Fast) Momentum Contrast Loss, generate augument anchors 
+
+###### others
+if 'invariantspread' in opt.diva_features:
+    criterion_dict['invariantspread'], to_optim = criteria.select('invariantspread', opt, to_optim, batchminer)
 if 'dc' in opt.diva_features:
     criterion_dict['dc'], to_optim     = criteria.select('dc', opt, to_optim, batchminer)
 if 'imrot' in opt.diva_features:
-    criterion_dict['imrot'], to_optim  = criteria.select('imrot', opt, to_optim, batchminer)
-
+    criterion_dict['imrot'], to_optim  = criteria.select('imrot', opt, to_optim, batchminer)    
+    
 for key in criterion_dict.keys():
     _ = criterion_dict[key].to(opt.device)
 
 if 'selfsimilarity' in criterion_dict:
     criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dataloaders['training'], opt.device, opt_key='selfsimilarity')
    
-if 'imrot' in criterion_dict:
-    dataloaders['training'].dataset.predict_rotations = True
-
 
 """============================================================================"""
 #################### OPTIM SETUP ####################

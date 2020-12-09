@@ -22,7 +22,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 """=================================================================================================================="""
 def evaluate(dataset, LOG, **kwargs):
-    if dataset in ['cars196', 'cub200', 'online_products']:
+    if dataset in ['BigEarthNet', 'MLRSNet']:
         ret = evaluate_one_dataset(LOG, **kwargs)
     else:
         raise Exception('No implementation for dataset {} available!')

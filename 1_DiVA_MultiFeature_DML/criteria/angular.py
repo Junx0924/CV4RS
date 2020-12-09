@@ -7,16 +7,9 @@ ALLOWED_MINING_OPS = ['npair']
 REQUIRES_BATCHMINER = True
 REQUIRES_OPTIM      = False
 
-### MarginLoss with trainable class separation margin beta. Runs on Mini-batches as well.
 class Criterion(torch.nn.Module):
     def __init__(self, opt, batchminer):
-        """
-        Args:
-            margin:             Triplet Margin.
-            nu:                 Regularisation Parameter for beta values if they are learned.
-            beta:               Class-Margin values.
-            n_classes:          Number of different classes during training.
-        """
+       
         super(Criterion, self).__init__()
 
         self.tan_angular_margin = np.tan(np.pi/180*opt.loss_angular_alpha)

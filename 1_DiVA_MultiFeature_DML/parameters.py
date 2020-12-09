@@ -20,8 +20,9 @@ def basic_training_parameters(parser):
 
     ##### Loss-specific Settings
     parser.add_argument('--use_sgd',         action='store_true',   help='Flag, Optimization method to use. If set true, use sgd, else use adam by default')
-    parser.add_argument('--loss',            default='margin',      type=str,   help='Training criteria: For supported methods, please check criteria/__init__.py')
-    parser.add_argument('--batch_mining',    default='distance',    type=str,   help='Batchminer for tuple-based losses: For supported methods, please check batch_mining/__init__.py')
+    parser.add_argument('--loss',            default='margin',      type=str,   help='Loss function for features like discriminative, shared and intra. For supported methods, please check criteria/__init__.py')
+    parser.add_argument('--loss_ssl',   default='fast_moco', type=str,   help='Loss function for self-similarity feature. For supported methods, please check criteria/__init__.py')
+    parser.add_argument('--batch_mining',    default='distance',    type=str,   help='Batchminer for tuple-based losses: For supported methods, please check batchminer/__init__.py')
     parser.add_argument('--extension',       default='none',        type=str,   help='Extension Method to standard metric learning losses')
 
     ##### Network-related Flags
@@ -55,25 +56,22 @@ def diva_parameters(parser):
     parser.add_argument('--diva_decorrelations',      default=['selfsimilarity-discriminative', 'shared-discriminative', 'intra-discriminative'], nargs='+', type=str, help= 'The decorrelations between features')
     parser.add_argument('--diva_rho_decorrelation',   default=[1500], nargs='+', type=float, help='Weights for adversarial Separation of embeddings.')
 
-    ### Adversarial Separation Loss
+    ### Adversarial Separation Loss for learning the decorrelation between features
     parser.add_argument('--diva_decorrnet_dim', default=512,     type=int, help='list, which indicates the size of the sub-embedding(e.g. [96, 160, 256,512]')
     parser.add_argument('--diva_decorrnet_lr',  default=0.00001, type=float, help='')
-
-    ### Invariant Spread Loss
-    parser.add_argument('--diva_instdiscr_temperature', default=0.1,   type=float, help='')
 
     ### Deep Clustering
     parser.add_argument('--diva_dc_update_f', default=2,    type=int, help='')
     parser.add_argument('--diva_dc_ncluster', default=300,  type=int, help='')
 
-    ### (Fast) Momentum Contrast Loss
-    parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='')
-    parser.add_argument('--diva_moco_temperature',   default=0.1, type=float, help='')
-    parser.add_argument('--diva_moco_n_key_batches', default=50,  type=int, help='')
+    ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
+    parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')
+    parser.add_argument('--diva_moco_temperature',   default=0.1, type=float, help='softmax temperature (default: 0.07)')
+    parser.add_argument('--diva_moco_n_key_batches', default=50,  type=int, help='mini-batch size (default: 256), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel')
     parser.add_argument('--diva_moco_lower_cutoff',  default=0.5,  type=float, help='')
     parser.add_argument('--diva_moco_upper_cutoff',  default=1.4,  type=float, help='')
 
-    parser.add_argument('--diva_moco_temp_lr',        default=0.0005,   type=float, help='')
+    parser.add_argument('--diva_moco_temp_lr',        default=0.0005,   type=float, help='initial learning rate')
     parser.add_argument('--diva_moco_trainable_temp', action='store_true', help='')
 
     ### Weights for each feature space training objective
