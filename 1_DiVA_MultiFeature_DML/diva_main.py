@@ -87,6 +87,8 @@ if opt.log_online:
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
 
+### set the dir to save downloaded pretrained model pth file
+os.environ['TORCH_HOME'] = '/home/jun/Documents/CV4RS/code/1_DiVA_MultiFeature_DML/architectures' 
 """==================================================================================================="""
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
@@ -137,7 +139,7 @@ torch.manual_seed(opt.seed); torch.cuda.manual_seed(opt.seed); torch.cuda.manual
 #NOTE: Networks that can be used: 'bninception, resnet50, resnet101, alexnet...'
 opt.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-#mfeat_net = 'multifeature_resnet50' if 'resnet' in opt.arch else 'multifeature_bninception'
+# arch: multifeature_resnet50' or  'multifeature_bninception'
 model      = archs.select(opt.arch, opt)
 opt.network_feature_dim = model.feature_dim
 

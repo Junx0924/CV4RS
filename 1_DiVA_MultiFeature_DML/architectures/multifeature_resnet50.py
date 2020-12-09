@@ -4,10 +4,6 @@ The network architectures and weights are adapted and used from the great https:
 import torch, torch.nn as nn
 import pretrainedmodels as ptm
 
-
-
-
-
 """============================================================="""
 class Network(torch.nn.Module):
     def __init__(self, opt):
