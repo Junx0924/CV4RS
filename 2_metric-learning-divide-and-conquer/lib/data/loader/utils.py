@@ -6,7 +6,7 @@ import random
 
 import torch
 import numpy as np
-from ..set import VehicleID, InShop, SOProducts, BigEarth
+from ..set import VehicleID, InShop, SOProducts, BigEarth, MLRSNet
 from ..set import transform
 from .sampler import ClassBalancedSampler
 
@@ -15,7 +15,8 @@ datasets = {
     'sop': SOProducts,
     'inshop': InShop,
     'vid': VehicleID,
-    'bigearth': BigEarth
+    'bigearth': BigEarth,
+    'mlrsnet': MLRSNet
 }
 
 
