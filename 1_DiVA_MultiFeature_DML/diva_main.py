@@ -201,12 +201,12 @@ if len(opt.diva_decorrelations):
 if 'discriminative' in opt.diva_features:
     criterion_dict['discriminative'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer) # margin loss, distance weighted sampler
 
-############# To learn Class-shared features: y_anchor = y_positive = y_negative
+############# To learn Class-shared features: y_anchor != y_positive != y_negative
 if 'shared' in opt.diva_features:
     batchminer_shared        = bmine.select(opt.batch_mining_shared, opt) 
     criterion_dict['shared'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer_shared)
 
-############# To learn Intra-class features: y_anchor != y_positive != y_negative
+############# To learn Intra-class features: y_anchor = y_positive = y_negative
 if 'intra' in opt.diva_features:
     batchminer_intra = bmine.select(opt.batch_mining_intra, opt)
     criterion_dict['intra'], to_optim = criteria.select(opt.loss, opt, to_optim, batchminer_intra)

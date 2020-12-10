@@ -14,6 +14,7 @@ class BatchMiner():
         class_dict       = {i:indices[labels==i] for i in unique_classes}
 
         sampled_triplets = []
+        # y_anchor = y_positive = y_negative
         for cls in np.random.choice(list(class_dict.keys()), len(labels), replace=True):
             a,p,n = np.random.choice(class_dict[cls], 3, replace=True)
             sampled_triplets.append((a,p,n))
