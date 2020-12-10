@@ -29,12 +29,13 @@ def read_csv(csv_filename,datapath,label_indices):
     return image_dict,conversion
 
 def Give(opt, datapath):
-    with open(os.getcwd()+'/datasets/BigEarthNet_split/label_indices.json', 'rb') as f:
+    run_dir = os.path.dirname(__file__)
+    with open(run_dir+'/BigEarthNet_split/label_indices.json', 'rb') as f:
         label_indices = json.load(f)
 
-    train_image_dict,train_conversion = read_csv(os.getcwd()+'/datasets/BigEarthNet_split/train.csv',datapath,label_indices)
-    test_image_dict,test_conversion = read_csv(os.getcwd()+'/datasets/BigEarthNet_split/test.csv',datapath,label_indices)
-    val_image_dict,val_conversion = read_csv(os.getcwd()+'/datasets/BigEarthNet_split/val.csv',datapath,label_indices)   
+    train_image_dict,train_conversion = read_csv(run_dir+'/BigEarthNet_split/train.csv',datapath,label_indices)
+    test_image_dict,test_conversion = read_csv(run_dir+'/BigEarthNet_split/test.csv',datapath,label_indices)
+    val_image_dict,val_conversion = read_csv(run_dir+'/BigEarthNet_split/val.csv',datapath,label_indices)   
 
     # Percentage with which the training dataset is split into training/validation.
     

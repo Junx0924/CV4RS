@@ -53,8 +53,9 @@ def read_csv(datapath,csv_filename):
     return file_image_dict
 
 def Give(opt, datapath):
+    run_dir = os.path.dirname(__file__)
     # check the split train/test/val existed or not
-    if not Path('./MLRSNet_split/train.csv').exists():
+    if not Path(run_dir+'/MLRSNet_split/train.csv').exists():
         category = {}
         category_path = datapath + '/Categories_names.xlsx'
         book = xlrd.open_workbook(category_path)
@@ -107,28 +108,28 @@ def Give(opt, datapath):
         val  = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="nontrain"]
         test   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_test.keys())) if flag_test[ind]=="nontrain"]
 
-        with open(os.getcwd()+'/datasets/MLRSNet_split/label_name.json', 'w+') as label_file:
+        with open(run_dir+'/MLRSNet_split/label_name.json', 'w+') as label_file:
             json.dump(label_names_dict, label_file,separators=(",", ":"),allow_nan=False,indent=4)
-        with open(os.getcwd()+'/datasets/MLRSNet_split/category.json', 'w+') as category_file:
+        with open(run_dir+'/MLRSNet_split/category.json', 'w+') as category_file:
             json.dump(category, category_file,separators=(",", ":"),allow_nan=False,indent=4)
-        with open(os.getcwd()+'/datasets/MLRSNet_split/train.csv', 'w', newline='') as file:
+        with open(run_dir+'/MLRSNet_split/train.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(train)
-        with open(os.getcwd()+'/datasets/MLRSNet_split/test.csv', 'w', newline='') as file:
+        with open(run_dir+'/MLRSNet_split/test.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(test)
-        with open(os.getcwd()+'/datasets/MLRSNet_split/val.csv', 'w', newline='') as file:
+        with open(run_dir+'/MLRSNet_split/val.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(val)
     
     # train/val/test split exists
-    with open(os.getcwd()+'/datasets/MLRSNet_split/category.json') as json_file:
+    with open(run_dir+'/MLRSNet_split/category.json') as json_file:
             category = json.load(json_file)
-    with open(os.getcwd()+'/datasets/MLRSNet_split/label_name.json') as json_file:
+    with open(run_dir+'//MLRSNet_split/label_name.json') as json_file:
         conversion= json.load(json_file)
-    train_image_dict = read_csv(datapath,os.getcwd()+'/datasets/MLRSNet_split/train.csv')
-    test_image_dict = read_csv(datapath,os.getcwd()+'/datasets/MLRSNet_split/test.csv')
-    val_image_dict = read_csv(datapath,os.getcwd()+'/datasets/MLRSNet_split/val.csv')
+    train_image_dict = read_csv(datapath,run_dir+'/MLRSNet_split/train.csv')
+    test_image_dict = read_csv(datapath,run_dir+'/MLRSNet_split/test.csv')
+    val_image_dict = read_csv(datapath,run_dir+'/MLRSNet_split/val.csv')
     
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)

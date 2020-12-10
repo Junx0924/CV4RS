@@ -88,7 +88,8 @@ if opt.log_online:
     wandb.config.update(opt)
 
 ### set the dir to save downloaded pretrained model pth file
-os.environ['TORCH_HOME'] = os.getcwd()+'/architectures' 
+cur_path= os.path.dirname(os.path.realpath(__file__))
+os.environ['TORCH_HOME'] = cur_path +'/architectures' 
 """==================================================================================================="""
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
