@@ -10,13 +10,14 @@ class BatchMiner():
 
     def __call__(self, batch, labels):
         if isinstance(labels, torch.Tensor): labels = labels.detach().cpu().numpy()
+
+        #y_anchor != y_positive != y_negative
         labels = labels[np.random.choice(len(labels), len(labels), replace=False)]
 
         bs = batch.shape[0]
         distances    = self.pdist(batch.detach()).clamp(min=self.lower_cutoff)
 
         positives, negatives = [],[]
-        labels_visited = []
         anchors = []
 
         for i in range(bs):
@@ -39,8 +40,9 @@ class BatchMiner():
             dists        = anchor_to_all_dists
             bs,dim       = len(dists),batch.shape[-1]
 
-            #negated log-distribution of distances of unit sphere in dimension <dim>
-            log_q_d_inv = ((2.0 - float(dim)) * torch.log(dists) - (float(dim-3) / 2) * torch.log(1.0 - 0.25 * (dists.pow(2))))
+            # negated log-distribution of distances of unit sphere in dimension <dim>
+            # torch.clamp(_,min=1e-8) for stability
+            log_q_d_inv = ((2.0 - float(dim)) * torch.log(dists) - (float(dim-3) / 2) * torch.log(torch.clamp(1.0 - 0.25*(dists*dists), min=1e-8)))
             log_q_d_inv[np.where(labels==anchor_label)[0]] = 0
 
             q_d_inv     = torch.exp(log_q_d_inv - torch.max(log_q_d_inv)) # - max(log) for stability
