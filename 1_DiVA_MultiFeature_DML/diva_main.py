@@ -88,7 +88,7 @@ if opt.log_online:
     wandb.config.update(opt)
 
 ### set the dir to save downloaded pretrained model pth file
-os.environ['TORCH_HOME'] = '/home/jun/Documents/CV4RS/code/1_DiVA_MultiFeature_DML/architectures' 
+os.environ['TORCH_HOME'] = os.getcwd()+'/architectures' 
 """==================================================================================================="""
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
