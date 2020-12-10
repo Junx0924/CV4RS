@@ -88,8 +88,10 @@ def Give(opt, datapath):
         label_names_dict= {i:x for i,x in enumerate(label_names)}  
 
         for key in category.keys():
-            labels = category[key]
-            label_ind = [str(np.where(label_names==item)[0][0]) for item in labels ]
+            labels = np.array(category[key])
+            # correct the wrong tag in category.xlsx
+            if "chapparral" in labels: labels[np.where(labels=="chapparral")]= "chaparral"
+            label_ind = [str(np.where(label_names==item)[0][0]) for item in labels]
             category[key] = label_ind
 
         image_list = np.array(image_list)
