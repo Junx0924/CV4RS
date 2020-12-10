@@ -45,6 +45,7 @@ class GradRev(torch.autograd.Function):
     """
     Implements an autograd class to flip gradients during backward pass.
     """
+    @staticmethod
     def forward(self, x):
         """
         Container which applies a simple identity function.
@@ -53,7 +54,7 @@ class GradRev(torch.autograd.Function):
             x: any torch tensor input.
         """
         return x.view_as(x)
-
+    @staticmethod
     def backward(self, grad_output):
         """
         Container to reverse gradient signal during backward pass.
@@ -71,4 +72,5 @@ def grad_reverse(x):
     Input:
         x: any torch tensor input.
     """
-    return GradRev()(x)
+    #return GradRev()(x)
+    return GradRev.apply(x)
