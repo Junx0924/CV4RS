@@ -13,4 +13,4 @@ module load nvidia/cuda/10.0
 
 python experiment.py --dataset=bigearth --nb-clusters=43 --backend=faiss-gpu
 
-python experiment.py --dataset=mlrsnet --nb-clusters=60 --backend=faiss-gpu
+python experiment.py --dataset=mlrsnet  --backend=faiss-gpu --nb-clusters=60
