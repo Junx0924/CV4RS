@@ -12,13 +12,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--nb-clusters', required = True, type = int)
     parser.add_argument('--dataset', dest = 'dataset_selected',
-        choices=['sop', 'inshop', 'vid', 'bigearth', 'mlrsnet'], required = True
+        choices=['sop', 'inshop', 'vid', 'bigearth', 'mlrsnet'], required = False
     )
     parser.add_argument('--nb-epochs', type = int, default=200)
     parser.add_argument('--finetune-epoch', type = int, default=190)
     parser.add_argument('--mod-epoch', type = int, default=2)
     parser.add_argument('--num-workers', default=4, type=int)
-    parser.add_argument('--sz-batch', type=int, default=80)
+    parser.add_argument('--sz-batch', type=int, default=128)
     parser.add_argument('--sz-embedding', default=128, type=int)
     parser.add_argument('--cuda-device', default = 0, type = int)
     parser.add_argument('--exp', default='0', type=str, help='experiment identifier')
