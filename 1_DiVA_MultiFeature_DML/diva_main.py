@@ -82,9 +82,9 @@ if opt.savename=='group_plus_seed':
 ### If wandb-logging is turned on, initialize the wandb-run here:
 if opt.log_online:
     import wandb
-    _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     os.environ['WANDB_API_KEY'] = opt.wandb_key
     os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
 
@@ -97,7 +97,7 @@ os.environ['TORCH_HOME'] = cur_path +'/architectures'
 import torch, torch.nn as nn
 import torch.multiprocessing
 # comment out for HPC
-#torch.multiprocessing.set_sharing_strategy('file_system')
+torch.multiprocessing.set_sharing_strategy('file_system')
 import architectures as archs
 import datasampler   as dsamplers
 import datasets      as datasets
@@ -173,8 +173,11 @@ _  = selfsim_model.to(opt.device)
 dataloaders = {}
 datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 
+if 'dc' in opt.diva_features:
+    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+
 dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 dataloaders['testing']          = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
@@ -373,15 +376,18 @@ for epoch in range(opt.n_epochs):
 
 
     """======================================="""
-    ### Evaluate -
+    ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
-    if opt.dataset in ['BigEarthNet', 'MLRSNet']:
-        test_dataloaders = [dataloaders['testing']]
-     
 
-    eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device)
+    print('\nComputing Testing Metrics...')
+    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['testing']],    model, opt, opt.evaltypes, opt.device, log_key='Test')
+    
+    print('\nComputing Validation Metrics...')
+    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, log_key='Val')
 
-
+    print('\nComputing Training Metrics...')
+    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
+    
     LOG.update(all=True)
 
 
@@ -390,6 +396,7 @@ for epoch in range(opt.n_epochs):
     if opt.scheduler != 'none':
         scheduler.step()
 
+    print('Total Epoch Runtime: {0:4.2f}s'.format(time.time()-epoch_start_time))
     print('\n-----\n')
 
 
