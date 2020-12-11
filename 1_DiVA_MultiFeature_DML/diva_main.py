@@ -84,10 +84,12 @@ if opt.log_online:
     import wandb
     _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     os.environ['WANDB_API_KEY'] = opt.wandb_key
+    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
 
 ### set the dir to save downloaded pretrained model pth file
+### for running on HPC
 cur_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = cur_path +'/architectures' 
 """==================================================================================================="""
