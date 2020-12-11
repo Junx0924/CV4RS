@@ -115,44 +115,30 @@ class MetricComputer():
         computed_metrics = {evaltype:{} for evaltype in evaltypes}
         extra_infos      = {evaltype:{} for evaltype in evaltypes}
 
-        ###
-        faiss.omp_set_num_threads(self.pars.kernels)
-        res = None
-        torch.cuda.empty_cache()
-        if opt.evaluate_on_gpu:
-            res = faiss.StandardGpuResources()
-        ###
 
-
+        ###
         for evaltype in evaltypes:
             features = np.vstack(feature_colls[evaltype]).astype('float32')
 
-            """============ Compute k-Means ==============="""
             if 'kmeans' in self.requires:
                 ### Set CPU Cluster index
-                cluster_idx = faiss.IndexFlatL2(features.shape[-1])
-                if res is not None: cluster_idx = faiss.index_cpu_to_gpu(res, 0, cluster_idx)
+                cpu_cluster_index = faiss.IndexFlatL2(features.shape[-1])
                 kmeans            = faiss.Clustering(features.shape[-1], n_classes)
                 kmeans.niter = 20
                 kmeans.min_points_per_centroid = 1
                 kmeans.max_points_per_centroid = 1000000000
                 ### Train Kmeans
-                kmeans.train(features, cluster_idx)
+                kmeans.train(features, cpu_cluster_index)
                 centroids = faiss.vector_float_to_array(kmeans.centroids).reshape(n_classes, features.shape[-1])
 
 
-            """============ Compute Cluster Labels ==============="""
             if 'kmeans_nearest' in self.requires:
                 faiss_search_index = faiss.IndexFlatL2(centroids.shape[-1])
-                if res is not None: faiss_search_index = faiss.index_cpu_to_gpu(res, 0, faiss_search_index)
                 faiss_search_index.add(centroids)
                 _, computed_cluster_labels = faiss_search_index.search(features, 1)
 
-
-            """============ Compute Nearest Neighbours ==============="""
             if 'nearest_features' in self.requires:
                 faiss_search_index  = faiss.IndexFlatL2(features.shape[-1])
-                if res is not None: faiss_search_index = faiss.index_cpu_to_gpu(res, 0, faiss_search_index)
                 faiss_search_index.add(features)
 
                 max_kval            = np.max([int(x.split('@')[-1]) for x in self.metric_names if 'recall' in x])

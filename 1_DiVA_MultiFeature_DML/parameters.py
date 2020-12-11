@@ -31,7 +31,6 @@ def basic_training_parameters(parser):
     parser.add_argument('--not_pretrained',   action='store_true', help='Flag. If set, no ImageNet pretraining is used to initialize the network.')
 
     ##### Evaluation Parameters
-    parser.add_argument('--evaluate_on_gpu',  action='store_true',   help='Flag. If set, all metrics, when possible, are computed on the GPU (requires Faiss-GPU).')
     parser.add_argument('--evaluation_metrics', nargs='+', default=['e_recall@1', 'e_recall@2', 'e_recall@4', 'nmi', 'f1', 'mAP_c'], type=str, help='Metrics to evaluate performance by.')
     parser.add_argument('--evaltypes',          nargs='+', default=['discriminative'], type=str, help='The network may produce multiple embeddings (ModuleDict). If the key is listed here, the entry will be evaluated on the evaluation metrics.\
                                                                                                        Note: One may use Combined_embed1_embed2_..._embedn-w1-w1-...-wn to compute evaluation metrics on weighted (normalized) combinations.')
