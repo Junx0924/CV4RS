@@ -4,7 +4,7 @@
     "save_model": true,
     "cuda_device": 0,
     "sz_embedding": 128,
-    "backend": "faiss",
+    "backend": "faiss-gpu",
     "nb_epochs": 200,
     "nb_clusters": 8,
     "finetune_epoch": 100,
@@ -61,7 +61,7 @@
         "drop_last": false,
         "shuffle": false,
         "pin_memory": true,
-        "batch_size": 80
+        "batch_size": 128
     },
     "opt": {
         "backbone": {
