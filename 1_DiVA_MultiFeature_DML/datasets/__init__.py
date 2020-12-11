@@ -1,23 +1,7 @@
-#import datasets.cub200
-#import datasets.cars196
-#import datasets.stanford_online_products
-#import datasets.inshop
 import datasets.BigEarthNet
 import datasets.MLRSNet
 
 def select(dataset, opt, data_path):
-    if 'cub200' in dataset:
-        return cub200.Give(opt, data_path)
-
-    if 'cars196' in dataset:
-        return cars196.Give(opt, data_path)
-
-    if 'online_products' in dataset:
-        return stanford_online_products.Give(opt, data_path)
-
-    if 'in-shop' in dataset:
-        return inshop.Give(opt, data_path)
-    
     if 'MLRSNet' in dataset:
         return MLRSNet.Give(opt, data_path)
 

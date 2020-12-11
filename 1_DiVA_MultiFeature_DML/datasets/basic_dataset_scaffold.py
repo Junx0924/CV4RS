@@ -75,7 +75,7 @@ class BaseDataset(Dataset):
                 counter += 1
 
         self.image_dict = temp_image_dict
-        self.image_list = [[(x[0],key) for x in self.image_dict[key]] for key in self.image_dict.keys()]
+        self.image_list = [[(x[0],int(key)) for x in self.image_dict[key]] for key in self.image_dict.keys()]
         self.image_list = [x for y in self.image_list for x in y]
 
         self.image_paths = self.image_list
@@ -89,10 +89,10 @@ class BaseDataset(Dataset):
         return img
     
     # for Geotiff images
-    def process_Geotiff(self, img):
+    def process_Geotiff(self, patch_name):
         tif_img = []
         for band_name in band_names:
-            img_path = img +'_' + band_name + '.tif'
+            img_path = self.pars.source_path +'/'+ patch_name + '/'+ patch_name+'_'+band_name+'.tif'
             band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
             raster_band = band_ds.GetRasterBand(1)
             band_data = np.array(raster_band.ReadAsArray()) 
@@ -119,7 +119,8 @@ class BaseDataset(Dataset):
         imrot_class = -1
         # for images like png,jpg etc
         if (("jpg" in self.image_list[idx][0]) or ("png" in self.image_list[idx][0]) ):
-            input_image = self.ensure_3dim(Image.open(self.image_list[idx][0]))
+            img_path = self.pars.source_path +'/' + self.image_list[idx][0]
+            input_image = self.ensure_3dim(Image.open(img_path))
         # for hyper-spectral images
         else:
             input_image = self.process_Geotiff(self.image_list[idx][0])
