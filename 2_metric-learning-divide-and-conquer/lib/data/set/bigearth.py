@@ -45,10 +45,10 @@ class BigEarth(BaseDataset):
                 i += 1
 
         if (classes == "train") | (classes == "init"):
-            print("Train", len(set(self.ys)))
+            # print("Train", len(set(self.ys)))
             self.classes = range(0, len(set(self.ys)))
         elif classes == "eval":
-            print("Eval", len(set(self.ys)))
+            # print("Eval", len(set(self.ys)))
             self.classes = range(0, len(set(self.ys)))
 
     def nb_classes(self):
