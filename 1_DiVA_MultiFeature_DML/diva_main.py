@@ -89,14 +89,14 @@ if opt.log_online:
     wandb.config.update(opt)
 
 ### set the dir to save downloaded pretrained model pth file
-### for running on HPC
+### for running on HPC: 
 cur_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = cur_path +'/architectures' 
 """==================================================================================================="""
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
 import torch.multiprocessing
-# for running on HPC: error executing torch_shm_manager
+# for running on HPC: torch_shm_manager:error while loading shared libraries: libcudart.so.10.1
 #torch.multiprocessing.set_sharing_strategy('file_system')
 import architectures as archs
 import datasampler   as dsamplers
