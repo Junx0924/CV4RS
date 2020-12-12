@@ -43,11 +43,9 @@ for network in networks:
 
     """==============================="""
     dataloaders     = {}
-    opt.source_path = '/media/jun/Intenso/Dataset/'+opt.dataset
+    opt.source_path = '/media/robin/Intenso/Dataset/'+opt.dataset
     datasets        = dsets.select(opt.dataset, opt, opt.source_path)
     device          = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    dataloaders['evaluation'] = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
     dataloaders['testing']    = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 
