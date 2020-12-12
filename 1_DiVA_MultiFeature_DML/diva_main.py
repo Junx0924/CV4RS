@@ -176,9 +176,9 @@ datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 if 'dc' in opt.diva_features:
     dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
-dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+#dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-dataloaders['testing']          = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+#dataloaders['testing']          = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
 datasets['training'].include_aux_augmentations = True
@@ -190,7 +190,7 @@ opt.n_classes  = len(dataloaders['training'].dataset.avail_classes)
 
 """============================================================================"""
 #################### CREATE LOGGING FILES ###############
-sub_loggers = ['Train', 'Test', 'Model Grad']
+sub_loggers = ['Train', 'Val', 'Model Grad']
 LOG = logger.LOGGER(opt, sub_loggers=sub_loggers, start_new=True, log_online=opt.log_online)
 
 
@@ -379,14 +379,14 @@ for epoch in range(opt.n_epochs):
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
 
-    print('\nComputing Testing Metrics...')
-    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['testing']],    model, opt, opt.evaltypes, opt.device, log_key='Test')
+    #print('\nComputing Testing Metrics...')
+    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['testing']],    model, opt, opt.evaltypes, opt.device, log_key='Test')
     
     print('\nComputing Validation Metrics...')
     eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, log_key='Val')
 
-    print('\nComputing Training Metrics...')
-    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
+    #print('\nComputing Training Metrics...')
+    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
     
     LOG.update(all=True)
 
