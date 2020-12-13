@@ -13,3 +13,4 @@
 1_DiVA_MultiFeature_DML/.vscode/launch.json
 1_DiVA_MultiFeature_DML/.vscode/launch.json
 1_DiVA_MultiFeature_DML/datasets/BigEarthNet_split/bak
+1_DiVA_MultiFeature_DML/architectures/hub/checkpoints/resnet50-19c8e357.pth

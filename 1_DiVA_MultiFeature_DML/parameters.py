@@ -3,7 +3,6 @@ import argparse, os
 
 #######################################
 def basic_training_parameters(parser):
-    parser.add_argument('--dataset',         default='MLRSNet',   type=str,   help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
 
     ### General Training Parameters
     parser.add_argument('--lr',                default=0.00001,  type=float, help='Learning Rate for network parameters.')
@@ -36,13 +35,15 @@ def basic_training_parameters(parser):
                                                                                                        Note: One may use Combined_embed1_embed2_..._embedn-w1-w1-...-wn to compute evaluation metrics on weighted (normalized) combinations.')
     parser.add_argument('--storage_metrics',    nargs='+', default=['e_recall@1'], type=str, help='Improvement in these metrics on the testset trigger checkpointing.')
     parser.add_argument('--realistic_augmentation', action='store_true', help='Flag, apply preprocessing/augmentation to use on the data, with color/brightness changes, flip')
-
-    ##### Setup Parameters
     parser.add_argument('--gpu',          default=[0], nargs='+', type=int,   help='Random seed for reproducibility.')
-    parser.add_argument('--savename',     default='group_plus_seed',   type=str,   help='Appendix to save folder name if any special information is to be included.')
+    return parser
+
+def setup_parameters(parser):
+    ##### Setup Parameters
+    parser.add_argument('--dataset',         default='MLRSNet',   type=str,   help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
     parser.add_argument('--source_path',  default="../Dataset",   type=str, help='Path to training data.')
     parser.add_argument('--save_path',    default="../Diva", type=str, help='Where to save everything.')
-
+    parser.add_argument('--savename',     default='group_plus_seed',   type=str,   help='Appendix to save folder name if any special information is to be included.')
     return parser
 
 

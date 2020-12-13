@@ -27,6 +27,7 @@ parser = par.batchmining_specific_parameters(parser)
 parser = par.loss_specific_parameters(parser)
 parser = par.wandb_parameters(parser)
 parser = par.diva_parameters(parser)
+parser = par.setup_parameters(parser)
 
 ##### Read in parameters
 opt = parser.parse_args()
@@ -270,7 +271,6 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Train one epoch
     start = time.time()
-    _ = model.train()
 
     loss_collect = {'train':[], 'separation':[]}
     data_iterator = tqdm(dataloaders['training'], desc='Epoch {} Training...'.format(epoch))
@@ -378,28 +378,18 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
-
-    #print('\nComputing Testing Metrics...')
-    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['testing']],    model, opt, opt.evaltypes, opt.device, log_key='Test')
     
     print('\nComputing Validation Metrics...')
     eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, log_key='Val')
-
-    #print('\nComputing Training Metrics...')
-    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
     
     LOG.update(all=True)
-
 
     """======================================="""
     ### Learning Rate Scheduling Step
     if opt.scheduler != 'none':
         scheduler.step()
 
-    print('Total Epoch Runtime: {0:4.2f}s'.format(time.time()-epoch_start_time))
     print('\n-----\n')
-
-
 
 
 """======================================================="""

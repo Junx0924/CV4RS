@@ -12,25 +12,43 @@ import criteria      as criteria
 import metrics       as metrics
 import batchminer    as bmine
 import evaluation    as eval
+import argparse
+from pathlib import Path
+################### INPUT ARGUMENTS ###################
+def setup_parameters(parser):
+    ##### Setup Parameters
+    parser.add_argument('--dataset',         default='MLRSNet',   type=str,   help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
+    parser.add_argument('--source_path',  default="../Dataset",   type=str, help='Path to test data.')
+    parser.add_argument('--save_path',    default="../Diva", type=str, help='Path to training result.')
+    return parser
+parser = argparse.ArgumentParser()
+parser = setup_parameters(parser)
+setup_opt =  parser.parse_args()
+
+### set the dir to save downloaded pretrained model pth file
+### for running on HPC: 
+cur_path= os.path.dirname(os.path.realpath(__file__))
+os.environ['TORCH_HOME'] = cur_path +'/architectures' 
 
 #RERUN SPECIFIC RUNS!
+train_result = setup_opt.save_path +'/'+ setup_opt.dataset
+networks = [i.name for i in Path(train_result).iterdir()]
 
-networks   = ['BigEarthNet_DiVA-IBN-512_V2_s1', 'MLRSNet_DiVA-IBN-512_V2_s2', 'BigEarthNet_DiVA-R50-512_V1_s1', 'MLRSNet_DiVA-R50-512_V2_s0']
 for network in networks:
-    netfolder = 'Training_Results/'
-    opt       = pkl.load(open(netfolder+network+'/hypa.pkl','rb'))
+    netfolder = train_result + '/' + network
+    opt       = pkl.load(open(netfolder +'/hypa.pkl','rb'))
     model     = archs.select(opt.arch, opt)
     if 'bninception' in opt.arch and opt.dataset=='MLRSNet':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
+        model.load_state_dict(torch.load(netfolder +'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,1,1,1]]
     elif 'bninception' in opt.arch and opt.dataset=='BigEarthNet':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
+        model.load_state_dict(torch.load(netfolder+ '/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,2,2,2]]
     elif 'resnet50' in opt.arch and opt.dataset=='MLRSNet':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
+        model.load_state_dict(torch.load(netfolder+ '/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-1-1-1_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,1,1,1]]
     elif 'resnet50' in opt.arch and opt.dataset=='BigEarthNet':
-        model.load_state_dict(torch.load(netfolder+network+'/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
+        model.load_state_dict(torch.load(netfolder+ '/checkpoint_Combined_discriminative_selfsimilarity_shared_intra-0.5-2-2-2_e_recall@1.pth.tar')['state_dict'])
         weightslist     = [[0.5,2,2,2]]
     else:
         raise Exception('Setup not available!')
@@ -43,7 +61,7 @@ for network in networks:
 
     """==============================="""
     dataloaders     = {}
-    opt.source_path = '/media/robin/Intenso/Dataset/'+opt.dataset
+    opt.source_path = setup_opt.source_path + '/'+ opt.dataset
     datasets        = dsets.select(opt.dataset, opt, opt.source_path)
     device          = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     dataloaders['testing']    = torch.utils.data.DataLoader(datasets['testing'],    num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
