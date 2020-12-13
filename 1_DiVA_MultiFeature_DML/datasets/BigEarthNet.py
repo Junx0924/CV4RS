@@ -11,6 +11,7 @@ import random
 import csv
 import os
 import threading
+import concurrent.futures
 
 class preprocss_data(threading.Thread):
     def __init__(self,datapath,patch_name,label_indices):
@@ -55,7 +56,7 @@ class preprocss_data(threading.Thread):
         with open(patch_json_path, 'rb') as f:
             patch_json = json.load(f)
         original_labels = patch_json['labels']
-        return new_patch_path,original_labels
+        return self.patch_name ,original_labels
 
 def Give(opt, datapath):
     json_dir = os.path.dirname(__file__) + '/BigEarthNet_split'
@@ -63,36 +64,26 @@ def Give(opt, datapath):
         print("start to preprocess BigEarthNet")
         with open(json_dir + '/label_indices.json', 'rb') as f:
             label_indices = json.load(f)
-        
         csv_list =['/train.csv','/val.csv','/test.csv']
         conversion ={}
         dict_list = []
-        threads =[]
         for i in range(len(csv_list)):
             with open(json_dir + csv_list[i]) as csv_file:
                 patch_names =[ row[:-1] for row in csv_file]
             results =[]
-            for patch_name in patch_names:
-                current = preprocss_data(datapath,patch_name,label_indices)
-                threads.append(current)
-                current.start()
-            for thread in threads:
-                thread.join()
-                results.append(thread.run())
-                if len(results)%5000==0:
-                    print(csv_list[i][1:]," process progess:",int(len(results)/len(patch_names)*100),"%")
             image_dict ={}
-            for (new_patch_path,original_labels) in results:
-                for label in original_labels:
-                    key = label_indices['original_labels'][label]
-                    conversion[key] = label
-                    if not key in image_dict.keys():
-                        image_dict[key] = []
-                    image_dict[key].append(new_patch_path)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=opt.kernels) as executor:
+                future_list= [executor.submit(preprocss_data, datapath,patch_name,label_indices) for patch_name in patch_names]
+                results = [future.result().run() for future in concurrent.futures.as_completed(future_list)]
+                for (patch_name,original_labels) in results:
+                    for label in original_labels:
+                        key = label_indices['original_labels'][label]
+                        conversion[key] = label
+                        if not key in image_dict.keys():
+                            image_dict[key] = []
+                        image_dict[key].append(patch_name)
             dict_list.append(image_dict)
-        
         dict_list.append(conversion)   
-
         # write the json file to disk
         json_files = ['/train.json','/val.json','/test.json','/label_name.json']
         for i in range(len(json_files)):
@@ -108,6 +99,10 @@ def Give(opt, datapath):
             test_image_dict= json.load(json_file)
         with open(json_dir +'/val.json') as json_file:
             val_image_dict= json.load(json_file)
+        for key in conversion.keys():
+            train_image_dict[key] = [datapath + '/' + patch_name for patch_name in train_image_dict[key]]
+            test_image_dict[key] = [datapath + '/' + patch_name for patch_name in test_image_dict[key]]
+            val_image_dict[key] = [datapath + '/' + patch_name for patch_name in val_image_dict[key]]
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
