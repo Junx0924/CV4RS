@@ -22,34 +22,35 @@ class preprocss_data(threading.Thread):
     def run(self):
         # preprocess tif files and save it to png file in datapath
         # Spectral band names to read related GeoTIFF files
-        band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-        tif_img = []
-        for band_name in band_names:
-            img_path = self.datapath +'/'+ self.patch_name + '/'+ self.patch_name+'_'+band_name+'.tif'
-            band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
-            raster_band = band_ds.GetRasterBand(1)
-            band_data = np.array(raster_band.ReadAsArray()) 
-            # interpolate the image to (256,256)
-            temp = resize(band_data,(256,256))
-            # normalize and scale
-            temp = scale(normalize(temp))
-            tif_img.append(temp)
-
-        # apply PCA
-        Data = np.transpose(np.array(tif_img), axes=[1, 2, 0])
-        [m, n, l] = np.shape(Data)
-        x = np.reshape(Data, (m*n, l))
-        # apply PCA reduce the channel to 3
-        pca = PCA(n_components=3, copy=True, whiten=False)
-        x = pca.fit_transform(x)
-        _, l = x.shape
-        x = np.reshape(x, (m, n, l)) # (256,256,3)
-        # convert np array to pil image
-        m,n = np.max(x),np.min(x)
-        x = (x - n)/(m- n)*255 # value between [0,255]
-        x = Image.fromarray(np.uint8(x))
         new_patch_path = self.datapath +'/'+ self.patch_name + '.png'
-        x.save(new_patch_path,"PNG")
+        if not Path(new_patch_path).exists():
+            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+            tif_img = []
+            for band_name in band_names:
+                img_path = self.datapath +'/'+ self.patch_name + '/'+ self.patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                # interpolate the image to (256,256)
+                temp = resize(band_data,(256,256))
+                # normalize and scale
+                temp = scale(normalize(temp))
+                tif_img.append(temp)
+
+            # apply PCA
+            Data = np.transpose(np.array(tif_img), axes=[1, 2, 0])
+            [m, n, l] = np.shape(Data)
+            x = np.reshape(Data, (m*n, l))
+            # apply PCA reduce the channel to 3
+            pca = PCA(n_components=3, copy=True, whiten=False)
+            x = pca.fit_transform(x)
+            _, l = x.shape
+            x = np.reshape(x, (m, n, l)) # (256,256,3)
+            # convert np array to pil image
+            m,n = np.max(x),np.min(x)
+            x = (x - n)/(m- n)*255 # value between [0,255]
+            x = Image.fromarray(np.uint8(x))
+            x.save(new_patch_path,"PNG")
 
         # get patch label
         patch_json_path = self.datapath +'/'+ self.patch_name  + '/' + self.patch_name +  '_labels_metadata.json'
