@@ -40,12 +40,12 @@ def split(image_dict,split_ratio):
             
     return train_image_dict,flag
 
-def read_csv(csv_filename):
+def read_csv(csv_filename,datapath):
     file_list, file_label =[],[]
     with open(csv_filename) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader: 
-            file_list.append(str(row[0]))
+            file_list.append(datapath + '/' + str(row[0]))
             file_label.append(row[1:])
     file_list = np.array(file_list)
     file_label = np.array(file_label,dtype=int)
@@ -55,16 +55,7 @@ def read_csv(csv_filename):
 def Give(opt, datapath):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
-    if Path(csv_dir +'/train.csv').exists():
-        with open(csv_dir +'/category.json') as json_file:
-                category = json.load(json_file)
-        with open(csv_dir +'/label_name.json') as json_file:
-            conversion= json.load(json_file)
-        train_image_dict = read_csv(csv_dir +'/train.csv')
-        test_image_dict = read_csv(csv_dir +'/test.csv')
-        val_image_dict = read_csv(csv_dir +'/val.csv')
-
-    else:
+    if not Path(csv_dir +'/train.csv').exists():
         category = {}
         category_path = datapath + '/Categories_names.xlsx'
         book = xlrd.open_workbook(category_path)
@@ -116,7 +107,7 @@ def Give(opt, datapath):
         train   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="train"]
         val  = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="nontrain"]
         test   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_test.keys())) if flag_test[ind]=="nontrain"]
-
+        
         with open(csv_dir +'/label_name.json', 'w+') as label_file:
             json.dump(label_names_dict, label_file,separators=(",", ":"),allow_nan=False,indent=4)
         with open(csv_dir +'/category.json', 'w+') as category_file:
@@ -130,8 +121,15 @@ def Give(opt, datapath):
         with open(csv_dir +'/val.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(val)
-    
-    
+    else:
+        with open(csv_dir +'/category.json') as json_file:
+            category = json.load(json_file)
+        with open(csv_dir +'/label_name.json') as json_file:
+            conversion= json.load(json_file)
+        train_image_dict = read_csv(csv_dir +'/train.csv',datapath)
+        test_image_dict = read_csv(csv_dir +'/test.csv',datapath)
+        val_image_dict = read_csv(csv_dir +'/val.csv',datapath)
+
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
 

@@ -1,15 +1,7 @@
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import numpy as np
-from PIL import Image
-from osgeo import gdal
-from skimage.transform import resize
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import scale, normalize
 
-# Spectral band names to read related GeoTIFF files
-band_names = ['B01', 'B02', 'B03', 'B04', 'B05',
-              'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
 
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
@@ -57,7 +49,7 @@ class BaseDataset(Dataset):
         self.real_transform = transforms.Compose(self.real_transform)
 
         #####
-        self.include_aux_augmentations = True #required by get selfsimilarity 
+        self.include_aux_augmentations = False #required by get selfsimilarity 
         self.predict_rotations         = None
 
 
@@ -88,43 +80,10 @@ class BaseDataset(Dataset):
             img = img.convert('RGB')
         return img
     
-    # for Geotiff images
-    def process_Geotiff(self, patch_name):
-        tif_img = []
-        for band_name in band_names:
-            img_path = self.pars.source_path +'/'+ patch_name + '/'+ patch_name+'_'+band_name+'.tif'
-            band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
-            raster_band = band_ds.GetRasterBand(1)
-            band_data = np.array(raster_band.ReadAsArray()) 
-            # interpolate the image to (256,256)
-            temp = resize(band_data,(256,256))
-            # normalize and scale
-            temp = scale(normalize(temp))
-            tif_img.append(temp)
-        Data = np.transpose(np.array(tif_img), axes=[1, 2, 0])
-        [m, n, l] = np.shape(Data)
-        # apply PCA reduce the channel to 3
-        x = np.reshape(Data, (m*n, l))
-        pca = PCA(n_components=3, copy=True, whiten=False)
-        x = pca.fit_transform(x)
-        _, l = x.shape
-        x = np.reshape(x, (m, n, l)) # (256,256,3)
-        # convert np array to pil image
-        m,n = np.max(x),np.min(x)
-        x = (x - n)/(m- n)*255 # value between [0,255]
-        x = Image.fromarray(np.uint8(x))
-        return x
 
     def __getitem__(self, idx):
+        input_image = self.ensure_3dim(Image.open(self.image_list[idx][0]))
         imrot_class = -1
-        # for images like png,jpg etc
-        if (("jpg" in self.image_list[idx][0]) or ("png" in self.image_list[idx][0]) ):
-            img_path = self.pars.source_path +'/' + self.image_list[idx][0]
-            input_image = self.ensure_3dim(Image.open(img_path))
-        # for hyper-spectral images
-        else:
-            input_image = self.process_Geotiff(self.image_list[idx][0])
-            
 
         if self.include_aux_augmentations:
             im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
@@ -141,7 +100,7 @@ class BaseDataset(Dataset):
                 imrot_class = idx%4
                 angle      = np.array([0,90,180,270])[imrot_class]
                 imrot_aug  = [ImRotTrafo(angle), transforms.Resize((256,256)), transforms.RandomCrop(size=self.crop_size),
-                            transforms.ToTensor(), self.f_norm]
+                              transforms.ToTensor(), self.f_norm]
                 imrot_aug  = transforms.Compose(imrot_aug)
                 im_b        = imrot_aug(input_image)
 
