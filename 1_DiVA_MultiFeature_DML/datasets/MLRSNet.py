@@ -63,6 +63,7 @@ def Give(opt, datapath):
         for i in range(2,sheet.nrows):
             category_name = sheet.cell_value(rowx=i, colx=1)
             temp_label_name = np.unique(np.array([sheet.cell_value(rowx=i, colx=j).strip() for j in range(2,sheet.ncols) if sheet.cell_value(rowx=i, colx=j)!=""]))
+            if "chapparral" in temp_label_name: temp_label_name[np.where(temp_label_name=="chapparral")]= "chaparral"
             category[category_name] = temp_label_name
 
         label_folder = datapath +'/labels/'
@@ -75,23 +76,23 @@ def Give(opt, datapath):
                 with open(label_folder + entry.name) as csv_file:
                     csv_reader = csv.reader(csv_file, delimiter=',')
                     label_names =next(csv_reader,None)[1:]
-                    sort_ind =  np.argsort(label_names)
                     if len(label_names)==60:
+                        sort_ind = np.argsort(label_names) 
                         for row in csv_reader: 
                             image_path = image_folder + entry.stem +'/'+row[0]
                             #image_list.append(image_path)
                             image_list.append('/Images/'+ entry.stem +'/'+row[0])
                             temp = np.array(row[1:])
                             image_labels.append(temp[sort_ind])
-                    
+                    else:
+                        print(entry.name)
+
         label_names = np.sort(label_names)
-        label_names_dict = {} # to record the label names
-        label_names_dict= {i:x for i,x in enumerate(label_names)}  
+        # to record the label names and its id
+        label_names_dict= {i:x for i,x in enumerate(label_names)} 
 
         for key in category.keys():
             labels = np.array(category[key])
-            # correct the wrong tag in category.xlsx
-            if "chapparral" in labels: labels[np.where(labels=="chapparral")]= "chaparral"
             label_ind = [str(np.where(label_names==item)[0][0]) for item in labels]
             category[key] = label_ind
 
@@ -121,15 +122,16 @@ def Give(opt, datapath):
         with open(csv_dir +'/val.csv', 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(val)
-    else:
-        with open(csv_dir +'/category.json') as json_file:
-            category = json.load(json_file)
-        with open(csv_dir +'/label_name.json') as json_file:
-            conversion= json.load(json_file)
-        train_image_dict = read_csv(csv_dir +'/train.csv',datapath)
-        test_image_dict = read_csv(csv_dir +'/test.csv',datapath)
-        val_image_dict = read_csv(csv_dir +'/val.csv',datapath)
+    
+    with open(csv_dir +'/category.json') as json_file:
+        category = json.load(json_file)
+    with open(csv_dir +'/label_name.json') as json_file:
+        conversion= json.load(json_file)
+    train_image_dict = read_csv(csv_dir +'/train.csv',datapath)
+    test_image_dict = read_csv(csv_dir +'/test.csv',datapath)
+    val_image_dict = read_csv(csv_dir +'/val.csv',datapath)
 
+    
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
 

@@ -91,19 +91,19 @@ def Give(opt, datapath):
             with open(json_dir + json_files[i], 'w') as json_file:
                 json.dump(dict_list[i], json_file,separators=(",", ":"),allow_nan=False,indent=4)
                 print("\ncreate ",json_dir + json_files[i])
-    else:
-        with open(json_dir +'/label_name.json') as json_file:
-            conversion= json.load(json_file)
-        with open(json_dir +'/train.json') as json_file:
-            train_image_dict= json.load(json_file)
-        with open(json_dir +'/test.json') as json_file:
-            test_image_dict= json.load(json_file)
-        with open(json_dir +'/val.json') as json_file:
-            val_image_dict= json.load(json_file)
-        for key in conversion.keys():
-            train_image_dict[key] = [datapath + '/' + patch_name for patch_name in train_image_dict[key]]
-            test_image_dict[key] = [datapath + '/' + patch_name for patch_name in test_image_dict[key]]
-            val_image_dict[key] = [datapath + '/' + patch_name for patch_name in val_image_dict[key]]
+    
+    with open(json_dir +'/label_name.json') as json_file:
+        conversion= json.load(json_file)
+    with open(json_dir +'/train.json') as json_file:
+        train_image_dict= json.load(json_file)
+    with open(json_dir +'/test.json') as json_file:
+        test_image_dict= json.load(json_file)
+    with open(json_dir +'/val.json') as json_file:
+        val_image_dict= json.load(json_file)
+    for key in conversion.keys():
+        train_image_dict[key] = [datapath + '/' + patch_name for patch_name in train_image_dict[key]]
+        test_image_dict[key] = [datapath + '/' + patch_name for patch_name in test_image_dict[key]]
+        val_image_dict[key] = [datapath + '/' + patch_name for patch_name in val_image_dict[key]]
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
