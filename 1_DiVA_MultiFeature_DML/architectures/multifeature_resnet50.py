@@ -4,6 +4,10 @@ The network architectures and weights are adapted and used from the great https:
 import torch, torch.nn as nn
 import pretrainedmodels as ptm
 
+
+
+
+
 """============================================================="""
 class Network(torch.nn.Module):
     def __init__(self, opt):
@@ -38,9 +42,9 @@ class Network(torch.nn.Module):
 
         out_dict = {}
         for key,linear_map in self.model.last_linear.items():
-            if not 'normalize' in self.pars.arch:
-                out_dict[key] = linear_map(x)
-            else:
-                out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
+            #if not 'normalize' in self.pars.arch:
+            #   out_dict[key] = linear_map(x)
+            #else:
+            out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
 
         return out_dict, x
