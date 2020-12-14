@@ -144,7 +144,7 @@ torch.manual_seed(opt.seed); torch.cuda.manual_seed(opt.seed); torch.cuda.manual
 #NOTE: Networks that can be used: 'bninception, resnet50, resnet101, alexnet...'
 opt.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# arch: multifeature_resnet50' or  'multifeature_bninception'
+# arch: multifeature_resnet50_normalize' or  'multifeature_bninception_normalize'
 model      = archs.select(opt.arch, opt)
 opt.network_feature_dim = model.feature_dim
 
@@ -158,13 +158,16 @@ else:
     to_optim          = [{'params':all_but_fc_params,'lr':opt.lr,'weight_decay':opt.decay},
                          {'params':fc_params,'lr':opt.fc_lr,'weight_decay':opt.decay}]
 
-#####
-selfsim_model = archs.select(opt.arch, opt)
-selfsim_model.load_state_dict(model.state_dict())
+_  = model.to(opt.device)
 
 #####
-_  = model.to(opt.device)
-_  = selfsim_model.to(opt.device)
+if 'selfsimilarity' in opt.diva_features:
+    selfsim_model = archs.select(opt.arch, opt)
+    selfsim_model.load_state_dict(model.state_dict())
+    _  = selfsim_model.to(opt.device)
+#####
+
+
 
 
 
@@ -175,13 +178,16 @@ dataloaders = {}
 datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 
 if 'dc' in opt.diva_features:
-    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
 
-dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
+dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
-datasets['training'].include_aux_augmentations = True
+
+if 'selfsimilarity' in opt.diva_features:
+    datasets['training'].include_aux_augmentations = True
+
 dataloaders['training'] = torch.utils.data.DataLoader(datasets['training'], num_workers=opt.kernels, batch_sampler=train_data_sampler)
 
 opt.n_classes  = len(dataloaders['training'].dataset.avail_classes)
@@ -200,7 +206,7 @@ batchminer   = bmine.select(opt.batch_mining, opt) # batch miner method: distanc
 criterion_dict = {}
 
 ############ To learn the decorrelations between features
-if len(opt.diva_decorrelations):
+if len(opt.diva_decorrelations)>0:
     criterion_dict['separation'], to_optim  = criteria.select('adversarial_separation', opt, to_optim, None)  
 
 
@@ -274,8 +280,11 @@ for epoch in range(opt.n_epochs):
     loss_collect = {'train':[], 'separation':[]}
     data_iterator = tqdm(dataloaders['training'], desc='Epoch {} Training...'.format(epoch))
 
-    for i, (class_labels, input, input_indices, aux_input, imrot_labels) in enumerate(data_iterator):
-
+    for i, item in enumerate(data_iterator):
+        if len(item)==5:
+            (class_labels, input, input_indices, aux_input, imrot_labels) = item
+        else:
+            class_labels, input, input_indices = item
         ###################
         if 'invariantspread' in criterion_dict:
             input = torch.cat([input[:len(input)//2,:], aux_input[:len(input)//2]], dim=0)

@@ -67,8 +67,8 @@ def diva_parameters(parser):
 
     ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
     parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')
-    parser.add_argument('--diva_moco_temperature',   default=0.1, type=float, help='softmax temperature (default: 0.07)')
-    parser.add_argument('--diva_moco_n_key_batches', default=50,  type=int, help='mini-batch size (default: 256), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel')
+    parser.add_argument('--diva_moco_temperature',   default=0.07, type=float, help='softmax temperature (default: 0.07)')
+    parser.add_argument('--diva_moco_n_key_batches', default=30,  type=int, help='mini-batch size (default: 256), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel')
     parser.add_argument('--diva_moco_lower_cutoff',  default=0.5,  type=float, help='')
     parser.add_argument('--diva_moco_upper_cutoff',  default=1.4,  type=float, help='')
 
