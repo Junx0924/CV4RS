@@ -20,9 +20,9 @@ class preprocss_data(threading.Thread):
         self.patch_name = patch_name
         self.label_indices = label_indices
     def run(self):
-        # preprocess tif files and save it to png file in datapath
+        # preprocess tif files and save it to npy file in datapath
         # Spectral band names to read related GeoTIFF files
-        new_patch_path = self.datapath +'/'+ self.patch_name + '.png'
+        new_patch_path = self.datapath +'/'+ self.patch_name + '.npy'
         if not Path(new_patch_path).exists():
             band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
             tif_img = []
@@ -36,22 +36,8 @@ class preprocss_data(threading.Thread):
                 # normalize and scale
                 temp = scale(normalize(temp))
                 tif_img.append(temp)
-
-            # apply PCA
-            Data = np.transpose(np.array(tif_img), axes=[1, 2, 0])
-            [m, n, l] = np.shape(Data)
-            x = np.reshape(Data, (m*n, l))
-            # apply PCA reduce the channel to 3
-            pca = PCA(n_components=3, copy=True, whiten=False)
-            x = pca.fit_transform(x)
-            _, l = x.shape
-            x = np.reshape(x, (m, n, l)) # (256,256,3)
-            # convert np array to pil image
-            m,n = np.max(x),np.min(x)
-            x = (x - n)/(m- n)*255 # value between [0,255]
-            x = Image.fromarray(np.uint8(x))
-            x.save(new_patch_path,"PNG")
-
+            with open(new_patch_path, 'wb') as f:
+                np.save(f,np.array(tif_img))
         # get patch label
         patch_json_path = self.datapath +'/'+ self.patch_name  + '/' + self.patch_name +  '_labels_metadata.json'
         with open(patch_json_path, 'rb') as f:
@@ -62,7 +48,7 @@ class preprocss_data(threading.Thread):
 def Give(opt, datapath):
     json_dir = os.path.dirname(__file__) + '/BigEarthNet_split'
     if not Path(json_dir + '/train.json').exists():
-        print("start to preprocess BigEarthNet")
+        print("Start to preprocess BigEarthNet")
         with open(json_dir + '/label_indices.json', 'rb') as f:
             label_indices = json.load(f)
         csv_list =['/train.csv','/val.csv','/test.csv']
@@ -101,9 +87,9 @@ def Give(opt, datapath):
     with open(json_dir +'/val.json') as json_file:
         val_image_dict= json.load(json_file)
     for key in conversion.keys():
-        train_image_dict[key] = [datapath + '/' + patch_name for patch_name in train_image_dict[key]]
-        test_image_dict[key] = [datapath + '/' + patch_name for patch_name in test_image_dict[key]]
-        val_image_dict[key] = [datapath + '/' + patch_name for patch_name in val_image_dict[key]]
+        train_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in train_image_dict[key]]
+        test_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in test_image_dict[key]]
+        val_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in val_image_dict[key]]
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
@@ -115,7 +101,8 @@ def Give(opt, datapath):
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
     test_dataset.conversion  = conversion
 
-    eval_dataset  = BaseDataset(train_image_dict, opt, is_validation=True)
+    eval_image_dict = {key:train_image_dict[key][:len(train_image_dict[key])//2] for key in train_image_dict.keys()}
+    eval_dataset  = BaseDataset(eval_image_dict, opt, is_validation=True)
     eval_dataset.conversion  = conversion
 
     # for deep cluster feature

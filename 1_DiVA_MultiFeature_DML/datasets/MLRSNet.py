@@ -141,7 +141,8 @@ def Give(opt, datapath):
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
     test_dataset.conversion  =  conversion
 
-    eval_dataset  = BaseDataset(train_image_dict, opt, is_validation=True)
+    eval_image_dict = {key:train_image_dict[key][:len(train_image_dict[key])//2] for key in train_image_dict.keys()}
+    eval_dataset  = BaseDataset(eval_image_dict, opt, is_validation=True)
     eval_dataset.conversion  = conversion
 
     eval_train_dataset  = BaseDataset(train_image_dict, opt, is_validation=False)

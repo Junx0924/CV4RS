@@ -1,8 +1,10 @@
 from torch.utils.data import Dataset
-import torchvision.transforms as transforms
+import torch
 from PIL import Image
 import numpy as np
-
+from pathlib import Path
+import hypia # for hypespetral image augmentation
+import random
 
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
@@ -17,42 +19,11 @@ class BaseDataset(Dataset):
         #####
         self.init_setup()
 
-        #####
-        if 'bninception' not in opt.arch:
-            # self.f_norm = normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
-            self.f_norm = normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
-        else:
-            # normalize = transforms.Normalize(mean=[0.502, 0.4588, 0.4078],std=[1., 1., 1.])
-            self.f_norm = normalize = transforms.Normalize(mean=[0.502, 0.4588, 0.4078],std=[0.0039, 0.0039, 0.0039])
-            # self.f_norm = normalize = transforms.Normalize(mean=[0.502, 0.4588, 0.4078],std=[0.0039, 0.0039, 0.0039])
-
-        transf_list = []
-
-        self.crop_size = crop_im_size = 224 if 'resnet' in opt.arch else 227
-
-
-        #############
-        self.normal_transform = []
-        if not self.is_validation:
-            self.normal_transform.extend([transforms.RandomResizedCrop(size=crop_im_size), transforms.RandomHorizontalFlip(0.5)])
-        else:
-            self.normal_transform.extend([transforms.Resize(256), transforms.CenterCrop(crop_im_size)])
-        self.normal_transform.extend([transforms.ToTensor(), normalize])
-        self.normal_transform = transforms.Compose(self.normal_transform)
-
-
-
-        #############
-        self.real_transform = []
-        self.real_transform.extend([transforms.RandomResizedCrop(size=crop_im_size), transforms.RandomGrayscale(p=0.2),
-                                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.4), transforms.RandomHorizontalFlip(0.5)])
-        self.real_transform.extend([transforms.ToTensor(), normalize])
-        self.real_transform = transforms.Compose(self.real_transform)
+        self.crop_size = 224 if 'resnet' in opt.arch else 227
 
         #####
         self.include_aux_augmentations = False #required by get selfsimilarity 
-        self.predict_rotations         = None
-
+        self.predict_rotations = True
 
     def init_setup(self):
         self.n_files       = np.sum([len(self.image_dict[key]) for key in self.image_dict.keys()])
@@ -75,45 +46,74 @@ class BaseDataset(Dataset):
 
         self.is_init = True
 
-   # for images like png, jpg etc
+     
+    def normal_transform(self,img):
+        [c, h, w] = np.shape(img) # c is the channel
+        img = hypia.functionals.resize(img, 256)
+        if self.is_validation:
+            # do centre crop
+            tl = [(256 -self.crop_size)//2,(256 -self.crop_size)//2]
+            img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
+        else:
+            # do random crop
+            tl = random.sample(range(256-self.crop_size),k = 2)
+            img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
+        # normalize
+        if 'bninception' not in self.pars.arch:
+            img = hypia.functionals.normalise(img,0.485,0.229)
+        else:
+            img = hypia.functionals.normalise(img,0.502,0.0039)
+        return torch.Tensor(img)
+    
+    def real_transform(self,img):
+        [c, h, w] = np.shape(img) # c is the channel
+        img = hypia.functionals.resize(img, 256)
+        # do random crop
+        tl = random.sample(range(256-self.crop_size),k = 2)
+        img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
+        # horizontal flip
+        img = hypia.functionals.hflip(img)
+        # normalize
+        if 'bninception' not in self.pars.arch:
+            img = hypia.functionals.normalise(img,0.485,0.229)
+        else:
+            img = hypia.functionals.normalise(img,0.502,0.0039)
+        return torch.Tensor(img)
+    
+    # for images like png, jpg etc
     def ensure_3dim(self, img):
         if len(img.size)==2:
             img = img.convert('RGB')
         return img
-    
 
     def __getitem__(self, idx):
-        input_image = self.ensure_3dim(Image.open(self.image_list[idx][0]))
+        img_path = self.image_list[idx][0]
+        img_label = self.image_list[idx][-1]
         imrot_class = -1
 
+        # hypespectral image (channels more than 3)
+        if Path(img_path).suffix == 'npy':
+            input_image = np.load(img_path)
+        else:
+            pic = self.ensure_3dim(Image.open(img_path))
+            input_image = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+        
+        [c,h,w] = np.shape(input_image)
         if self.include_aux_augmentations:
             im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
-
-            if not self.predict_rotations:
-                im_b = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
-            else:
-                class ImRotTrafo:
-                    def __init__(self, angle):
-                        self.angle = angle
-                    def __call__(self, x):
-                        return transforms.functional.rotate(x, self.angle)
-
+              
+            if self.predict_rotations:
                 imrot_class = idx%4
-                angle      = np.array([0,90,180,270])[imrot_class]
-                imrot_aug  = [ImRotTrafo(angle), transforms.Resize((256,256)), transforms.RandomCrop(size=self.crop_size),
-                              transforms.ToTensor(), self.f_norm]
-                imrot_aug  = transforms.Compose(imrot_aug)
-                im_b        = imrot_aug(input_image)
+                angle = np.array([0,90,180,270])[imrot_class]
+                im_b = hypia.functionals.rotate(input_image, angle,reshape=False)
+                im_b = self.normal_transform(im_b)
+            else:
+                im_b = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
 
-            if 'bninception' in self.pars.arch:
-                im_a, im_b = im_a[range(3)[::-1],:], im_b[range(3)[::-1],:]
-
-            return (self.image_list[idx][-1], im_a, idx, im_b, imrot_class)
+            return (img_label, im_a, idx, im_b, imrot_class)
         else:
             im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
-            if 'bninception' in self.pars.arch:
-                im_a = im_a[range(3)[::-1],:]
-            return (self.image_list[idx][-1], im_a, idx)
+            return (img_label, im_a, idx)
         
 
     def __len__(self):
