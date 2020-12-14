@@ -54,7 +54,7 @@ def diva_parameters(parser):
     parser.add_argument('--batch_mining_shared',      default='random_distance', type=str,       help='batchmining method for shared features, choose among [shared_neg_distance, random_distance, shared_full_distance]')
     parser.add_argument('--batch_mining_intra',       default='intra_random', type=str,          help='batchmining method for intra features, this version only support intra_random')
     parser.add_argument('--diva_features',            default=['discriminative'], nargs='+', type=str,   help='Type of features to learn, this version support: [discriminative, selfsimilarity, shared, intra]')
-    parser.add_argument('--diva_decorrelations',      default=['selfsimilarity-discriminative', 'shared-discriminative', 'intra-discriminative'], nargs='+', type=str, help= 'The decorrelations between features')
+    parser.add_argument('--diva_decorrelations',      default=[], nargs='+', type=str, help= 'The decorrelations between features')
     parser.add_argument('--diva_rho_decorrelation',   default=[1500], nargs='+', type=float, help='Weights for adversarial Separation of embeddings.')
 
     ### Adversarial Separation Loss for learning the decorrelation between features
