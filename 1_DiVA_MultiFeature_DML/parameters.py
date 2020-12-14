@@ -26,7 +26,7 @@ def basic_training_parameters(parser):
 
     ##### Network-related Flags
     parser.add_argument('--embed_dim',    default=128,         type=int,   help='Embedding dimensionality of the network. Note: dim=64, 128 or 512 is used in most papers., depending on the architecture.')
-    parser.add_argument('--arch',         default='multifeature_resnet50',  type=str,   help='This version support: multifeature_resnet50 or multifeature_bninception')
+    parser.add_argument('--arch',         default='multifeature_resnet50_normalize',  type=str, help='This version support: multifeature_resnet50_normalize or multifeature_bninception_normalize')
     parser.add_argument('--not_pretrained',   action='store_true', help='Flag. If set, no ImageNet pretraining is used to initialize the network.')
 
     ##### Evaluation Parameters

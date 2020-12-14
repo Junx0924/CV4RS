@@ -14,7 +14,7 @@ class Network(torch.nn.Module):
         super(Network, self).__init__()
 
         self.pars  = opt
-        self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
+        self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet' if not opt.not_pretrained else None)
 
         self.name = opt.arch
 
@@ -23,29 +23,19 @@ class Network(torch.nn.Module):
                 module.eval()
                 module.train = lambda _: None
 
-        self.feature_dim = self.model.last_linear.in_features
-        out_dict = nn.ModuleDict()
-        for mode in opt.diva_features:
-            out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
-
-        self.model.last_linear  = out_dict
+        self.model.last_linear = torch.nn.Linear(self.model.last_linear.in_features, opt.embed_dim)
 
         self.layer_blocks = nn.ModuleList([self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4])
-
 
     def forward(self, x):
         x = self.model.maxpool(self.model.relu(self.model.bn1(self.model.conv1(x))))
         for layerblock in self.layer_blocks:
             x = layerblock(x)
         x = self.model.avgpool(x)
-        x = x.view(x.size(0),-1)
+        enc_out = x = x.view(x.size(0),-1)
 
-        out_dict = {}
-        for key,linear_map in self.model.last_linear.items():
-             # for distance weighted minner, normalize the embedings is required
-            if 'normalize' in self.pars.arch:
-                out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
-            else:
-                out_dict[key] = linear_map(x)
+        x = self.model.last_linear(x)
 
-        return out_dict, x
+        if 'normalize' in self.pars.arch:
+            x = torch.nn.functional.normalize(x, dim=-1)
+        return x, enc_out

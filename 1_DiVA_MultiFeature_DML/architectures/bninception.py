@@ -16,30 +16,25 @@ class Network(torch.nn.Module):
         self.pars  = opt
         self.model = ptm.__dict__['bninception'](num_classes=1000, pretrained='imagenet')
         self.model.last_linear = torch.nn.Linear(self.model.last_linear.in_features, opt.embed_dim)
-        self.name = opt.arch
 
         if 'frozen' in opt.arch:
             for module in filter(lambda m: type(m) == nn.BatchNorm2d, self.model.modules()):
                 module.eval()
                 module.train = lambda _: None
 
-        self.feature_dim = self.model.last_linear.in_features
-        out_dict = nn.ModuleDict()
-        for mode in opt.diva_features:
-            out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
+        self.name = opt.arch
 
-        self.model.last_linear  = out_dict
+        self.pool_base = F.avg_pool2d
+        self.pool_aux  = F.max_pool2d if 'double' in opt.arch else None
+
 
     def forward(self, x):
         x = self.model.features(x)
-        x = nn.functional.avg_pool2d(x, kernel_size=x.shape[2])
-        x = x.view(x.size(0), -1)
-
-        out_dict = {}
-        for key,linear_map in self.model.last_linear.items():
-            # for distance weighted minner, normalize the embedings is required
-            if 'normalize' in self.pars.arch:
-                out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
-            else:
-                out_dict[key] = linear_map(x)
-        return out_dict, x
+        y = self.pool_base(x,kernel_size=x.shape[-1])
+        if self.pool_aux is not None:
+            y += self.pool_aux(x, kernel_size=x.shape[-1])
+        x = y
+        x = self.model.last_linear(x.view(len(x),-1))
+        if not 'normalize' in self.name:
+            return x
+        return torch.nn.functional.normalize(x, dim=-1)
