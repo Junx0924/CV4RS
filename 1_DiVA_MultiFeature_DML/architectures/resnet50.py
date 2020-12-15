@@ -14,8 +14,10 @@ class Network(torch.nn.Module):
         self.pars  = opt
         if self.pars.num_in_channels >3:
             self.model = multichannel_resnet(self.pars.num_in_channels)
+            self.feature_dim = self.model.feature_dim
         else:
             self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
+            self.feature_dim = self.model.last_linear.in_features
 
         self.name = opt.arch
 
@@ -24,7 +26,7 @@ class Network(torch.nn.Module):
                 module.eval()
                 module.train = lambda _: None
 
-        self.feature_dim = self.model.feature_dim
+        
         self.model.last_linear = torch.nn.Linear(self.feature_dim, opt.embed_dim)
 
         self.layer_blocks = nn.ModuleList([self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4])

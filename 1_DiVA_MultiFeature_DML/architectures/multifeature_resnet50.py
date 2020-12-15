@@ -12,9 +12,10 @@ class Network(torch.nn.Module):
         self.pars  = opt
         if self.pars.num_in_channels >3:
             self.model = multichannel_resnet(self.pars.num_in_channels)
+            self.feature_dim = self.model.feature_dim
         else:
             self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
-
+            self.feature_dim = self.model.last_linear.in_features
         self.name = opt.arch
 
         if 'frozen' in opt.arch:
@@ -22,7 +23,7 @@ class Network(torch.nn.Module):
                 module.eval()
                 module.train = lambda _: None
 
-        self.feature_dim = self.model.feature_dim
+        
         out_dict = nn.ModuleDict()
         for mode in opt.diva_features:
             out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
@@ -57,7 +58,7 @@ class multichannel_resnet(nn.Module):
         
         ##For reference: layers to use (in order):
         # conv1, bn1, relu, maxpool, layer1, layer2, layer3, layer4, avgpool, fc
-        
+        self.feature_dim = model.last_linear.in_features
         # This is the most important line of code here. This increases the number of in channels for our network
         self.conv1 = self.increase_channels(model.conv1, num_in_channels)
         
@@ -70,7 +71,6 @@ class multichannel_resnet(nn.Module):
         self.layer4 = model.layer4
         self.avgpool = model.avgpool
         self.fc = model.fc
-        self.feature_dim = model.last_linear.in_features
         
     def forward(self, x):
         x = self.conv1(x)
