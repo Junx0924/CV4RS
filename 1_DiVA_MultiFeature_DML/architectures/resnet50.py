@@ -24,7 +24,7 @@ class Network(torch.nn.Module):
                 module.eval()
                 module.train = lambda _: None
 
-        self.model.last_linear = torch.nn.Linear(self.model.last_linear.in_features, opt.embed_dim)
+        self.model.last_linear = torch.nn.Linear(self.model.feature_dim, opt.embed_dim)
 
         self.layer_blocks = nn.ModuleList([self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4])
 
@@ -44,9 +44,9 @@ class Network(torch.nn.Module):
 
 class multichannel_resnet(nn.Module):
     def __init__(self, num_in_channels=4):
-        super(multichannel_resnet,self).__init__()
+         super().__init__()
        
-        self.model =ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
+        model =ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
         
         ##For reference: layers to use (in order):
         # conv1, bn1, relu, maxpool, layer1, layer2, layer3, layer4, avgpool, fc
@@ -63,6 +63,7 @@ class multichannel_resnet(nn.Module):
         self.layer4 = model.layer4
         self.avgpool = model.avgpool
         self.fc = model.fc
+        self.feature_dim = model.last_linear.in_features
         
     def forward(self, x):
         x = self.conv1(x)
