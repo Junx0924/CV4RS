@@ -92,7 +92,7 @@ class BaseDataset(Dataset):
         imrot_class = -1
 
         # hypespectral image (channels more than 3)
-        if Path(img_path).suffix == 'npy':
+        if Path(img_path).suffix =='.npy':
             input_image = np.load(img_path)
         else:
             pic = self.ensure_3dim(Image.open(img_path))
