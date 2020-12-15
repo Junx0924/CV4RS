@@ -47,6 +47,7 @@ class preprocss_data(threading.Thread):
 
 def Give(opt, datapath):
     json_dir = os.path.dirname(__file__) + '/BigEarthNet_split'
+    json_files = ['/train.json','/val.json','/test.json','/label_name.json']
     if not Path(json_dir + '/train.json').exists():
         print("Start to preprocess BigEarthNet")
         with open(json_dir + '/label_indices.json', 'rb') as f:
@@ -72,24 +73,21 @@ def Give(opt, datapath):
             dict_list.append(image_dict)
         dict_list.append(conversion)   
         # write the json file to disk
-        json_files = ['/train.json','/val.json','/test.json','/label_name.json']
         for i in range(len(json_files)):
             with open(json_dir + json_files[i], 'w') as json_file:
                 json.dump(dict_list[i], json_file,separators=(",", ":"),allow_nan=False,indent=4)
                 print("\ncreate ",json_dir + json_files[i])
     
-    with open(json_dir +'/label_name.json') as json_file:
-        conversion= json.load(json_file)
-    with open(json_dir +'/train.json') as json_file:
-        train_image_dict= json.load(json_file)
-    with open(json_dir +'/test.json') as json_file:
-        test_image_dict= json.load(json_file)
-    with open(json_dir +'/val.json') as json_file:
-        val_image_dict= json.load(json_file)
+    data_list =[]
+    for i in range(len(json_files)):
+        with open(json_dir + json_files[i], 'r') as json_file:
+            data_list.append(json.load(json_file))
+    conversion= data_list[3]
     for key in conversion.keys():
-        train_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in train_image_dict[key]]
-        test_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in test_image_dict[key]]
-        val_image_dict[key] = [datapath + '/' + patch_name +'.npy' for patch_name in val_image_dict[key]]
+        for item in data_list[:-1]:
+            if key in item.keys():
+                item[key] = [datapath + '/' + patch_name +'.npy' for patch_name in item[key]]
+    train_image_dict,test_image_dict,val_image_dict =data_list[0],data_list[1],data_list[2]
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
@@ -101,8 +99,7 @@ def Give(opt, datapath):
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
     test_dataset.conversion  = conversion
 
-    eval_image_dict = {key:train_image_dict[key][:len(train_image_dict[key])//2] for key in train_image_dict.keys()}
-    eval_dataset  = BaseDataset(eval_image_dict, opt, is_validation=True)
+    eval_dataset  = BaseDataset(train_image_dict, opt, is_validation=True)
     eval_dataset.conversion  = conversion
 
     # for deep cluster feature
