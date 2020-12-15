@@ -24,7 +24,8 @@ class Network(torch.nn.Module):
                 module.eval()
                 module.train = lambda _: None
 
-        self.model.last_linear = torch.nn.Linear(self.model.feature_dim, opt.embed_dim)
+        self.feature_dim = self.model.feature_dim
+        self.model.last_linear = torch.nn.Linear(self.feature_dim, opt.embed_dim)
 
         self.layer_blocks = nn.ModuleList([self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4])
 
