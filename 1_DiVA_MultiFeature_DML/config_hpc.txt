@@ -43,4 +43,18 @@ OpenBLAS blas_thread_init: RLIMIT_NPROC 514120 current, 514120 max
 export OMP_NUM_THREADS=1
 export USE_SIMPLE_THREADED_LEVEL3=1
 
+# check the cuda version your pytorch support
+>>> import torch
+>>> torch.version.cuda
+'10.1'
+otherwise, it will have errors like: can't open shared object  libcudart.so.10.1 (if your cuda is 10.0)
+# force pip to install torch only for cuda 10.0
+pip install torch==1.4.0+cu100 -f https://download.pytorch.org/whl/torch_stable.html
 
+# copy training results from HPC to local
+user laptop>scp -r -o 'ProxyJump jun0924@sshgate.tu-berlin.de' jun0924@gateway.hpc.tu-berlin.de:~/Training_Results/MLRSNet/*  ./
+
+user laptop>scp -r -o 'ProxyJump jun0924@sshgate.tu-berlin.de' jun0924@gateway.hpc.tu-berlin.de:/scratch/CV4RS/Dataset/MLRSNet.tar  ./
+
+# copy local files to HPC
+user laptop>scp -r -o 'ProxyJump jun0924@sshgate.tu-berlin.de' <local_file> jun0924@gateway.hpc.tu-berlin.de:~

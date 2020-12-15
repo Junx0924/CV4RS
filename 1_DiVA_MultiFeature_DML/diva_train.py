@@ -97,8 +97,7 @@ os.environ['TORCH_HOME'] = cur_path +'/architectures'
 ### Load Remaining Libraries that neeed to be loaded after comet_ml
 import torch, torch.nn as nn
 import torch.multiprocessing
-# for running on HPC: torch_shm_manager:error while loading shared libraries: libcudart.so.10.1
-#torch.multiprocessing.set_sharing_strategy('file_system')
+import torch.multiprocessing.set_sharing_strategy('file_system')
 import architectures as archs
 import datasampler   as dsamplers
 import datasets      as datasets
