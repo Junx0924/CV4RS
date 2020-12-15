@@ -44,7 +44,7 @@ class Network(torch.nn.Module):
 
 class multichannel_resnet(nn.Module):
     def __init__(self, num_in_channels=4):
-         super().__init__()
+        super().__init__()
        
         model =ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
         
