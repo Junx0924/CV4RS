@@ -180,7 +180,7 @@ datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 if 'dc' in opt.diva_features:
     dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
 
-dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
+#dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
 dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
@@ -387,8 +387,8 @@ for epoch in range(opt.n_epochs):
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
     
-    print('\nComputing Train Metrics...')
-    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
+    #print('\nComputing Train Metrics...')
+    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
     
     print('\nComputing Validation Metrics...')
     eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
