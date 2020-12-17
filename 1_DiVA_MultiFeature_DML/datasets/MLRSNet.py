@@ -45,7 +45,7 @@ def read_csv(csv_filename,datapath):
     with open(csv_filename) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader: 
-            file_list.append(datapath + '/' + str(row[0]))
+            file_list.append(datapath + str(row[0]))
             file_label.append(row[1:])
     file_list = np.array(file_list)
     file_label = np.array(file_label,dtype=int)
