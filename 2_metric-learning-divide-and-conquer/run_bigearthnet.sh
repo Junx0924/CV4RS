@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH -o /home/users/p/paka0401/log.out
-#SBATCH -J divide_and_conquer_bigearth_and_mlrsnet
+#SBATCH -o /home/users/p/paka0401/bigearth_log.out
+#SBATCH -J divide_and_conquer_bigearth
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mem=15G
@@ -15,5 +15,3 @@ export USE_SIMPLE_THREADED_LEVEL3=1
 source divide_and_conquer_venv/bin/activate
 
 python experiment.py --dataset=bigearth --nb-clusters=43 --sz-embedding=128 --backend=faiss-gpu
-
-python experiment.py --dataset=mlrsnet --nb-clusters=60 --sz-embedding=4096 --backend=faiss-gpu
