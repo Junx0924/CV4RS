@@ -1,6 +1,7 @@
 import faiss, matplotlib.pyplot as plt, os, numpy as np, torch
 from PIL import Image
-
+import pathlib as Path
+from osgeo import gdal
 
 
 #######################
@@ -81,10 +82,27 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
     _, closest_feature_idxs = faiss_search_index.search(feature_matrix_all, n_closest+1)
 
     sample_paths = image_paths[closest_feature_idxs][sample_idxs]
-
+    
     f,axes = plt.subplots(n_image_samples, n_closest+1)
     for i,(ax,plot_path) in enumerate(zip(axes.reshape(-1), sample_paths.reshape(-1))):
-        ax.imshow(np.array(Image.open(plot_path)))
+        if Path(plot_path).suffix ==".png" or Path(plot_path).suffix ==".jpg":
+            img_data = Image.open(plot_path)
+        else:
+            # get RGB channels from the band data of BigEarthNet
+            tif_img =[]
+            patch_name = Path(plot_path).stem
+            for band_name in ['B02','B03','B04']:
+                img_path = plot_path.split(".")[0] +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = scale(normalize(band_data)) 
+                tif_img.append(band_data)
+            tif_img = np.array(tif_img)
+            tif_img =np.moveaxis(tif_img, 0, -1)
+            img_data = Image.fromarray(tif_img.astype('uint8'), 'RGB')
+
+        ax.imshow(np.array(img_data))
         ax.set_xticks([])
         ax.set_yticks([])
         if i%(n_closest+1):

@@ -1,6 +1,5 @@
 from datasets.basic_dataset_scaffold import BaseDataset
 from PIL import Image
-from osgeo import gdal
 from skimage.transform import resize
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import scale, normalize
@@ -22,28 +21,13 @@ class preprocss_data(threading.Thread):
     def run(self):
         # preprocess tif files and save it to npy file in datapath
         # Spectral band names to read related GeoTIFF files
-        new_patch_path = self.datapath +'/'+ self.patch_name + '.npy'
-        if not Path(new_patch_path).exists():
-            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-            tif_img = []
-            for band_name in band_names:
-                img_path = self.datapath +'/'+ self.patch_name + '/'+ self.patch_name+'_'+band_name+'.tif'
-                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
-                raster_band = band_ds.GetRasterBand(1)
-                band_data = np.array(raster_band.ReadAsArray()) 
-                # interpolate the image to (256,256)
-                temp = resize(band_data,(256,256))
-                # normalize and scale
-                temp = scale(normalize(temp))
-                tif_img.append(temp)
-            with open(new_patch_path, 'wb') as f:
-                np.save(f,np.array(tif_img))
-        # get patch label
         patch_json_path = self.datapath +'/'+ self.patch_name  + '/' + self.patch_name +  '_labels_metadata.json'
-        with open(patch_json_path, 'rb') as f:
-            patch_json = json.load(f)
-        original_labels = patch_json['labels']
-        return self.patch_name ,original_labels
+        if Path(patch_json_path).exists():
+        # get patch label
+            with open(patch_json_path, 'rb') as f:
+                patch_json = json.load(f)
+            original_labels = patch_json['labels']
+            return self.patch_name ,original_labels
 
 def Give(opt, datapath):
     json_dir = os.path.dirname(__file__) + '/BigEarthNet_split'

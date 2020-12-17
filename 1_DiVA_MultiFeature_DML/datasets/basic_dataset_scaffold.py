@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 import hypia # for hypespetral image augmentation
 import random
-
+from osgeo import gdal
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
 class BaseDataset(Dataset):
@@ -85,18 +85,35 @@ class BaseDataset(Dataset):
         if len(img.size)==2:
             img = img.convert('RGB')
         return img
+    
+    def read_tiff(self,img_path):
+        if not Path(img_path).exists():
+            patch_name = Path(img_path).stem
+            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+            tif_img = []
+            for band_name in band_names:
+                img_path = self.pars.datapath +'/'+ patch_name + '/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                # interpolate the image to (256,256)
+                temp = resize(band_data,(256,256))
+                tif_img.append(temp)
+            with open(img_path, 'wb') as f:
+                np.save(f,np.array(tif_img))
+        return np.load(img_path)
 
     def __getitem__(self, idx):
         img_path = self.image_list[idx][0]
         img_label = self.image_list[idx][-1]
         imrot_class = -1
 
-        # hypespectral image (channels more than 3)
-        if Path(img_path).suffix =='.npy':
-            input_image = np.load(img_path)
-        else:
+        if Path(img_path).suffix =='.png' or Path(img_path).suffix =='.jpg':
             pic = self.ensure_3dim(Image.open(img_path))
             input_image = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+        # hypespectral image (channels more than 3)
+        else:
+            input_image = self.read_tiff(img_path)
         
         [c,h,w] = np.shape(input_image)
         if self.include_aux_augmentations:
@@ -105,7 +122,7 @@ class BaseDataset(Dataset):
             if self.predict_rotations:
                 imrot_class = idx%4
                 angle = np.array([0,90,180,270])[imrot_class]
-                im_b = hypia.functionals.rotate(input_image, angle,reshape=False)
+                im_b = hypia.functionals.rotate(input_image, angle,reshape=True)
                 im_b = self.normal_transform(im_b)
             else:
                 im_b = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
