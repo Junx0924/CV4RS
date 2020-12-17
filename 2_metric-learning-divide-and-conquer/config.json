@@ -36,7 +36,7 @@
             }
         },
         "bigearth": {
-            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/BigEarthNet_temp",
+            "root": "/scratch/CV4RS/Dataset/BigEarthNet",
             "classes": {
                 "train": "train",
                 "init": "init",
@@ -44,7 +44,7 @@
             }
         },
         "mlrsnet": {
-            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet",
+            "root": "/scratch/CV4RS/Dataset/MLRSNet",
             "classes": {
                 "train": "train",
                 "init": "init",
