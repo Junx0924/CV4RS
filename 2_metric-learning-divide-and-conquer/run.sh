@@ -8,9 +8,12 @@
 #SBATCH --partition=gpu
 #SBATCH --mail-type=ALL --mail-user=paul.kaufmann12@gmail.com
 
-module load python/3.7.9
+module load python/3.7.1
 module load nvidia/cuda/10.0
+export OMP_NUM_THREADS=1
+export USE_SIMPLE_THREADED_LEVEL3=1
+source divide_and_conquer_venv/bin/activate
 
-python experiment.py --dataset=bigearth --nb-clusters=43 --backend=faiss-gpu
+python experiment.py --dataset=bigearth --nb-clusters=43 --sz-embedding=128 --backend=faiss-gpu
 
-python experiment.py --dataset=mlrsnet --nb-clusters=60 --backend=faiss-gpu
+python experiment.py --dataset=mlrsnet --nb-clusters=60 --sz-embedding=4096 --backend=faiss-gpu
