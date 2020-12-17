@@ -5,62 +5,24 @@ import torch, torch.nn as nn
 import pretrainedmodels as ptm
 
 """============================================================="""
-class Network(torch.nn.Module):
+class Network(nn.Module):
     def __init__(self, opt):
         super(Network, self).__init__()
-
         self.pars  = opt
-        if self.pars.num_in_channels >3:
-            self.model = multichannel_resnet(self.pars.num_in_channels)
-            self.feature_dim = self.model.feature_dim
-        else:
-            self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
-            self.feature_dim = self.model.last_linear.in_features
-        self.name = opt.arch
-
+        self.name  = opt.arch
+        model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
+        
         if 'frozen' in opt.arch:
-            for module in filter(lambda m: type(m) == nn.BatchNorm2d, self.model.modules()):
+            for module in filter(lambda m: type(m) == nn.BatchNorm2d, model.modules()):
                 module.eval()
                 module.train = lambda _: None
 
-        
-        out_dict = nn.ModuleDict()
-        for mode in opt.diva_features:
-            out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
-
-        self.model.last_linear  = out_dict
-
-        self.layer_blocks = nn.ModuleList([self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4])
-
-
-    def forward(self, x):
-        x = self.model.maxpool(self.model.relu(self.model.bn1(self.model.conv1(x))))
-        for layerblock in self.layer_blocks:
-            x = layerblock(x)
-        x = self.model.avgpool(x)
-        x = x.view(x.size(0),-1)
-
-        out_dict = {}
-        for key,linear_map in self.model.last_linear.items():
-             # for distance weighted minner, normalize the embedings is required
-            if 'normalize' in self.pars.arch:
-                out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
-            else:
-                out_dict[key] = linear_map(x)
-
-        return out_dict, x
-
-
-class multichannel_resnet(nn.Module):
-    def __init__(self, num_in_channels=4):
-        super().__init__()
-        model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
-        
-        ##For reference: layers to use (in order):
-        # conv1, bn1, relu, maxpool, layer1, layer2, layer3, layer4, avgpool, fc
         self.feature_dim = model.last_linear.in_features
         # This is the most important line of code here. This increases the number of in channels for our network
-        self.conv1 = self.increase_channels(model.conv1, num_in_channels)
+        if opt.num_in_channels>3:
+            self.conv1 = self.increase_channels(model.conv1, opt.num_in_channels)
+        else:
+            self.conv1 = model.conv1
         
         self.bn1 = model.bn1
         self.relu = model.relu
@@ -70,8 +32,13 @@ class multichannel_resnet(nn.Module):
         self.layer3 = model.layer3
         self.layer4 = model.layer4
         self.avgpool = model.avgpool
-        self.fc = model.fc
-        
+
+        # add new linear layer
+        out_dict = nn.ModuleDict()
+        for mode in opt.diva_features:
+            out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
+        self.last_linear  = out_dict
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -81,16 +48,20 @@ class multichannel_resnet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        x = self.fc()
         
-        return x
+        # for the new added linear layer
+        out_dict = {}
+        for key,linear_map in self.last_linear.items():
+             # for distance weighted minner, normalize the embedings is required
+            if 'normalize' in self.pars.arch:
+                out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
+            else:
+                out_dict[key] = linear_map(x)
+        return out_dict, x
         
     def increase_channels(self, m, num_channels=None, copy_weights=0):
-
-
         """
         takes as input a Conv2d layer and returns the a Conv2d layer with `num_channels` input channels
         and all the previous weights copied into the new layer.

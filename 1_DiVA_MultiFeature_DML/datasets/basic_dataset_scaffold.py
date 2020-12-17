@@ -19,11 +19,8 @@ class BaseDataset(Dataset):
         #####
         self.init_setup()
 
-        self.crop_size = 224 if 'resnet' in opt.arch else 227
-
         #####
         self.include_aux_augmentations = False #required by get selfsimilarity 
-        self.predict_rotations = True
 
     def init_setup(self):
         self.n_files       = np.sum([len(self.image_dict[key]) for key in self.image_dict.keys()])
@@ -48,16 +45,10 @@ class BaseDataset(Dataset):
 
      
     def normal_transform(self,img):
-        [c, h, w] = np.shape(img) # c is the channel
-        img = hypia.functionals.resize(img, 256)
-        if self.is_validation:
-            # do centre crop
-            tl = [(256 -self.crop_size)//2,(256 -self.crop_size)//2]
-            img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
-        else:
-            # do random crop
-            tl = random.sample(range(256-self.crop_size),k = 2)
-            img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
+        if self.pars.dataset =="MLRSNet":
+            img = hypia.functionals.resize(img,256)
+        if  self.pars.dataset =="BigEarthNet":
+            img = hypia.functionals.resize(img,120)
         # normalize
         if 'bninception' not in self.pars.arch:
             img = hypia.functionals.normalise(img,0.485,0.229)
@@ -65,20 +56,22 @@ class BaseDataset(Dataset):
             img = hypia.functionals.normalise(img,0.502,0.0039)
         return torch.Tensor(img)
     
-    def real_transform(self,img):
-        [c, h, w] = np.shape(img) # c is the channel
-        img = hypia.functionals.resize(img, 256)
-        # do random crop
-        tl = random.sample(range(256-self.crop_size),k = 2)
-        img = hypia.functionals.crop(img, tl,self.crop_size,self.crop_size)
-        # horizontal flip
-        img = hypia.functionals.hflip(img)
+    def real_transform(self,img,idx):
+        if self.pars.dataset =="MLRSNet":
+            img = hypia.functionals.resize(img,256)
+        if  self.pars.dataset =="BigEarthNet":
+            img = hypia.functionals.resize(img,120)
+        # apply rotation
+        imrot_class = idx%4
+        angle = np.array([0,90,180,270])[imrot_class]
+        im_b = hypia.functionals.rotate(img, angle,reshape=True)
+        im_b = self.normal_transform(im_b)
         # normalize
         if 'bninception' not in self.pars.arch:
-            img = hypia.functionals.normalise(img,0.485,0.229)
+            im_b = hypia.functionals.normalise(im_b,0.485,0.229)
         else:
-            img = hypia.functionals.normalise(img,0.502,0.0039)
-        return torch.Tensor(img)
+            im_b = hypia.functionals.normalise(im_b,0.502,0.0039)
+        return torch.Tensor(im_b),imrot_class
     
     # for images like png, jpg etc
     def ensure_3dim(self, img):
@@ -96,8 +89,8 @@ class BaseDataset(Dataset):
                 band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
                 raster_band = band_ds.GetRasterBand(1)
                 band_data = np.array(raster_band.ReadAsArray()) 
-                # interpolate the image to (256,256)
-                temp = resize(band_data,(256,256))
+                # interpolate the image to (120,120)
+                temp = resize(band_data,(120,120))
                 tif_img.append(temp)
             with open(img_path, 'wb') as f:
                 np.save(f,np.array(tif_img))
@@ -115,21 +108,12 @@ class BaseDataset(Dataset):
         else:
             input_image = self.read_tiff(img_path)
         
-        [c,h,w] = np.shape(input_image)
         if self.include_aux_augmentations:
-            im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
-              
-            if self.predict_rotations:
-                imrot_class = idx%4
-                angle = np.array([0,90,180,270])[imrot_class]
-                im_b = hypia.functionals.rotate(input_image, angle,reshape=True)
-                im_b = self.normal_transform(im_b)
-            else:
-                im_b = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
-
+            im_a = self.normal_transform(input_image)
+            im_b,imrot_class= self.real_transform(input_image,idx)
             return (img_label, im_a, idx, im_b, imrot_class)
         else:
-            im_a = self.real_transform(input_image) if self.pars.realistic_augmentation else self.normal_transform(input_image)
+            im_a = self.normal_transform(input_image)
             return (img_label, im_a, idx)
         
 

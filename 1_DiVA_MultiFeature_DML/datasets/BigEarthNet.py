@@ -12,14 +12,13 @@ import os
 import threading
 import concurrent.futures
 
-class preprocss_data(threading.Thread):
+class get_labels(threading.Thread):
     def __init__(self,datapath,patch_name,label_indices):
         threading.Thread.__init__(self)
         self.datapath = datapath
         self.patch_name = patch_name
         self.label_indices = label_indices
     def run(self):
-        # preprocess tif files and save it to npy file in datapath
         # Spectral band names to read related GeoTIFF files
         patch_json_path = self.datapath +'/'+ self.patch_name  + '/' + self.patch_name +  '_labels_metadata.json'
         if Path(patch_json_path).exists():
@@ -33,7 +32,7 @@ def Give(opt, datapath):
     json_dir = os.path.dirname(__file__) + '/BigEarthNet_split'
     json_files = ['/train.json','/val.json','/test.json','/label_name.json']
     if not Path(json_dir + '/train.json').exists():
-        print("Start to preprocess BigEarthNet")
+        print("Start to get labels for patches in BigEarthNet")
         with open(json_dir + '/label_indices.json', 'rb') as f:
             label_indices = json.load(f)
         csv_list =['/train.csv','/val.csv','/test.csv']
@@ -45,7 +44,7 @@ def Give(opt, datapath):
             results =[]
             image_dict ={}
             with concurrent.futures.ThreadPoolExecutor(max_workers=opt.kernels) as executor:
-                future_list= [executor.submit(preprocss_data, datapath,patch_name,label_indices) for patch_name in patch_names]
+                future_list= [executor.submit(get_labels, datapath,patch_name,label_indices) for patch_name in patch_names]
                 results = [future.result().run() for future in concurrent.futures.as_completed(future_list)]
                 for (patch_name,original_labels) in results:
                     for label in original_labels:
