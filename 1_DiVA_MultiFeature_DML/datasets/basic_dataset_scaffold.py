@@ -85,8 +85,8 @@ class BaseDataset(Dataset):
             band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
             tif_img = []
             for band_name in band_names:
-                img_path = self.pars.datapath +'/'+ patch_name + '/'+ patch_name+'_'+band_name+'.tif'
-                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                tif_path = img_path.split(".")[0]  + '/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
                 raster_band = band_ds.GetRasterBand(1)
                 band_data = np.array(raster_band.ReadAsArray()) 
                 # interpolate the image to (120,120)
