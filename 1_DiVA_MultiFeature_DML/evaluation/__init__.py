@@ -1,6 +1,5 @@
-import faiss, matplotlib.pyplot as plt, os, numpy as np, torch
-from PIL import Image
-import pathlib as Path
+import faiss, matplotlib.pyplot as plt, numpy as np, torch
+import PIL
 from osgeo import gdal
 from sklearn.preprocessing import scale, normalize
 #######################
@@ -85,22 +84,23 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
 
     temp_sample_paths = sample_paths.flatten()
     temp_axes = axes.flatten()
-    for i,(ax,plot_path) in enumerate(zip(temp_axes, temp_sample_paths)):
-        if Path(plot_path).suffix ==".png" or Path(plot_path).suffix ==".jpg":
-            img_data = np.array(Image.open(plot_path))
+    for i in range(len(temp_sample_paths)):
+        plot_path = temp_sample_paths[i]
+        ax = temp_axes[i]
+        if plot_path.split(".")[1] =="png" or plot_path.split(".")[1] =="jpg":
+            img_data = np.array(PIL.Image.open(plot_path))
         else:
             # get RGB channels from the band data of BigEarthNet
             tif_img =[]
-            patch_name = Path(plot_path).stem
-            for band_name in ['B02','B03','B04']:
+            patch_name = (plot_path.split(".")[0]).split("/")[-1]
+            for band_name in ['B04','B03','B02']:
                 img_path = plot_path.split(".")[0] +'/'+ patch_name+'_'+band_name+'.tif'
                 band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
                 raster_band = band_ds.GetRasterBand(1)
                 band_data = np.array(raster_band.ReadAsArray()) 
-                band_data = scale(normalize(band_data)) 
+                band_data = normalize(band_data,norm="max")*255
                 tif_img.append(band_data)
-            img_data =np.moveaxis(np.array(tif_img), 0, -1)
-            #img_data = Image.fromarray(tif_img.astype('uint8'), 'RGB')
+            img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
         ax.imshow(img_data)
         ax.set_xticks([])
         ax.set_yticks([])

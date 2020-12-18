@@ -81,21 +81,28 @@ class BaseDataset(Dataset):
         return img
     
     def read_tiff(self,img_path):
-        if not Path(img_path).exists():
-            patch_name = Path(img_path).stem
-            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-            tif_img = []
-            for band_name in band_names:
-                tif_path = img_path.split(".")[0]  + '/'+ patch_name+'_'+band_name+'.tif'
-                band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
-                raster_band = band_ds.GetRasterBand(1)
-                band_data = np.array(raster_band.ReadAsArray()) 
-                # interpolate the image to (120,120)
-                temp = resize(band_data,(120,120))
-                tif_img.append(temp)
+        if Path(img_path).exists():
+            with open(img_path, 'rb') as f:
+                img_data =np.load(f)
+            if len(img_data)>0:
+                return img_data
+        
+        patch_name = Path(img_path).stem
+        band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+        tif_img = []
+        for band_name in band_names:
+            tif_path = img_path.split(".")[0]  + '/'+ patch_name+'_'+band_name+'.tif'
+            band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
+            raster_band = band_ds.GetRasterBand(1)
+            band_data = np.array(raster_band.ReadAsArray()) 
+            # interpolate the image to (120,120)
+            temp = resize(band_data,(120,120))
+            tif_img.append(temp)
+        tif_img = np.array(tif_img)
+        if len(tif_img)==len(band_names):
             with open(img_path, 'wb') as f:
-                np.save(f,np.array(tif_img))
-        return np.load(img_path)
+                np.save(f,tif_img)
+            return tif_img
 
     def __getitem__(self, idx):
         img_path = self.image_list[idx][0]
