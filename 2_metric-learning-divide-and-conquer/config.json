@@ -9,7 +9,7 @@
     "nb_clusters": 8,
     "finetune_epoch": 100,
     "dataset_selected": "bigearth",
-    "pretrained_weights_file": "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/pretrained_weights/resnet50-19c8e357.pth",
+    "pretrained_weights_file": "pretrained_weights/resnet50-19c8e357.pth",
     "dataset": {
         "vid": {
             "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0",
