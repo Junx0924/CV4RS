@@ -1,6 +1,6 @@
 {
     "random_seed": 0,
-    "verbose": false,
+    "verbose": true,
     "save_model": true,
     "cuda_device": 0,
     "sz_embedding": 128,
