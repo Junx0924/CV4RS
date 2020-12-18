@@ -25,6 +25,7 @@ def load_config(config_name):
     with open(config_name, 'r') as f:
         config = json.load(f)
     # config = json.load(open(config_name))
+
     def eval_json(config):
         for k in config:
             if type(config[k]) != dict:

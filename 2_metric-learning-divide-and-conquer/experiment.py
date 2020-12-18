@@ -34,7 +34,10 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action = 'store_true')
     args = vars(parser.parse_args())
 
-    config = train.load_config(config_name = 'config.json')
+    pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/"
+    config = train.load_config(config_name = pj_base_path+'config.json')
+
+    config['pretrained_weights_file'] = pj_base_path + config['pretrained_weights_file']
 
     config['dataloader']['batch_size'] = args.pop('sz_batch')
     config['dataloader']['num_workers'] = args.pop('num_workers')
@@ -58,7 +61,7 @@ if __name__ == '__main__':
             config['recluster']['mod_epoch'],
             args['exp']
         ),
-        'path': 'log/{}'.format(args['dir'])
+        'path': pj_base_path + 'log/{}'.format(args['dir'])
     }
 
     # tkinter not installed on this system, use non-GUI backend
