@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -o /home/users/p/paka0401/mlrsnet_log.out
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/mlrsnet_log.out
 #SBATCH -J divide_and_conquer_mlrsnet
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla:1
