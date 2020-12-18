@@ -11,8 +11,16 @@ from torch.nn import Linear, Dropout, AvgPool2d, MaxPool2d
 from torch.nn.init import xavier_normal_
 
 
-def resnet50(pretrained = True):
-    model = torchvision.models.resnet50(pretrained = pretrained)
+def resnet50(config, pretrained = True):
+    # start edits
+    # this would load the model from the internet
+    # model = torchvision.models.resnet50(pretrained = pretrained)
+    # istead, load it from disk
+    model = torchvision.models.resnet50(pretrained=False)
+
+    state_dict = torch.load(config['pretrained_weights_file'])
+    model.load_state_dict(state_dict)
+    # end edits
 
     model.features = torch.nn.Sequential(
         model.conv1, model.bn1, model.relu, model.maxpool,
@@ -138,7 +146,7 @@ def embed_model(model, config, sz_embedding, normalize_output=True):
 
 
 def make(config):
-    model = resnet50(pretrained = True)
+    model = resnet50(config=config, pretrained = True)
     embed_model(
         model = model,
         config = config,
