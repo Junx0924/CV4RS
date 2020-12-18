@@ -1,12 +1,7 @@
 from datasets.basic_dataset_scaffold import BaseDataset
-from PIL import Image
-from skimage.transform import resize
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import scale, normalize
 import numpy as np
 from pathlib import Path
 import json
-import random
 import csv
 import os
 import threading

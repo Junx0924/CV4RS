@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import torch
 from PIL import Image
+from skimage.transform import resize
 import numpy as np
 from pathlib import Path
 import hypia # for hypespetral image augmentation

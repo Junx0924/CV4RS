@@ -2,8 +2,7 @@ import faiss, matplotlib.pyplot as plt, os, numpy as np, torch
 from PIL import Image
 import pathlib as Path
 from osgeo import gdal
-
-
+from sklearn.preprocessing import scale, normalize
 #######################
 def evaluate(dataset, LOG, metric_computer, dataloaders, model, opt, evaltypes, device,
              aux_store=None, make_recall_plot=False, store_checkpoints=True, log_key='Test'):
@@ -82,11 +81,13 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
     _, closest_feature_idxs = faiss_search_index.search(feature_matrix_all, n_closest+1)
 
     sample_paths = image_paths[closest_feature_idxs][sample_idxs]
-    
     f,axes = plt.subplots(n_image_samples, n_closest+1)
-    for i,(ax,plot_path) in enumerate(zip(axes.reshape(-1), sample_paths.reshape(-1))):
+
+    temp_sample_paths = sample_paths.flatten()
+    temp_axes = axes.flatten()
+    for i,(ax,plot_path) in enumerate(zip(temp_axes, temp_sample_paths)):
         if Path(plot_path).suffix ==".png" or Path(plot_path).suffix ==".jpg":
-            img_data = Image.open(plot_path)
+            img_data = np.array(Image.open(plot_path))
         else:
             # get RGB channels from the band data of BigEarthNet
             tif_img =[]
@@ -98,11 +99,9 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
                 band_data = np.array(raster_band.ReadAsArray()) 
                 band_data = scale(normalize(band_data)) 
                 tif_img.append(band_data)
-            tif_img = np.array(tif_img)
-            tif_img =np.moveaxis(tif_img, 0, -1)
-            img_data = Image.fromarray(tif_img.astype('uint8'), 'RGB')
-
-        ax.imshow(np.array(img_data))
+            img_data =np.moveaxis(np.array(tif_img), 0, -1)
+            #img_data = Image.fromarray(tif_img.astype('uint8'), 'RGB')
+        ax.imshow(img_data)
         ax.set_xticks([])
         ax.set_yticks([])
         if i%(n_closest+1):
