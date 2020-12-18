@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/bigearth_log.out
-#SBATCH -J divide_and_conquer_bigearth
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/bigearth_log.out
+#SBATCH -J D&C_bigearth
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mem=15G
