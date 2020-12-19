@@ -6,6 +6,8 @@ import csv
 import os
 import threading
 import concurrent.futures
+from skimage.transform import resize
+from osgeo import gdal
 
 class get_labels(threading.Thread):
     def __init__(self,datapath,patch_name,label_indices):
@@ -14,6 +16,21 @@ class get_labels(threading.Thread):
         self.patch_name = patch_name
         self.label_indices = label_indices
     def run(self):
+        img_path = self.datapath + '/' + self.patch_name +'.npy'
+        if not Path(img_path).exists():
+            patch_name = Path(img_path).stem
+            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+            tif_img = []
+            for band_name in band_names:
+                tif_path = img_path.split(".")[0]  + '/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                # interpolate the image to (120,120)
+                temp = resize(band_data,(120,120))
+                tif_img.append(temp)
+            tif_img = np.array(tif_img)
+            np.save(img_path,tif_img)
         # Spectral band names to read related GeoTIFF files
         patch_json_path = self.datapath +'/'+ self.patch_name  + '/' + self.patch_name +  '_labels_metadata.json'
         if Path(patch_json_path).exists():

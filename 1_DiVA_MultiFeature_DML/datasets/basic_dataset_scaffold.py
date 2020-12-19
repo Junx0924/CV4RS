@@ -1,12 +1,11 @@
 from torch.utils.data import Dataset
 import torch
 from PIL import Image
-from skimage.transform import resize
 import numpy as np
 from pathlib import Path
 import hypia # for hypespetral image augmentation
 import random
-from osgeo import gdal
+
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
 class BaseDataset(Dataset):
@@ -80,27 +79,7 @@ class BaseDataset(Dataset):
             img = img.convert('RGB')
         return img
     
-    def read_tiff(self,img_path):
-        if not Path(img_path).exists():
-            patch_name = Path(img_path).stem
-            band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-            tif_img = []
-            for band_name in band_names:
-                tif_path = img_path.split(".")[0]  + '/'+ patch_name+'_'+band_name+'.tif'
-                band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
-                raster_band = band_ds.GetRasterBand(1)
-                band_data = np.array(raster_band.ReadAsArray()) 
-                # interpolate the image to (120,120)
-                temp = resize(band_data,(120,120))
-                tif_img.append(temp)
-            tif_img = np.array(tif_img)
-            np.save(img_path,tif_img)
-            return tif_img
-        else:
-            tif_img = np.load(img_path,allow_pickle=True)
-            return tif_img
-            
-
+    
     def __getitem__(self, idx):
         img_path = self.image_list[idx][0]
         img_label = self.image_list[idx][-1]
@@ -111,7 +90,7 @@ class BaseDataset(Dataset):
             input_image = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
         # hypespectral image (channels more than 3)
         else:
-            input_image = self.read_tiff(img_path)
+            input_image = np.load(img_path)
         
         if self.include_aux_augmentations:
             im_a = self.normal_transform(input_image)
