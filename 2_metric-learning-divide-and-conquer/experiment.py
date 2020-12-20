@@ -4,6 +4,7 @@ import argparse
 import math
 import matplotlib
 import sys
+import os
 
 import train
 
@@ -63,6 +64,8 @@ if __name__ == '__main__':
         ),
         'path': pj_base_path + 'log/{}'.format(args['dir'])
     }
+
+    os.environ['TORCH_HOME'] = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/pretrained_weights"
 
     # tkinter not installed on this system, use non-GUI backend
     matplotlib.use('agg')
