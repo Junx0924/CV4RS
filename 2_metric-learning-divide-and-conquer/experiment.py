@@ -36,6 +36,7 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
 
     pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/"
+    # pj_base_path = "/Users/paulkaufmann/Documents/Dokumente/Office Dokumente/Uni Zeugs/Master/CV4RS PJ/Code/CV4RS/2_metric-learning-divide-and-conquer/"
     config = train.load_config(config_name = pj_base_path+'config.json')
 
     config['pretrained_weights_file'] = pj_base_path + config['pretrained_weights_file']

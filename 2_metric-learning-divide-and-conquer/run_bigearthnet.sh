@@ -1,12 +1,18 @@
 #!/bin/bash
 
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/bigearth_log.out
 #SBATCH -J D&C_bigearth
-#SBATCH --cpus-per-task=4
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/bigearth_log.out
+
+#SBATCH --ntasks=1
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-core=2
 #SBATCH --gres=gpu:tesla:1
+
 #SBATCH --mem=15G
 #SBATCH --partition=gpu
 #SBATCH --time=30:00:00
+
 #SBATCH --mail-type=ALL --mail-user=paul.kaufmann12@gmail.com
 
 export LD_LIBRARY_PATH=/home/users/p/paka0401/lib

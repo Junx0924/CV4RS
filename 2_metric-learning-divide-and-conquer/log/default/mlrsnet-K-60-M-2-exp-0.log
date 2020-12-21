@@ -1,0 +1,106 @@
+2020-12-21 10:44:48,113 {
+    "backend": "faiss",
+    "cuda_device": 0,
+    "dataloader": {
+        "batch_size": 128,
+        "drop_last": false,
+        "num_workers": 0,
+        "pin_memory": true,
+        "shuffle": false
+    },
+    "dataset": {
+        "bigearth": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/scratch/CV4RS/Dataset/BigEarthNet"
+        },
+        "inshop": {
+            "classes": {
+                "eval": "range(0, 3985)",
+                "init": "range(0, 3997)",
+                "train": "range(0, 3997)"
+            },
+            "root": "/export/home/vtschern/data/in-shop"
+        },
+        "mlrsnet": {
+            "classes": {
+                "eval": "eval",
+                "init": "init",
+                "train": "train"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/MLRSNet"
+        },
+        "sop": {
+            "classes": {
+                "eval": "range(11318, 22634)",
+                "init": "range(0, 11318)",
+                "train": "range(0, 11318)"
+            },
+            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products"
+        },
+        "vid": {
+            "classes": {
+                "_note": "small: 800, mid: +1600, large: +2400",
+                "eval": "range(13164, 15564)",
+                "init": "range(0, 13164)",
+                "train": "range(0, 13164)"
+            },
+            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0"
+        }
+    },
+    "dataset_selected": "mlrsnet",
+    "finetune_epoch": 190,
+    "log": {
+        "name": "mlrsnet-K-60-M-2-exp-0",
+        "path": "/Users/paulkaufmann/Documents/Dokumente/Office Dokumente/Uni Zeugs/Master/CV4RS PJ/Code/CV4RS/2_metric-learning-divide-and-conquer/log/default"
+    },
+    "nb_clusters": 60,
+    "nb_epochs": 200,
+    "opt": {
+        "backbone": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        },
+        "embedding": {
+            "lr": 1e-05,
+            "weight_decay": 0.0001
+        }
+    },
+    "pretrained_weights_file": "/Users/paulkaufmann/Documents/Dokumente/Office Dokumente/Uni Zeugs/Master/CV4RS PJ/Code/CV4RS/2_metric-learning-divide-and-conquer/pretrained_weights/resnet50-19c8e357.pth",
+    "random_seed": 0,
+    "recluster": {
+        "enabled": true,
+        "mod_epoch": 2
+    },
+    "save_model": true,
+    "sz_embedding": 4096,
+    "transform_parameters": {
+        "intensity_scale": [
+            [
+                0,
+                1
+            ],
+            [
+                0,
+                1
+            ]
+        ],
+        "mean": [
+            0.485,
+            0.456,
+            0.406
+        ],
+        "rgb_to_bgr": false,
+        "std": [
+            0.229,
+            0.224,
+            0.225
+        ],
+        "sz_crop": 224
+    },
+    "verbose": false
+}
+2020-12-21 11:04:27,079 Evaluating initial model...
