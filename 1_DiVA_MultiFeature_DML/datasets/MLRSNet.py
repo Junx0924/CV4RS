@@ -50,6 +50,11 @@ def read_csv(csv_filename,datapath):
     file_list = np.array(file_list)
     file_label = np.array(file_label,dtype=int)
     file_image_dict  = {i:file_list[np.where(file_label[:,i]==1)[0]] for i in range(file_label.shape[1])}
+    # randomly sample up 30% for quick running
+    for key in file_image_dict.keys():
+        temp = list(file_image_dict[key])
+        k = int(len(temp)*0.3)
+        file_image_dict[key]= np.array(random.sample(temp,k))
     return file_image_dict
 
 def Give(opt, datapath):

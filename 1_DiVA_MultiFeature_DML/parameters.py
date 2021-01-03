@@ -107,7 +107,7 @@ def loss_specific_parameters(parser):
     ### MarginLoss
     parser.add_argument('--loss_margin_margin',       default=0.2,          type=float, help='Triplet margin')
     parser.add_argument('--loss_margin_beta_lr',      default=0.0005,       type=float, help='Learning Rate for class margin parameters in MarginLoss')
-    parser.add_argument('--loss_margin_beta',         default=1.2,          type=float, help='Initial Class Margin Parameter in Margin Loss')
+    parser.add_argument('--loss_margin_beta',         default=0.6,          type=float, help='Initial Class Margin Parameter in Margin Loss')
     parser.add_argument('--loss_margin_nu',           default=0,            type=float, help='Regularisation value on betas in Margin Loss.')
     parser.add_argument('--loss_margin_beta_constant',             action='store_true', help='Flag. If set, beta-values are left untrained.')
 

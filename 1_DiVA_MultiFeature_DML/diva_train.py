@@ -33,7 +33,7 @@ parser = par.setup_parameters(parser)
 opt = parser.parse_args()
 
 """==================================================================================================="""
-opt.evaluation_metrics = ['e_recall@1', 'e_recall@10', 'e_recall@100', 'nmi', 'f1', 'mAP_c']
+opt.evaluation_metrics = ['e_recall@1', 'e_recall@2','e_recall@4', 'e_recall@8', 'mAP_c']
 
 if 'shared' in opt.diva_features and 'selfsimilarity' in opt.diva_features and len(opt.diva_features)==3:
     opt.diva_decorrelations = ['selfsimilarity-discriminative', 'shared-discriminative', 'shared-selfsimilarity']
@@ -61,9 +61,9 @@ if 'all' in opt.evaltypes:
         opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'-0.5-1-1')
     if len(opt.diva_features)==4:
         if opt.dataset!='online_products':
-            opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.75-1.25-1.25-1.25')
+            #opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.75-1.25-1.25-1.25')
             opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.5-1-1-1')
-            opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.5-1.5-1.5-1.5')
+            #opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.5-1.5-1.5-1.5')
         else:
             opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-1-1-1-1')
             opt.evaltypes.append('Combined_'+opt.diva_features[0]+'_'+opt.diva_features[1]+'_'+opt.diva_features[2]+'_'+opt.diva_features[3]+'-0.5-1-1-1')
@@ -84,7 +84,7 @@ if opt.savename=='group_plus_seed':
 if opt.log_online:
     import wandb
     os.environ['WANDB_API_KEY'] = opt.wandb_key
-    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
