@@ -8,7 +8,8 @@ import numpy as np
 import random
 import flip_gradient
 
-import code.deep_inception as models
+#import code.deep_inception as models
+import architectures as archs
 
 import tensorflow as tf
 from tensorflow.contrib import slim
@@ -464,6 +465,7 @@ def main():
     parser.add_argument('--lr-anneal', type=int)
     parser.add_argument('--use-same-learnrate', action='store_true')
     parser.add_argument('--skip-test', action='store_true')
+    parser.add_argument('--arch', type=str, default='resnet')
 
     dtype = tf.float32
 
@@ -484,10 +486,12 @@ def main():
     tf.set_random_seed(args.seed)
 
     embedding_sizes = [int(x) for x in args.embedding_sizes.split(',')]
+    if "MLRSNet" in args.train_images:
+        crop_size = 224
+    elif "BigEarthNet" in args.train_images:
+        crop_size = 120
 
-    spec = TrainingData(crop_size=224, channels=3, mean=(
-        104.0, 117.0, 123.0))
-
+    spec = TrainingData(crop_size, channels=3, mean=(104.0, 117.0, 123.0))
     print('creating datasets...')
     train_provider = dataset.NpyDatasetProvider(
         data_spec=spec,
@@ -506,8 +510,9 @@ def main():
             batch_size=BATCH_SIZE,
             is_training=False)
         test_labels, test_data = test_provider.dequeue_op
-
-    net = models.GoogleNet({'data': train_data})
+    
+    net = archs.select(args.arch)({'data': train_data})
+    #net = models.GoogleNet({'data': train_data})
     hidden_layer = net.get_output()
     preds, end_points = embedding_tower(
         hidden_layer, embedding_sizes)
@@ -515,7 +520,8 @@ def main():
 
     if not skip_test:
         with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-            test_net = models.GoogleNet({'data': test_data}, trainable=False)
+            #test_net = models.GoogleNet({'data': test_data}, trainable=False)
+            test_net = archs.select(args.arch)({'data': test_data}, trainable=False)
             test_hidden_layer = test_net.get_output()
             test_preds, test_endpoints = embedding_tower(
                 test_hidden_layer,

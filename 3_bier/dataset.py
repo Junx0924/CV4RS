@@ -3,7 +3,7 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-
+from skimage.transform import resize
 
 def process_image(img, crop=None, mean=None,
                   mirror=True, is_training=True):
@@ -25,8 +25,7 @@ def process_image(img, crop=None, mean=None,
         A pre-processed image.
     """
     if is_training:
-        img = tf.random_crop(img, [crop, crop, img.get_shape().as_list()[
-                             2]], name='random_image_crop')
+        img = tf.image.random_crop(img, [crop, crop, 3], name='random_image_crop')
 
         if mirror:
             img = tf.image.random_flip_left_right(img)
@@ -51,7 +50,12 @@ class NpyDatasetProvider(object):
         # The data specifications describe how to process the image
         self.data_spec = data_spec
 
+        # for inception network input [batch_size,target_size,target_size,channels]
         self.images = np.transpose(np.load(image_file), (0, 2, 3, 1))
+        #self.images =np.array([resize(temp[i],(256,256)) for i in range(temp.shape[0])])
+        
+        # for Resnet50 network input [batch_size, channels,target_size,target_size]
+        #self.images = np.load(image_file)
 
         self.labels = np.load(label_file)
         if self.labels.dtype != np.int32:
@@ -308,7 +312,7 @@ class NpyDatasetProvider(object):
         images.set_shape([self.batch_size] + list(self.images.shape[1:]))
 
         processed_images = []
-        for i in xrange(self.batch_size):
+        for i in range(self.batch_size):
             # Process the image
             processed_img = process_image(img=images[i, ...],
                                           crop=self.data_spec.crop_size,

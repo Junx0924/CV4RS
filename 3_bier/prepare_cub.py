@@ -73,22 +73,24 @@ def collect_data(dirname):
 
 
 def main():
-    dirs = sorted(os.listdir('images'))
+    path = '/home/robin/Downloads/CUB_200_2011/images'
+    dirs = sorted(os.listdir(path))
     num_classes = len(dirs)
 
-    train = dirs[:num_classes/2]
-    test = dirs[num_classes/2:]
+    train = dirs[:num_classes//2]
+    test = dirs[num_classes//2:]
 
     print(train)
     print(test)
 
-    train = [os.path.join('images', t) for t in train]
-    test = [os.path.join('images', t) for t in test]
+    train = [os.path.join(path, t) for t in train]
+    test = [os.path.join(path, t) for t in test]
 
     all_train_images = []
     all_train_labels = []
     for label, t in enumerate(train):
         # bring into bc01 format and concatenate along axis 0
+        # [batch_size, channels, img_height, img_weight]
         imgs = np.concatenate([
             np.transpose(I, [2, 0, 1])[np.newaxis, ...]
             for I in collect_data(t)], axis=0)
