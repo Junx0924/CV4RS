@@ -1,20 +1,5 @@
 #!/bin/bash
 
-#SBATCH -J D&C_mlrsnet
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/mlrsnet_log.out
-
-#SBATCH --ntasks=1
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=1
-#SBATCH --ntasks-per-core=2
-#SBATCH --gres=gpu:tesla:1
-
-#SBATCH --mem=15G
-#SBATCH --partition=gpu
-#SBATCH --time=30:00:00
-
-#SBATCH --mail-type=ALL --mail-user=paul.kaufmann12@gmail.com
-
 export LD_LIBRARY_PATH=/home/users/p/paka0401/lib
 source /home/users/p/paka0401/divide_and_conquer_venv/bin/activate
 module load python/3.7.1
