@@ -10,7 +10,7 @@ import skimage
 from skimage.transform import resize
 import json
 
-TARGET_SIZE = 120
+TARGET_SIZE = 256
 
 def collect_data(patch_path):
     """
@@ -35,15 +35,15 @@ def collect_data(patch_path):
             band_data = np.array(raster_band.ReadAsArray()) 
             temp = resize(band_data,(TARGET_SIZE,TARGET_SIZE))
             tif_img.append(temp)
-        tif_img = np.array(tif_img)
-        np.save(patch_path,tif_img)
+        patch_data = np.array(tif_img)
+        np.save(patch_path,patch_data)
     else:
         patch_data = np.load(patch_path)
         if len(patch_data)>3:
             temp_data =[]
-            temp_data.append(patch_data[3]) # B04 as R
-            temp_data.append(patch_data[2]) # B03 as G
-            temp_data.append(patch_data[1]) # B02 as B
+            temp_data.append(resize(patch_data[3],(TARGET_SIZE,TARGET_SIZE))) # B04 as R
+            temp_data.append(resize(patch_data[2],(TARGET_SIZE,TARGET_SIZE))) # B03 as G
+            temp_data.append(resize(patch_data[1],(TARGET_SIZE,TARGET_SIZE)))# B02 as B
             patch_data = np.array(temp_data)
     return  patch_data
 

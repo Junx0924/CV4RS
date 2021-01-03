@@ -486,10 +486,8 @@ def main():
     tf.set_random_seed(args.seed)
 
     embedding_sizes = [int(x) for x in args.embedding_sizes.split(',')]
-    if "MLRSNet" in args.train_images:
-        crop_size = 224
-    elif "BigEarthNet" in args.train_images:
-        crop_size = 120
+    crop_size = 224
+     
 
     spec = TrainingData(crop_size, channels=3, mean=(104.0, 117.0, 123.0))
     print('creating datasets...')
