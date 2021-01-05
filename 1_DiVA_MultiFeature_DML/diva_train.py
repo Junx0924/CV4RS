@@ -383,12 +383,12 @@ for epoch in range(opt.n_epochs):
 
     # result_metrics = {'loss': np.mean(loss_collect['train'])}
     # if 'separation' in criterion_dict:
-    #    result_metrics['sep. loss'] = np.mean(loss_collect['separation'])
+    #    result_metrics['sep.loss'] = np.mean(loss_collect['separation'])
 
     result_metrics={}
     for key in loss_collect.keys():
         if key not in result_metrics.keys():
-            new_key = key + ". loss"
+            new_key = key + ".loss"
             result_metrics[new_key] = np.mean(loss_collect[key])
             
     ####
