@@ -39,7 +39,7 @@ class BaseDataset(Dataset):
         self.image_list = [[(x[0],int(key)) for x in self.image_dict[key]] for key in self.image_dict.keys()]
         self.image_list = [x for y in self.image_list for x in y]
 
-        self.image_paths = self.image_list
+        self.image_paths = np.array(self.image_list)[:,0]
 
         self.is_init = True
 

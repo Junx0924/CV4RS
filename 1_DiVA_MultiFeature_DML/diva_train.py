@@ -33,7 +33,7 @@ parser = par.setup_parameters(parser)
 opt = parser.parse_args()
 
 """==================================================================================================="""
-opt.evaluation_metrics = ['e_recall@1', 'e_recall@3','e_recall@5', 'mAP_c']
+opt.evaluation_metrics = ['e_recall@1', 'e_recall@2','e_recall@4', 'e_recall@8','mAP_c']
 
 if 'shared' in opt.diva_features and 'selfsimilarity' in opt.diva_features and len(opt.diva_features)==3:
     opt.diva_decorrelations = ['selfsimilarity-discriminative', 'shared-discriminative', 'shared-selfsimilarity']
@@ -84,7 +84,7 @@ if opt.savename=='group_plus_seed':
 if opt.log_online:
     import wandb
     os.environ['WANDB_API_KEY'] = opt.wandb_key
-    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
@@ -177,10 +177,10 @@ dataloaders = {}
 datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 
 if 'dc' in opt.diva_features:
-    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
+    dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
-#dataloaders['evaluation']       = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
-dataloaders['validation']       = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=True)
+dataloaders['testing_query']       = torch.utils.data.DataLoader(datasets['testing_query'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+dataloaders['testing_gallery'] = torch.utils.data.DataLoader(datasets['testing_gallery'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
 
@@ -246,7 +246,8 @@ if 'selfsimilarity' in criterion_dict:
 #################### OPTIM SETUP ####################
 optimizer    = torch.optim.Adam(to_optim)
 scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
-
+#optimizer    = torch.optim.SGD(to_optim)
+#scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=0, verbose=True)
 
 """============================================================================"""
 #################### METRIC COMPUTER ####################
@@ -280,7 +281,7 @@ for epoch in range(opt.n_epochs):
     for key in criterion_dict.keys():
         if key not in loss_collect.keys():
             loss_collect[key]=[]
-            
+
     data_iterator = tqdm(dataloaders['training'], desc='Epoch {} Training...'.format(epoch))
 
     for i, item in enumerate(data_iterator):
@@ -402,11 +403,11 @@ for epoch in range(opt.n_epochs):
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
     
-    #print('\nComputing Train Metrics...')
-    #eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
-    
+    # print('\nComputing Train Metrics...')
+    # eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
+    test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
     print('\nComputing Validation Metrics...')
-    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
+    eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
     
     
     LOG.update(all=True)
