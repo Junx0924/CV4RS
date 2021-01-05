@@ -5,6 +5,7 @@ import math
 import matplotlib
 import sys
 import os
+import logging
 
 import train
 
@@ -33,10 +34,23 @@ if __name__ == '__main__':
     parser.add_argument('--embedding-lr', default=1e-5, type=float)
     parser.add_argument('--embedding-wd', default=1e-4, type=float)
     parser.add_argument('--verbose', action = 'store_true')
+    parser.add_argument('--on-colab', action = 'store_true')
     args = vars(parser.parse_args())
 
-    pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/"
+    pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS"
+    # pj_base_path = "/content/gdrive/MyDrive/2_metric-learning-divide-and-conquer/"
     # pj_base_path = "/Users/paulkaufmann/Documents/Dokumente/Office Dokumente/Uni Zeugs/Master/CV4RS PJ/Code/CV4RS/2_metric-learning-divide-and-conquer/"
+
+    DIYlogger = logging.getLogger()
+    DIYlogger.setLevel(logging.INFO)
+    _FMT_STRING = '[%(levelname)s:%(asctime)s] %(message)s'
+    _DATE_FMT = '%Y-%m-%d %H:%M:%S'
+    file_handler = logging.FileHandler(pj_base_path+"log/diy_log.txt", mode='w')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(_FMT_STRING, datefmt=_DATE_FMT))
+    DIYlogger.addHandler(file_handler)
+    DIYlogger.info("Before loading config")
+
     config = train.load_config(config_name = pj_base_path+'config.json')
 
     config['pretrained_weights_file'] = pj_base_path + config['pretrained_weights_file']
@@ -49,13 +63,15 @@ if __name__ == '__main__':
     config['opt']['embedding']['lr'] = args.pop('embedding_lr')
     config['opt']['embedding']['weight_decay'] = args.pop('embedding_wd')
 
+    config['is_on_colab'] = args.pop('on_colab')
+    DIYlogger.info("Mid loading config 1/2")
     for k in args:
         if k in config:
             config[k] = args[k]
 
     if config['nb_clusters'] == 1:
         config['recluster']['enabled'] = False
-
+    DIYlogger.info("Mid loading config 2/2")
     config['log'] = {
         'name': '{}-K-{}-M-{}-exp-{}'.format(
             config['dataset_selected'],
@@ -65,10 +81,12 @@ if __name__ == '__main__':
         ),
         'path': pj_base_path + 'log/{}'.format(args['dir'])
     }
+    DIYlogger.info("After loading config")
 
     os.environ['TORCH_HOME'] = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/pretrained_weights"
 
     # tkinter not installed on this system, use non-GUI backend
     matplotlib.use('agg')
-    train.start(config)
+    DIYlogger.info("Before train.start(config)")
+    train.start(config, DIYlogger)
 

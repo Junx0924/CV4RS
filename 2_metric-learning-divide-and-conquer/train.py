@@ -132,7 +132,7 @@ def get_optimizer(config, model, criterion):
     return opt
 
 
-def start(config):
+def start(config, DIYlogger):
 
     """
     Import `plt` after setting `matplotlib` backend to `agg`, because `tkinter`
@@ -143,12 +143,15 @@ def start(config):
 
     metrics = {}
 
+    DIYlogger.info("Before GPU mem reserve")
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
+    DIYlogger.info("Before mkdir")
     # create logging directory
     os.makedirs(config['log']['path'], exist_ok = True)
 
+    DIYlogger.info("Before Logger init")
     # warn if log file exists already and append underscore
     import warnings
     _fpath = os.path.join(config['log']['path'], config['log']['name'])
@@ -171,6 +174,29 @@ def start(config):
             logging.StreamHandler()
         ]
     )
+
+    # log gpu and cpu memory info
+    if config['is_on_colab']:
+        from pynvml import nvmlInit, nvmlDeviceGetCount, nvmlDeviceGetHandleByIndex
+        from pynvml import nvmlDeviceGetMemoryInfo, nvmlDeviceGetName, NVMLError
+        from psutil import virtual_memory
+
+        ram_gb = virtual_memory().total / 1e9
+        nvmlInit()
+        try:
+            deviceCount = nvmlDeviceGetCount()
+            for i in range(deviceCount):
+                handle = nvmlDeviceGetHandleByIndex(i)
+                mem_info = "(Total memory: {:.3f} GB)".format(nvmlDeviceGetMemoryInfo(handle).total / 1e9)
+                logging.info("-------------------------------------------------")
+                logging.info("  GPU info")
+                logging.info("  Device " + str(i) + ": " +  nvmlDeviceGetName(handle).decode("utf-8") + mem_info)
+                logging.info("")
+                logging.info("  RAM info")
+                logging.info("  Total: {:.3f} GB".format(ram_gb))
+                logging.info("-------------------------------------------------")
+        except NVMLError as error:
+            print(error)
 
     # print summary of config
     logging.info(
@@ -218,13 +244,40 @@ def start(config):
 
     faiss_reserver.release()
     logging.info("Evaluating initial model...")
-    metrics[-1] = {
-        'score': evaluate(model, dataloaders, logging,
-                        backend = config['backend'],
-                        config = config)}
 
-    dataloaders['train'], C, T, I = make_clustered_dataloaders(model,
-            dataloaders['init'], config, reassign = False, logging = logging)
+    # added this caching part
+    cache_file_path = config['pretrained_weights_file'].split("pretrained_weights")[0]
+    cache_file_path += "pretrained_weights/evaluation_score_cache.txt"
+    if os.path.exists(cache_file_path) & False:
+        logging.info("  Using cached evaluation score..")
+        with open(cache_file_path, "r") as cache_file:
+            metrics[-1] = json.load(cache_file)
+
+    else:
+        logging.info("  Computing evaluation score..")
+        metrics[-1] = {
+            'score': evaluate(model, dataloaders, logging,
+                            backend = config['backend'],
+                            config = config)}
+        with open(cache_file_path, "w+") as cache_file:
+            cache_file.write(json.dumps(metrics[-1]))
+
+    logging.info("Evaluation 2...")
+    cache_file_path2 = cache_file_path.replace(".txt", "2.txt")
+    if os.path.exists(cache_file_path2) & False:
+        logging.info("  Using cached evaluation score..")
+        with open(cache_file_path2, "r") as cache_file:
+            initial_values = json.load(cache_file)
+        dataloaders['train'], C, T, I = make_clustered_dataloaders(model,
+                            dataloaders['init'], config, reassign=False, logging=logging,
+                            initial_C_T_I=initial_values)
+    else:
+        logging.info("  Computing evaluation score..")
+        dataloaders['train'], C, T, I = make_clustered_dataloaders(model,
+                dataloaders['init'], config, reassign = False, logging = logging)
+        with open(cache_file_path2, "w+") as cache_file:
+            cache_file.write(json.dumps({'C': C.tolist(), 'T': T.tolist(), 'I': I.tolist()}))
+
     faiss_reserver.lock(config['backend'])
 
     metrics[-1].update({'C': C, 'T': T, 'I': I})
@@ -239,6 +292,11 @@ def start(config):
             )
             plt.hist(np.array(dataloaders['train'][c].dataset.ys), bins = 100)
             plt.show()
+
+    if config['is_on_colab']:
+        from pynvml import nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
+        handle = nvmlDeviceGetHandleByIndex(0)
+        gpu_info = nvmlDeviceGetMemoryInfo(handle)
 
     logging.info("Training for {} epochs.".format(config['nb_epochs']))
     losses = []
@@ -281,7 +339,6 @@ def start(config):
 
                 metrics[e].update({'C': C, 'T': T, 'I': I})
 
-
         # merge dataloaders (created from clusters) into one dataloader
         mdl = lib.data.loader.merge(dataloaders['train'])
 
@@ -289,6 +346,7 @@ def start(config):
         max_len_dataloaders = max([len(dl) for dl in dataloaders['train']])
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
 
+        print("GPU info: {:.3f}% used ({}Bytes free)".format(gpu_info.used/gpu_info.total*100, gpu_info.free))
         for batch, dset in tqdm(
             mdl,
             total = num_batches_approx,
@@ -365,4 +423,3 @@ def start(config):
         )
     )
     logging.info("Best R@1 = {} at epoch {}.".format(best_recall, best_epoch))
-

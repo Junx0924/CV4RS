@@ -2,12 +2,16 @@ from .base import *
 from pathlib import Path
 import pandas as pd
 import json
+import logging
+from tqdm import tqdm
+import random
 
 
 class MLRSNet(BaseDataset):
     def __init__(self, root, classes, transform=None):
         BaseDataset.__init__(self, root, classes, transform)
 
+        logging.debug("Loading Dataset: MLRSNet (%s)" % classes)
         base_dir = Path(os.path.dirname(os.path.realpath(__file__)))
         base_dir = str(base_dir.parent.parent.parent)
 
@@ -26,14 +30,30 @@ class MLRSNet(BaseDataset):
             print('Unknown value for classes selected')
             raise Exception
 
+        # get random sample (50%) out of all patches
+        random.seed(1)
+        samp = random.sample(list(range(len(patches)-1)), len(patches) // 2)
+        samp.sort()
+
+        logging.info("Loading Dataset: MLRSNet (%s); Processing %i labels" % (classes, len(patches)-len(samp)))
         i = 0
-        for count in range(len(patches)):
-            row = patches.loc[0, :]
+        last_labels = {'folder_name': "", 'file': None}
+        for count in tqdm(range(len(patches))):
+            if count in samp:
+                continue
+            row = patches.loc[count, :]
             folder_name = row.path_img.split("/")[2]
             label_path = root + "/labels/" + folder_name + ".csv"
             img_file_name = row.path_img.split("/")[-1]
 
-            labels_file = pd.read_csv(label_path, sep=",")
+            # if file does not change, use the cached one
+            if last_labels['folder_name'] == folder_name:
+                labels_file = last_labels['file']
+            else:
+                labels_file = pd.read_csv(label_path, sep=",")
+                last_labels['folder_name'] = folder_name
+                last_labels['file'] = labels_file
+
             labels_of_img = labels_file[labels_file.image.str.startswith(img_file_name)]
 
             l = len(labels_of_img)
@@ -62,6 +82,7 @@ class MLRSNet(BaseDataset):
         elif classes == "eval":
             # print("Eval", len(set(self.ys)))
             self.classes = range(0, len(set(self.ys)))
+        logging.info("  Done loading.")
 
     def nb_classes(self):
         assert len(set(self.ys)) == len(set(self.classes))

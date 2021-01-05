@@ -10,6 +10,7 @@ from . import faissext
 from . import data
 from . import utils
 
+
 def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters,
        gpu_id=None, backend='faiss'):
     is_dry_run = (nb_clusters == 1)
@@ -48,18 +49,29 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters,
 
 
 def make_clustered_dataloaders(model, dataloader_init, config,
-        reassign = False, I_prev = None, C_prev = None, logging = None):
+        reassign = False, I_prev = None, C_prev = None, logging = None, initial_C_T_I=None):
 
     def correct_indices(I):
         return torch.sort(torch.LongTensor(I))[1]
 
-    C, T, I = get_cluster_labels(
-        model,
-        dataloader_init,
-        use_penultimate = True,
-        nb_clusters = config['nb_clusters'],
-        backend=config['backend']
-    )
+    if initial_C_T_I is None:
+        C, T, I = get_cluster_labels(
+            model,
+            dataloader_init,
+            use_penultimate = True,
+            nb_clusters = config['nb_clusters'],
+            backend=config['backend']
+        )
+    else:
+        C = np.array(initial_C_T_I['C'])
+        T = np.array(initial_C_T_I['T'])
+        I = np.array(initial_C_T_I['I'])
+
+    #print("printing C, T and I")
+    #print(C)
+    #print(T)
+    #print(I)
+    #print("###########")
 
     if reassign == True:
 

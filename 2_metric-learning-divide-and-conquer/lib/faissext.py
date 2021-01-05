@@ -129,8 +129,8 @@ def train_kmeans(x, num_clusters=1000, gpu_ids=None, niter=100, nredo=1, verbose
     kmeans.train(x, index)
     centroids = faiss.vector_float_to_array(kmeans.centroids)
 
-    objective = faiss.vector_float_to_array(kmeans.obj)
-    #logging.debug("Final objective: %.4g" % objective[-1])
+    # objective = faiss.vector_float_to_array(kmeans.obj)
+    # logging.debug("Final objective: %.4g" % objective[-1])
 
     return centroids.reshape(num_clusters, d)
 
