@@ -27,7 +27,7 @@ def basic_training_parameters(parser):
     ##### Network-related Flags
     parser.add_argument('--num_in_channels', default=3,type=int, help='input data channels')
     parser.add_argument('--embed_dim',    default=128,         type=int,   help='Embedding dimensionality of the network. Note: dim=64, 128 or 512 is used in most papers., depending on the architecture.')
-    parser.add_argument('--arch',         default='multifeature_resnet50_normalize',  type=str, help='This version support: multifeature_resnet50_normalize or multifeature_bninception_normalize')
+    parser.add_argument('--arch',         default='resnet50_normalize_frozen',  type=str, help='This version support: multifeature_resnet50_normalize or multifeature_bninception_normalize')
     parser.add_argument('--not_pretrained',   action='store_true', help='Flag. If set, no ImageNet pretraining is used to initialize the network.')
 
     ##### Evaluation Parameters
@@ -107,7 +107,7 @@ def loss_specific_parameters(parser):
     ### MarginLoss
     parser.add_argument('--loss_margin_margin',       default=0.2,          type=float, help='Triplet margin')
     parser.add_argument('--loss_margin_beta_lr',      default=0.0005,       type=float, help='Learning Rate for class margin parameters in MarginLoss')
-    parser.add_argument('--loss_margin_beta',         default=0.6,          type=float, help='Initial Class Margin Parameter in Margin Loss')
+    parser.add_argument('--loss_margin_beta',         default=1,          type=float, help='Initial Class Margin Parameter in Margin Loss')
     parser.add_argument('--loss_margin_nu',           default=0,            type=float, help='Regularisation value on betas in Margin Loss.')
     parser.add_argument('--loss_margin_beta_constant',             action='store_true', help='Flag. If set, beta-values are left untrained.')
 

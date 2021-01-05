@@ -33,7 +33,7 @@ parser = par.setup_parameters(parser)
 opt = parser.parse_args()
 
 """==================================================================================================="""
-opt.evaluation_metrics = ['e_recall@1', 'e_recall@2','e_recall@4', 'e_recall@8', 'mAP_c']
+opt.evaluation_metrics = ['e_recall@1', 'e_recall@3','e_recall@5', 'mAP_c']
 
 if 'shared' in opt.diva_features and 'selfsimilarity' in opt.diva_features and len(opt.diva_features)==3:
     opt.diva_decorrelations = ['selfsimilarity-discriminative', 'shared-discriminative', 'shared-selfsimilarity']
@@ -276,7 +276,11 @@ for epoch in range(opt.n_epochs):
     ### Train one epoch
     start = time.time()
 
-    loss_collect = {'train':[], 'separation':[]}
+    loss_collect = {'train':[]}
+    for key in criterion_dict.keys():
+        if key not in loss_collect.keys():
+            loss_collect[key]=[]
+            
     data_iterator = tqdm(dataloaders['training'], desc='Epoch {} Training...'.format(epoch))
 
     for i, item in enumerate(data_iterator):
@@ -304,29 +308,37 @@ for epoch in range(opt.n_epochs):
         for key, feature in features.items():
             if 'discriminative' in key:
                 loss_discr = criterion_dict[key](feature, class_labels)
+                loss_collect['discriminative'].append(loss_discr.item())
                 loss = loss + loss_discr
         if 'selfsimilarity' in criterion_dict:
             loss_selfsim = criterion_dict['selfsimilarity'](features['selfsimilarity'], selfsim_key_features)
+            loss_collect['selfsimilarity'].append(loss_selfsim.item())
             loss = loss + opt.diva_alpha_ssl*loss_selfsim
         if 'shared' in features:
             loss_shared = criterion_dict['shared'](features['shared'], class_labels)
+            loss_collect['shared'].append(loss_shared.item())
             loss = loss + opt.diva_alpha_shared*loss_shared
         if 'intra' in features:
             loss_intra = criterion_dict['intra'](features['intra'], class_labels)
+            loss_collect['intra'].append(loss_intra.item())
             loss = loss + opt.diva_alpha_intra*loss_intra
         if 'invariantspread' in criterion_dict:
             head_1 = features['invariantspread'][:len(input)//2]
             head_2 = features['invariantspread'][len(input)//2:]
             loss_invsp = criterion_dict['invariantspread'](head_1, head_2)
+            loss_collect['invariantspread'].append(loss_invsp.item())
             loss       = loss + loss_invsp
         if 'dc' in criterion_dict:
             loss_dc = criterion_dict['dc'](direct_features, input_indices)
+            loss_collect['dc'].append(loss_dc.item())
             loss    = loss + loss_dc
         if 'imrot' in criterion_dict:
             loss_imrot = criterion_dict['imrot'](direct_features, imrot_labels)
+            loss_collect['imrot'].append(loss_imrot.item())
             loss    = loss + loss_imrot
         if 'separation' in criterion_dict:
             loss_adv = criterion_dict['separation'](features)
+            loss_collect['separation'].append(loss_adv.item())
             loss     = loss + loss_adv
 
 
@@ -347,8 +359,6 @@ for epoch in range(opt.n_epochs):
 
         ###
         loss_collect['train'].append(loss.item())
-        if 'separation' in criterion_dict:
-            loss_collect['separation'].append(loss_adv.item())
 
         if 'selfsimilarity' in criterion_dict:
             ### Update Key Network
@@ -370,10 +380,16 @@ for epoch in range(opt.n_epochs):
 
 
 
-    result_metrics = {'loss': np.mean(loss_collect['train'])}
-    if 'separation' in criterion_dict:
-        result_metrics['sep. loss'] = np.mean(loss_collect['separation'])
+    # result_metrics = {'loss': np.mean(loss_collect['train'])}
+    # if 'separation' in criterion_dict:
+    #    result_metrics['sep. loss'] = np.mean(loss_collect['separation'])
 
+    result_metrics={}
+    for key in loss_collect.keys():
+        if key not in result_metrics.keys():
+            new_key = key + ". loss"
+            result_metrics[new_key] = np.mean(loss_collect[key])
+            
     ####
     LOG.progress_saver['Train'].log('epochs', epoch)
     for metricname, metricval in result_metrics.items():
