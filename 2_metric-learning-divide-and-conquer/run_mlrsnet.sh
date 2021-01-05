@@ -11,7 +11,7 @@
 
 #SBATCH --mem=15G
 #SBATCH --partition=gpu
-#SBATCH --time=30:00:00
+#SBATCH --time=15:00:00
 
 #SBATCH --mail-type=ALL --mail-user=paul.kaufmann12@gmail.com
 
