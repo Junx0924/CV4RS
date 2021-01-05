@@ -8,10 +8,10 @@ def evaluate(dataset, LOG, metric_computer, dataloaders, model, opt, evaltypes, 
     """
     Parent-Function to compute evaluation metrics, print summary string and store checkpoint files/plot sample recall plots.
     """
-    if opt.dataset!='inshop':
+    if len(dataloaders)==1:
         computed_metrics, extra_infos = metric_computer.compute_standard(opt, model, dataloaders[0], evaltypes, device)
     else:
-        computed_metrics, extra_infos = metric_computer.compute_query_gallery(model, dataloaders[0], dataloaders[1], evaltypes, device)
+        computed_metrics, extra_infos = metric_computer.compute_query_gallery(opt,model, dataloaders[0], dataloaders[1], evaltypes, device)
 
     ###
     full_result_str = ''
@@ -43,15 +43,15 @@ def evaluate(dataset, LOG, metric_computer, dataloaders, model, opt, evaltypes, 
 
         ###
         if make_recall_plot:
-            if opt.dataset!='inshop':
+            if len(dataloaders)==1:
                 recover_closest_standard(extra_infos[evaltype]['features'],
                                          extra_infos[evaltype]['image_paths'],
                                          LOG.prop.save_path+'/sample_recoveries.png')
             else:
                 recover_closest_query_gallery(extra_infos[evaltype]['query_features'],
                                               extra_infos[evaltype]['gallery_features'],
-                                              extra_infos[evaltype]['gallery_image_paths'],
                                               extra_infos[evaltype]['query_image_paths'],
+                                              extra_infos[evaltype]['gallery_image_paths'],
                                               LOG.prop.save_path+'/sample_recoveries.png')
 
 
@@ -120,21 +120,41 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
 def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matrix_all, query_image_paths, gallery_image_paths, \
                                   save_path, n_image_samples=10, n_closest=3):
     query_image_paths, gallery_image_paths   = np.array(query_image_paths), np.array(gallery_image_paths)
-    sample_idxs = np.random.choice(np.arange(len(gallery_feature_matrix_all)), n_image_samples)
+    sample_idxs = np.random.choice(np.arange(len(query_feature_matrix_all)), n_image_samples)
 
     faiss_search_index = faiss.IndexFlatL2(gallery_feature_matrix_all.shape[-1])
     faiss_search_index.add(gallery_feature_matrix_all)
     _, closest_feature_idxs = faiss_search_index.search(query_feature_matrix_all, n_closest)
 
-    ### TODO: EXAMINE THIS SECTION HERE FOR INSHOP-NEAREST SAMPLE RETRIEVAL
+    
     image_paths  = gallery_image_paths[closest_feature_idxs]
-    image_paths  = np.concatenate([query_image_paths.reshape(-1,1), image_paths],axis=-1)
+    temp = np.expand_dims(query_image_paths,axis=1)
+    image_paths  = np.concatenate([temp, image_paths],axis=1)
 
-    sample_paths = image_paths[closest_feature_idxs][sample_idxs]
+    sample_paths = image_paths[sample_idxs]
 
     f,axes = plt.subplots(n_image_samples, n_closest+1)
-    for i,(ax,plot_path) in enumerate(zip(axes.reshape(-1), sample_paths.reshape(-1))):
-        ax.imshow(np.array(Image.open(plot_path)))
+
+    temp_sample_paths = sample_paths.flatten()
+    temp_axes = axes.flatten()
+    for i in range(len(temp_sample_paths)):
+        plot_path = temp_sample_paths[i]
+        ax = temp_axes[i]
+        if plot_path.split(".")[1] =="png" or plot_path.split(".")[1] =="jpg":
+            img_data = np.array(PIL.Image.open(plot_path))
+        else:
+            # get RGB channels from the band data of BigEarthNet
+            tif_img =[]
+            patch_name = (plot_path.split(".")[0]).split("/")[-1]
+            for band_name in ['B04','B03','B02']:
+                img_path = plot_path.split(".")[0] +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = normalize(band_data,norm="max")*255
+                tif_img.append(band_data)
+            img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
+        ax.imshow(img_data)
         ax.set_xticks([])
         ax.set_yticks([])
         if i%(n_closest+1):
@@ -144,5 +164,4 @@ def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matr
     f.set_size_inches(10,20)
     f.tight_layout()
     f.savefig(save_path)
-    # plt.show()
     plt.close()

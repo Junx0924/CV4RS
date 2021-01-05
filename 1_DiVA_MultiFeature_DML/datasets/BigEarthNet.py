@@ -106,4 +106,5 @@ def Give(opt, datapath):
     eval_train_dataset.conversion  =  new_conversion_list[0]
 
 
-    return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
+    #return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
+    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':test_dataset, 'testing_gallery':eval_train_dataset}

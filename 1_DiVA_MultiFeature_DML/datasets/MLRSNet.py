@@ -149,7 +149,9 @@ def Give(opt, datapath):
     eval_image_dict = {key:train_image_dict[key][:len(train_image_dict[key])//2] for key in train_image_dict.keys()}
     eval_dataset  = BaseDataset(eval_image_dict, opt, is_validation=True)
     eval_dataset.conversion  = conversion
-
+    
+    # for deep cluster feature
     eval_train_dataset  = BaseDataset(train_image_dict, opt, is_validation=False)
 
-    return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
+    #return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
+    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':test_dataset, 'testing_gallery':eval_train_dataset}
