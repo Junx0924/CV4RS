@@ -72,7 +72,6 @@ def set_checkpoint(model, opt, progress_saver, savepath, aux=None):
 
 ##########################
 def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image_samples=10, n_closest=3):
-    image_paths = np.array([x[0] for x in image_paths])
     sample_idxs = np.random.choice(np.arange(len(feature_matrix_all)), n_image_samples)
 
     faiss_search_index = faiss.IndexFlatL2(feature_matrix_all.shape[-1])
