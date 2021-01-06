@@ -37,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--on-colab', action = 'store_true')
     args = vars(parser.parse_args())
 
-    pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS"
+    pj_base_path = "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/"
     # pj_base_path = "/content/gdrive/MyDrive/2_metric-learning-divide-and-conquer/"
     # pj_base_path = "/Users/paulkaufmann/Documents/Dokumente/Office Dokumente/Uni Zeugs/Master/CV4RS PJ/Code/CV4RS/2_metric-learning-divide-and-conquer/"
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     DIYlogger.setLevel(logging.INFO)
     _FMT_STRING = '[%(levelname)s:%(asctime)s] %(message)s'
     _DATE_FMT = '%Y-%m-%d %H:%M:%S'
-    file_handler = logging.FileHandler(pj_base_path+"/log/diy_log.txt", mode='w+')
+    file_handler = logging.FileHandler(pj_base_path+"log/diy_log.txt", mode='w+')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter(_FMT_STRING, datefmt=_DATE_FMT))
     DIYlogger.addHandler(file_handler)
