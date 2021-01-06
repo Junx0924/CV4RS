@@ -35,8 +35,10 @@ def evaluate(dataset, LOG, metric_computer, dataloaders, model, opt, evaltypes, 
 
 
     ###
+    recall1 =0.0
     for evaltype in computed_metrics.keys():
         for eval_metric in opt.evaluation_metrics:
+            if eval_metric =="recall@1" : recall1 = computed_metrics[evaltype][eval_metric]
             parent_metric = evaltype+'_{}'.format(eval_metric.split('@')[0])
             LOG.progress_saver[log_key].log(eval_metric, computed_metrics[evaltype][eval_metric],  group=parent_metric)
 
@@ -53,7 +55,7 @@ def evaluate(dataset, LOG, metric_computer, dataloaders, model, opt, evaltypes, 
                                               extra_infos[evaltype]['query_image_paths'],
                                               extra_infos[evaltype]['gallery_image_paths'],
                                               LOG.prop.save_path+'/sample_recoveries.png')
-
+    return recall1
 
 
 ###########################

@@ -247,10 +247,10 @@ if 'selfsimilarity' in criterion_dict:
 
 """============================================================================"""
 #################### OPTIM SETUP ####################
-optimizer    = torch.optim.Adam(to_optim)
-scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
-#optimizer    = torch.optim.SGD(to_optim)
-#scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=0, verbose=True)
+#optimizer    = torch.optim.Adam(to_optim)
+#scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
+optimizer    = torch.optim.SGD(to_optim)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=0, verbose=True)
 
 """============================================================================"""
 #################### METRIC COMPUTER ####################
@@ -265,7 +265,7 @@ iter_count = 0
 for epoch in range(opt.n_epochs):
     opt.epoch = epoch
     ### Scheduling Changes specifically for cosine scheduling
-    if opt.scheduler!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_lr())))
+    #if opt.scheduler!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_lr())))
 
     """======================================="""
     if train_data_sampler.requires_storage:
@@ -412,7 +412,7 @@ for epoch in range(opt.n_epochs):
     # test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
     print('\nComputing Validation Metrics...')
     # eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
-    eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
+    recall1 = eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
     
     
     LOG.update(all=True)
@@ -420,8 +420,8 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Learning Rate Scheduling Step
     if opt.scheduler != 'none':
-        scheduler.step()
-
+        # scheduler.step()
+        scheduler.step(recall1)
     print('\n-----\n')
 
 
