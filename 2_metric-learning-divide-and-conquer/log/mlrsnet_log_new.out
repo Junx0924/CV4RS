@@ -1,0 +1,18 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (28) Connection time-out
+statistics gathering failed, continuing
+Traceback (most recent call last):
+  File "/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/experiment.py", line 10, in <module>
+    import train
+  File "/beegfs/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/train.py", line 15, in <module>
+    import lib
+  File "/beegfs/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/lib/__init__.py", line 6, in <module>
+    from . import data
+  File "/beegfs/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/lib/data/__init__.py", line 2, in <module>
+    from . import set
+  File "/beegfs/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/lib/data/set/__init__.py", line 3, in <module>
+    from .base import BaseDataset
+  File "/beegfs/home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/lib/data/set/base.py", line 10, in <module>
+    from osgeo import gdal
+ModuleNotFoundError: No module named 'osgeo'
