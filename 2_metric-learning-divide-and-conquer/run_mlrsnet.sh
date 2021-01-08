@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J D&C_mlrsnet
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/mlrsnet_log_new.out
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/mlrsnet_log_Jan_08.out
 
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
