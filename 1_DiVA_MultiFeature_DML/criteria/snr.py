@@ -1,7 +1,7 @@
 import torch
 
 """================================================================================================="""
-ALLOWED_MINING_OPS  = ['random','semihard', 'distance', 'parametric', 'anticollapse_distance']
+ALLOWED_MINING_OPS  = ['random','semihard', 'distance', 'parametric', 'anticollapse_distance','rho_distance']
 REQUIRES_BATCHMINER = True
 REQUIRES_OPTIM      = True
 

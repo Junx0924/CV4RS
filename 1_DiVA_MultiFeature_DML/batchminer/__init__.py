@@ -1,4 +1,4 @@
-from batchminer import distance, semihard, random, parametric, npair
+from batchminer import distance, semihard, random, parametric, npair,rho_distance
 from batchminer import random_distance, shared_full_distance, shared_neg_distance, intra_random
 from batchminer import lifted, anticollapse_distance, anticollapse_semihard,anticollapse_cdistance
 
@@ -14,7 +14,8 @@ BATCHMINING_METHODS = {'random':random,
                        'intra_random': intra_random,
                        'shared_full_distance': shared_full_distance,
                        'shared_neg_distance':  shared_neg_distance,
-                       'anticollapse_semihard':anticollapse_semihard}
+                       'anticollapse_semihard':anticollapse_semihard,
+                       'rho_distance': rho_distance}
 
 
 def select(batchminername, opt):

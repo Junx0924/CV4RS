@@ -3,7 +3,7 @@ import torch, torch.nn as nn
 
 
 """================================================================================================="""
-ALLOWED_MINING_OPS = ['random','semihard', 'distance', 'parametric', 'anticollapse_distance', 'anticollapse_semihard', 'anticollapse_cdistance']
+ALLOWED_MINING_OPS = ['random','semihard', 'distance', 'parametric', 'anticollapse_distance', 'anticollapse_semihard', 'anticollapse_cdistance','rho_distance']
 REQUIRES_BATCHMINER = True
 REQUIRES_OPTIM      = True
 
