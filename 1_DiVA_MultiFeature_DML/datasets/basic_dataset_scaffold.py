@@ -19,8 +19,6 @@ class BaseDataset(Dataset):
         #####
         self.init_setup()
 
-        #####
-        self.include_aux_augmentations = False #required by get selfsimilarity 
 
     def init_setup(self):
         self.n_files       = np.sum([len(self.image_dict[key]) for key in self.image_dict.keys()])
@@ -92,13 +90,13 @@ class BaseDataset(Dataset):
         else:
             input_image = np.load(img_path)
         
-        if self.include_aux_augmentations:
-            im_a = self.normal_transform(input_image)
-            im_b,imrot_class= self.real_transform(input_image,idx)
-            return (img_label, im_a, idx, im_b, imrot_class)
-        else:
+        if self.is_validation:
             im_a = self.normal_transform(input_image)
             return (img_label, im_a, idx)
+        else:
+            im_a, _ = self.real_transform(input_image,idx)
+            im_b,imrot_class= self.real_transform(input_image,idx)
+            return (img_label, im_a, idx, im_b, imrot_class)
         
 
     def __len__(self):

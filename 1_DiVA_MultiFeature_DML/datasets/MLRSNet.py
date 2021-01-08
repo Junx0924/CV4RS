@@ -136,12 +136,11 @@ def Give(opt, datapath):
     test_image_dict = read_csv(csv_dir +'/test.csv',datapath)
     val_image_dict = read_csv(csv_dir +'/val.csv',datapath)
 
-    
+    train_dataset = BaseDataset(train_image_dict, opt, is_validation=False)
+    train_dataset.conversion = conversion
+
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
     val_dataset.conversion   = conversion
-
-    train_dataset = BaseDataset(train_image_dict, opt)
-    train_dataset.conversion = conversion
 
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
     test_dataset.conversion  =  conversion
@@ -154,4 +153,4 @@ def Give(opt, datapath):
     eval_train_dataset  = BaseDataset(train_image_dict, opt, is_validation=False)
 
     #return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
-    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':test_dataset, 'testing_gallery':eval_train_dataset}
+    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':val_dataset, 'testing_gallery':test_dataset}

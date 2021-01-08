@@ -84,7 +84,7 @@ if opt.savename=='group_plus_seed':
 if opt.log_online:
     import wandb
     os.environ['WANDB_API_KEY'] = opt.wandb_key
-    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)
@@ -143,7 +143,7 @@ torch.manual_seed(opt.seed); torch.cuda.manual_seed(opt.seed); torch.cuda.manual
 #NOTE: Networks that can be used: 'bninception, resnet50, resnet101, alexnet...'
 opt.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# arch: multifeature_resnet50_normalize' or  'multifeature_bninception_normalize'
+# arch: resnet50_normalize' or  'bninception_normalize'
 model      = archs.select(opt.arch, opt)
 opt.network_feature_dim = model.feature_dim
 
@@ -179,11 +179,11 @@ datasets    = datasets.select(opt.dataset, opt, opt.source_path)
 if 'dc' in opt.diva_features:
     dataloaders['evaluation_train'] = torch.utils.data.DataLoader(datasets['evaluation_train'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
-# dataloaders['testing_query']       = torch.utils.data.DataLoader(datasets['testing_query'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-# dataloaders['testing_gallery'] = torch.utils.data.DataLoader(datasets['testing_gallery'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+dataloaders['testing_query']       = torch.utils.data.DataLoader(datasets['testing_query'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+dataloaders['testing_gallery'] = torch.utils.data.DataLoader(datasets['testing_gallery'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 # dataloaders['evaluation'] = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-dataloaders['validation'] = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
+# dataloaders['validation'] = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
 
@@ -247,10 +247,10 @@ if 'selfsimilarity' in criterion_dict:
 
 """============================================================================"""
 #################### OPTIM SETUP ####################
-#optimizer    = torch.optim.Adam(to_optim)
-#scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
-optimizer    = torch.optim.SGD(to_optim)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=0, verbose=True)
+optimizer    = torch.optim.Adam(to_optim)
+scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
+#optimizer    = torch.optim.SGD(to_optim)
+#scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=0, verbose=True)
 
 """============================================================================"""
 #################### METRIC COMPUTER ####################
@@ -409,10 +409,10 @@ for epoch in range(opt.n_epochs):
     # print('\nComputing Train Metrics...')
     # eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
     
-    # test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
+    test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
     print('\nComputing Validation Metrics...')
-    # eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
-    recall1 = eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
+    eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
+    # recall1 = eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
     
     
     LOG.update(all=True)
@@ -420,8 +420,9 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Learning Rate Scheduling Step
     if opt.scheduler != 'none':
-        # scheduler.step()
-        scheduler.step(recall1)
+        scheduler.step()
+        # scheduler.step(recall1)
+        # scheduler.step(result_metrics["train.loss"])
     print('\n-----\n')
 
 

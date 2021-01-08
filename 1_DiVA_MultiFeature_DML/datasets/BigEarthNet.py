@@ -78,33 +78,34 @@ def Give(opt, datapath):
         with open(json_dir + json_files[i], 'r') as json_file:
             data_list.append(json.load(json_file))
     conversion = data_list[3]
+    # get the common keys from train/va/test
+    keys= [ data.keys() for data in data_list[:3]]
+    keys = [ [k for k in i] for i in keys]
+    keys = list(set.intersection(*map(set, keys)))
+    new_keys = {key:i for i,key in enumerate(keys)} 
+    new_conversion = {new_keys[key]:conversion[key] for key in keys}
+    
     train_image_dict,val_image_dict,test_image_dict ={},{},{}
     new_data_list = [train_image_dict,val_image_dict,test_image_dict]
-    new_conversion_list =[]
     for i in range(len(new_data_list)):
-        # make sure the class label is continuous
-        keys = data_list[i].keys()
-        new_keys = {key:i for i,key in enumerate(keys)} 
-        new_conversion_list.append({new_keys[key]:conversion[key] for key in keys})
         for key in keys:
             new_data_list[i][new_keys[key]] = [datapath + '/' + patch_name +'.npy' for patch_name in data_list[i][key]]
 
-    train_dataset = BaseDataset(train_image_dict, opt)
-    train_dataset.conversion = new_conversion_list[0]
+    train_dataset = BaseDataset(train_image_dict, opt, is_validation=False)
+    train_dataset.conversion = new_conversion
 
     val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
-    val_dataset.conversion   = new_conversion_list[1]
+    val_dataset.conversion   = new_conversion
     
     test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
-    test_dataset.conversion  = new_conversion_list[2]
+    test_dataset.conversion  = new_conversion
 
     eval_dataset  = BaseDataset(train_image_dict, opt, is_validation=True)
-    eval_dataset.conversion  = new_conversion_list[0]
+    eval_dataset.conversion  = new_conversion
 
     # for deep cluster feature
     eval_train_dataset  = BaseDataset(train_image_dict, opt, is_validation=False)
-    eval_train_dataset.conversion  =  new_conversion_list[0]
-
+    eval_train_dataset.conversion  =  new_conversion
 
     #return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
-    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':test_dataset, 'testing_gallery':eval_train_dataset}
+    return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':val_dataset, 'testing_gallery':test_dataset}
