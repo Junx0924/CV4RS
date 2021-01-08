@@ -175,9 +175,13 @@ def loss_specific_parameters(parser):
 
 #######################################
 def batchmining_specific_parameters(parser):
-    ### Distance-based_Sampling
-    parser.add_argument('--miner_distance_lower_cutoff', default=0.5, type=float,help='Lower cutoff on distances - values below are sampled with equal prob.')
+    ### Distance-based Batchminer
+    parser.add_argument('--miner_distance_lower_cutoff', default=0.5, type=float, help='Lower cutoff on distances - values below are sampled with equal prob.')
     parser.add_argument('--miner_distance_upper_cutoff', default=1.4, type=float, help='Upper cutoff on distances - values above are IGNORED.')
+    ### Spectrum-Regularized Miner (as proposed in our paper) - utilizes a distance-based sampler that is regularized.
+    parser.add_argument('--miner_rho_distance_lower_cutoff', default=0.5, type=float, help='Lower cutoff on distances - values below are sampled with equal prob.')
+    parser.add_argument('--miner_rho_distance_upper_cutoff', default=1.4, type=float, help='Upper cutoff on distances - values above are IGNORED.')
+    parser.add_argument('--miner_rho_distance_cp',           default=0.2, type=float, help='Probability to replace a negative with a positive.')
     return parser
 
 
