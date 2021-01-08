@@ -279,7 +279,8 @@ class MetricComputer():
                 if 'kmeans_nearest' in self.requires:
                     faiss_search_index = faiss.IndexFlatL2(centroids.shape[-1])
                     faiss_search_index.add(centroids)
-                    _, computed_cluster_labels = faiss_search_index.search(stackset, 1)
+                    #_, computed_cluster_labels = faiss_search_index.search(stackset, 1)
+                    _, computed_cluster_labels = faiss_search_index.search(query_features, 1)
 
                 if 'nearest_features' in self.requires:
                     k_vals  = [int(x.split('@')[-1]) for x in self.metric_names if 'recall' in x]

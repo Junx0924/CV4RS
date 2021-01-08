@@ -73,7 +73,7 @@ def set_checkpoint(model, opt, progress_saver, savepath, aux=None):
 
 
 ##########################
-def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image_samples=10, n_closest=3):
+def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image_samples=10, n_closest=4):
     sample_idxs = np.random.choice(np.arange(len(feature_matrix_all)), n_image_samples)
 
     faiss_search_index = faiss.IndexFlatL2(feature_matrix_all.shape[-1])
@@ -119,7 +119,7 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
 
 ####### RECOVER CLOSEST EXAMPLE IMAGES #######
 def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matrix_all, query_image_paths, gallery_image_paths, \
-                                  save_path, n_image_samples=10, n_closest=3):
+                                  save_path, n_image_samples=10, n_closest=4):
     query_image_paths, gallery_image_paths   = np.array(query_image_paths), np.array(gallery_image_paths)
     sample_idxs = np.random.choice(np.arange(len(query_feature_matrix_all)), n_image_samples)
 
