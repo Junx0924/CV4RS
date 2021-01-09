@@ -48,7 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('--embedding-lr', default=1e-5, type=float)
     parser.add_argument('--embedding-wd', default=1e-4, type=float)
     parser.add_argument('--verbose', action = 'store_true')
-    parser.add_argument('--on-colab', action = 'store_true')
+    parser.add_argument('--log-gpu-info', action = 'store_true')
     args = vars(parser.parse_args())
 
     DIYlogger.info("Before loading config")
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     config['opt']['embedding']['lr'] = args.pop('embedding_lr')
     config['opt']['embedding']['weight_decay'] = args.pop('embedding_wd')
 
-    config['is_on_colab'] = args.pop('on_colab')
+    config['log_gpu_info'] = args.pop('log_gpu_info')
     DIYlogger.info("Mid loading config 1/2")
     for k in args:
         if k in config:
@@ -90,4 +90,3 @@ if __name__ == '__main__':
     matplotlib.use('agg')
     DIYlogger.info("Before train.start(config)")
     train.start(config, DIYlogger)
-
