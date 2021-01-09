@@ -1,13 +1,13 @@
-[INFO:2021-01-08 03:45:52] Before parsing arguments
-[INFO:2021-01-08 03:45:52] Before loading config
-[INFO:2021-01-08 03:45:52] Mid loading config 1/2
-[INFO:2021-01-08 03:45:52] Mid loading config 2/2
-[INFO:2021-01-08 03:45:52] After loading config
-[INFO:2021-01-08 03:45:52] Before train.start(config)
-[INFO:2021-01-08 03:46:02] Before GPU mem reserve
-[INFO:2021-01-08 03:46:02] Before mkdir
-[INFO:2021-01-08 03:46:02] Before Logger init
-[INFO:2021-01-08 03:46:02] {
+[INFO:2021-01-09 00:12:26] Before parsing arguments
+[INFO:2021-01-09 00:12:26] Before loading config
+[INFO:2021-01-09 00:12:26] Mid loading config 1/2
+[INFO:2021-01-09 00:12:26] Mid loading config 2/2
+[INFO:2021-01-09 00:12:26] After loading config
+[INFO:2021-01-09 00:12:26] Before train.start(config)
+[INFO:2021-01-09 00:12:36] Before GPU mem reserve
+[INFO:2021-01-09 00:12:36] Before mkdir
+[INFO:2021-01-09 00:12:36] Before Logger init
+[INFO:2021-01-09 00:12:36] {
     "backend": "faiss-gpu",
     "cuda_device": 0,
     "dataloader": {
@@ -113,9 +113,15 @@
     },
     "verbose": false
 }
-[INFO:2021-01-08 03:46:29] Loading Dataset: MLRSNet (init); Processing 24964 labels
-[INFO:2021-01-08 03:49:45]   Done loading.
-[INFO:2021-01-08 03:49:45] Loading Dataset: MLRSNet (eval); Processing 4908 labels
-[INFO:2021-01-08 03:50:14]   Done loading.
-[INFO:2021-01-08 03:50:14] Evaluating initial model...
-[INFO:2021-01-08 03:50:14]   Computing evaluation score..
+[INFO:2021-01-09 00:14:02] Loading Dataset: MLRSNet (init); Processing 24964 labels
+[INFO:2021-01-09 00:16:03]   Done loading.
+[INFO:2021-01-09 00:16:03] Loading Dataset: MLRSNet (eval); Processing 4908 labels
+[INFO:2021-01-09 00:16:25]   Done loading.
+[INFO:2021-01-09 00:16:25] Evaluating initial model...
+[INFO:2021-01-09 00:16:25]   Computing evaluation score..
+[INFO:2021-01-09 00:18:45] R@1 : 0.338
+[INFO:2021-01-09 00:18:45] R@2 : 2.371
+[INFO:2021-01-09 00:18:45] R@4 : 11.367
+[INFO:2021-01-09 00:18:45] R@8 : 42.317
+[INFO:2021-01-09 00:18:45] Evaluation 2...
+[INFO:2021-01-09 00:18:45]   Computing evaluation score..
