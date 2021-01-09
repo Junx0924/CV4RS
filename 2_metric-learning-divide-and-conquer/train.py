@@ -176,27 +176,34 @@ def start(config, DIYlogger):
     )
 
     # log gpu and cpu memory info
-    if config['is_on_colab']:
+    if config['log_gpu_info']:
         from pynvml import nvmlInit, nvmlDeviceGetCount, nvmlDeviceGetHandleByIndex
         from pynvml import nvmlDeviceGetMemoryInfo, nvmlDeviceGetName, NVMLError
         from psutil import virtual_memory
 
         ram_gb = virtual_memory().total / 1e9
-        nvmlInit()
         try:
+            nvmlInit()
+
             deviceCount = nvmlDeviceGetCount()
             for i in range(deviceCount):
                 handle = nvmlDeviceGetHandleByIndex(i)
                 mem_info = "(Total memory: {:.3f} GB)".format(nvmlDeviceGetMemoryInfo(handle).total / 1e9)
                 logging.info("-------------------------------------------------")
                 logging.info("  GPU info")
-                logging.info("  Device " + str(i) + ": " +  nvmlDeviceGetName(handle).decode("utf-8") + mem_info)
+                logging.info("  Device " + str(i) + ": " + nvmlDeviceGetName(handle).decode("utf-8") + mem_info)
                 logging.info("")
                 logging.info("  RAM info")
                 logging.info("  Total: {:.3f} GB".format(ram_gb))
                 logging.info("-------------------------------------------------")
         except NVMLError as error:
             print(error)
+            print("Disabling gpu logging due to NVMLError error...")
+            config['log_gpu_info'] = False
+        except OSError as error:
+            print(error)
+            print("Disabling gpu logging due to OSError error...")
+            config['log_gpu_info'] = False
 
     # print summary of config
     logging.info(
@@ -293,7 +300,7 @@ def start(config, DIYlogger):
             plt.hist(np.array(dataloaders['train'][c].dataset.ys), bins = 100)
             plt.show()
 
-    if config['is_on_colab']:
+    if config['log_gpu_info']:
         from pynvml import nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
         handle = nvmlDeviceGetHandleByIndex(0)
         gpu_info = nvmlDeviceGetMemoryInfo(handle)
@@ -346,7 +353,8 @@ def start(config, DIYlogger):
         max_len_dataloaders = max([len(dl) for dl in dataloaders['train']])
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
 
-        print("GPU info: {:.3f}% used ({}Bytes free)".format(gpu_info.used/gpu_info.total*100, gpu_info.free))
+        if config['log_gpu_info']:
+            print("GPU info: {:.3f}% used ({}Bytes free)".format(gpu_info.used/gpu_info.total*100, gpu_info.free))
         for batch, dset in tqdm(
             mdl,
             total = num_batches_approx,
