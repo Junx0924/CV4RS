@@ -62,7 +62,7 @@
         "drop_last": false,
         "shuffle": false,
         "pin_memory": true,
-        "batch_size": 256
+        "batch_size": 128
     },
     "opt": {
         "backbone": {

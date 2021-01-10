@@ -1,9 +1,9 @@
 from __future__ import print_function
 from __future__ import division
 
-# import collections
+import collections
 import os
-# import matplotlib
+import matplotlib
 import numpy as np
 import logging
 import torch
