@@ -54,6 +54,7 @@ if __name__ == '__main__':
     DIYlogger.info("Before loading config")
     config = train.load_config(config_name = pj_base_path+'config.json')
 
+    config['pj_base_path'] = pj_base_path
     config['pretrained_weights_file'] = pj_base_path + config['pretrained_weights_file']
 
     config['dataloader']['batch_size'] = args.pop('sz_batch')

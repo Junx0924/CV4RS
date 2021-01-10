@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J D&C_bigearth
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/bigearth_log_.out
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/big_0/bigearth_log.out
 
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
@@ -23,4 +23,6 @@ export USE_SIMPLE_THREADED_LEVEL3=1
 
 pip install gdal==3.2.0
 
-python /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/experiment.py --dataset=bigearth --nb-clusters=43 --sz-embedding=128 --backend=faiss-gpu --num-workers=0
+python /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/experiment.py \
+--dataset=bigearth --nb-clusters=43 --sz-embedding=128 --backend=faiss-gpu --num-workers=0 \
+--log-gpu-info --dir=big_0
