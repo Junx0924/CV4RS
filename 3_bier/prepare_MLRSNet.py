@@ -1,6 +1,7 @@
 """
-This script prepares the CUB-200-2011 dataset for BIER.
-We assume that the CUB images are stored in the images/ subdirectory.
+This script prepares the MLRSNet dataset for BIER.
+We assume that train/val/test csv files are existed in MLRSNet_split.
+train/val/test csv files contains patch_path, patch labels
 """
 from PIL import Image
 from skimage.transform import resize
@@ -57,7 +58,7 @@ def collect_data(patch_path):
 
 def main():
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
-    datapath = '/media/robin/Intenso/Dataset/MLRSNet'
+    datapath = '/media/robin/SSD1/Jun/Dataset/MLRSNet'
 
     with open(csv_dir +'/category.json') as json_file:
         category = json.load(json_file)
@@ -69,7 +70,9 @@ def main():
 
     # to downsize the train/val data
     random.seed(0)
-    train_per_class = 0.3
+    train_per_class = 0.05
+    val_per_class= 0.05
+    test_per_class =0.05
 
     all_train_images = []
     all_train_labels = []
@@ -86,7 +89,9 @@ def main():
     all_val_labels = []
     for key in val_image_dict.keys():
         label = key
-        for patch_path in val_image_dict[key]:
+        temp_list = list(val_image_dict[key])
+        k = int(len(temp_list)*val_per_class)
+        for patch_path in random.sample(temp_list,k):
             temp = collect_data(patch_path)
             all_val_images.append(temp)
             all_val_labels.append(int(label))
@@ -95,7 +100,9 @@ def main():
     all_test_labels = []
     for key in test_image_dict.keys():
         label = key
-        for patch_path in test_image_dict[key]:
+        temp_list = list(test_image_dict[key])
+        k = int(len(temp_list)*test_per_class)
+        for patch_path in random.sample(temp_list,k):
             temp = collect_data(patch_path)
             all_test_images.append(temp)
             all_test_labels.append(int(label))

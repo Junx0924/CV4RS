@@ -8,6 +8,7 @@ import numpy as np
 import random
 import flip_gradient
 
+
 #import code.deep_inception as models
 import architectures as archs
 
@@ -437,10 +438,11 @@ def main():
     global LAMBDA_WEIGHT
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train-images', required=True)
-    parser.add_argument('--train-labels', required=True)
-    parser.add_argument('--test-images', required=False)
-    parser.add_argument('--test-labels', required=False)
+    parser.add_argument('--dataset_name', default='BigEarthNet',required=True)
+    parser.add_argument('--source_path', default="../Dataset",  type=str, help='Path to the dataset.')
+    #parser.add_argument('--train-labels', required=True)
+    #parser.add_argument('--test-images', required=False)
+    #parser.add_argument('--test-labels', required=False)
     parser.add_argument('--batch-size', type=int, default=BATCH_SIZE)
     parser.add_argument('--weights', default='data/inception.npy')
     parser.add_argument('--lambda-weight', type=float, default=LAMBDA_WEIGHT)
@@ -478,39 +480,42 @@ def main():
     print(args.logdir)
 
     skip_test = args.skip_test
-    if args.test_images is None or args.test_labels is None:
-        skip_test = True
 
     random.seed(args.seed)
     np.random.seed(args.seed)
     tf.set_random_seed(args.seed)
 
     embedding_sizes = [int(x) for x in args.embedding_sizes.split(',')]
-    crop_size = 224
-     
+    if 'MLRSNet' in args.dataset_name:
+        crop_size = 256
+        channels = 3
+    if 'BigEarthNet' in args.dataset_name:
+        crop_size = 120
+        channels =12
 
-    spec = TrainingData(crop_size, channels=3, mean=(104.0, 117.0, 123.0))
+    spec = TrainingData(crop_size, channels, mean=(104.0, 117.0, 123.0))
     print('creating datasets...')
     train_provider = dataset.NpyDatasetProvider(
         data_spec=spec,
         labels_per_batch=args.labels_per_batch,
         images_per_identity=args.images_per_identity,
-        image_file=args.train_images,
-        label_file=args.train_labels,
-        batch_size=BATCH_SIZE)
-    test_provider = None
+        dataset_name=args.dataset_name,
+        source_path= args.source_path,
+        batch_size=BATCH_SIZE,
+        is_training = True)
+    
     train_labels, train_data = train_provider.dequeue_op
     if not skip_test:
         test_provider = dataset.NpyDatasetProvider(
             data_spec=spec,
-            image_file=args.test_images,
-            label_file=args.test_labels,
+            dataset_name=args.dataset_name,
+            source_path= args.source_path,
             batch_size=BATCH_SIZE,
             is_training=False)
         test_labels, test_data = test_provider.dequeue_op
     
-    net = archs.select(args.arch)({'data': train_data})
     #net = models.GoogleNet({'data': train_data})
+    net = archs.select(args.arch)({'data': train_data})
     hidden_layer = net.get_output()
     preds, end_points = embedding_tower(
         hidden_layer, embedding_sizes)

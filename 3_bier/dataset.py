@@ -1,9 +1,11 @@
 from __future__ import division
 from __future__ import print_function
 
+import datasets as datasets
 import numpy as np
 import tensorflow as tf
 from skimage.transform import resize
+from PIL import Image
 
 def process_image(img, crop=None, mean=None,
                   mirror=True, is_training=True):
@@ -43,45 +45,51 @@ class NpyDatasetProvider(object):
     """
     This class hooks up a numpy dataset file to tensorflow queue runners.
     """
-    def __init__(self, data_spec, image_file, label_file,
+    def __init__(self, data_spec, dataset_name,source_path, 
                  labels_per_batch=6, images_per_identity=None,
                  batch_size=32, is_training=True, num_concurrent=4):
         super(NpyDatasetProvider, self).__init__()
         # The data specifications describe how to process the image
         self.data_spec = data_spec
-
-        # for inception network input [batch_size,target_size,target_size,channels]
-        self.images = np.transpose(np.load(image_file), (0, 2, 3, 1))
-        #self.images =np.array([resize(temp[i],(256,256)) for i in range(temp.shape[0])])
+        if 'MLRSNet' in dataset_name:
+            self.img_shape = [256,256,3]
+        if 'BigEarthNet' in dataset_name:
+            self.img_shape = [120,120,12]
         
-        # for Resnet50 network input [batch_size, channels,target_size,target_size]
-        #self.images = np.load(image_file)
+        data_set = datasets.select(dataset_name,source_path)
+        if is_training :
+            data_dict = data_set["training"]
+        else:
+            data_dict = data_set["validation"]
 
-        self.labels = np.load(label_file)
+        temp_list = [[(x,int(key)) for x in data_dict[key]] for key in data_dict.keys()]
+        temp_list = np.array([x for y in temp_list for x in y])
+
+        self.image_paths = temp_list[:,0]
+        self.labels = temp_list[:,1]
+
         if self.labels.dtype != np.int32:
             self.labels = self.labels.astype(np.int32)
 
-        self.original_num_images = len(self.images)
+        self.original_num_images = len(self.image_paths)
         self.batch_size = batch_size
         self.is_training = is_training
-        self.num_images = len(self.images)
+        self.num_images = len(self.image_paths)
         self.images_per_identity = images_per_identity
 
         if images_per_identity is not None:
             batch_size = images_per_identity * labels_per_batch
             self.batch_size = batch_size
-
+        
         if not self.is_training and self.num_images % self.batch_size != 0:
             to_pad = self.batch_size - (self.num_images % self.batch_size)
-            pad_img = np.zeros(
-                [to_pad] + list(self.images.shape[1:]), dtype=np.uint8)
+            pad_path = np.array(["pad.pad"]*to_pad)
             pad_label = -np.ones([to_pad], dtype=np.int32)
             self.labels = np.r_[self.labels, pad_label]
-            self.images = np.vstack([self.images, pad_img])
-
-            self.num_images = len(self.images)
-
-        self.indices = np.arange(len(self.images))
+            self.image_paths = np.r_[self.image_paths, pad_path]
+            self.num_images = len(self.image_paths )
+        
+        self.indices = np.arange(self.num_images)
         self.labels_per_batch = labels_per_batch
         self.unique_labels = np.unique(self.labels)
         self.tf_unique_labels = tf.convert_to_tensor(self.unique_labels)
@@ -95,11 +103,10 @@ class NpyDatasetProvider(object):
         Args:
             num_concurrent: Number of concurrent threads.
         """
-        num_images = len(self.images)
-        self.num_batches = num_images // self.batch_size
-        indices = tf.range(num_images)
+        self.num_batches = self.num_images // self.batch_size
+        indices = tf.range(self.num_images)
 
-        self.preprocessing_queue = tf.FIFOQueue(capacity=len(self.images),
+        self.preprocessing_queue = tf.FIFOQueue(capacity=self.num_images,
                                                 dtypes=[tf.int32],
                                                 shapes=[()],
                                                 name='preprocessing_queue')
@@ -107,7 +114,7 @@ class NpyDatasetProvider(object):
 
         image_shape = (self.data_spec.crop_size,
                        self.data_spec.crop_size, self.data_spec.channels)
-        processed_queue = tf.FIFOQueue(capacity=len(self.images),
+        processed_queue = tf.FIFOQueue(capacity=self.num_images,
                                        dtypes=[tf.int32, tf.float32],
                                        shapes=[(), image_shape],
                                        name='processed_queue')
@@ -115,7 +122,7 @@ class NpyDatasetProvider(object):
         enqueue_processed_op = processed_queue.enqueue([label, img])
 
         self.dequeue_op = processed_queue.dequeue_many(self.batch_size)
-        num_concurrent = min(num_concurrent, num_images)
+        num_concurrent = min(num_concurrent, self.num_images)
         self.queue_runner = tf.train.QueueRunner(
             processed_queue,
             [enqueue_processed_op] * num_concurrent)
@@ -140,8 +147,7 @@ class NpyDatasetProvider(object):
         Args:
             num_concurrent: Number of concurrent threads.
         """
-        num_images = len(self.images)
-        self.num_batches = num_images // self.batch_size
+        self.num_batches = self.num_images // self.batch_size
 
         # Crate a label queue.
         self.label_queue = tf.RandomShuffleQueue(
@@ -159,7 +165,7 @@ class NpyDatasetProvider(object):
 
         image_shape = (self.data_spec.crop_size,
                        self.data_spec.crop_size, self.data_spec.channels)
-        processed_queue = tf.FIFOQueue(  # capacity=len(self.images),
+        processed_queue = tf.FIFOQueue(  # capacity=self.num_images,
             capacity=self.batch_size * 6,
             dtypes=[tf.int32, tf.float32],
             shapes=[(), image_shape],
@@ -170,7 +176,7 @@ class NpyDatasetProvider(object):
             [labels, processed_images])
 
         self.dequeue_op = processed_queue.dequeue_many(self.batch_size)
-        num_concurrent = min(num_concurrent, num_images)
+        num_concurrent = min(num_concurrent, self.num_images)
         self.label_runner = tf.train.QueueRunner(
             self.label_queue, [self.label_queue_op] * (num_concurrent + 1))
         self.queue_runner = tf.train.QueueRunner(
@@ -243,6 +249,23 @@ class NpyDatasetProvider(object):
         """
         for _ in xrange(self.num_batches):
             yield self.get(session=session)
+   
+    def fetch_images(self, the_idx):
+        img_path = self.image_paths[the_idx]
+        suffix = img_path.split["."][-1]
+        if suffix =='png' or suffix =='jpg':
+            pic = Image.open(img_path)
+            input_image = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+        # hypespectral image (channels more than 3)
+        elif suffix =="npy":
+            input_image = np.transpose(np.load(img_path),(1, 2, 0))
+        # pad files
+        else:
+            input_image = np.zeros(self.img_shape)
+        return input_image
+
+    def fetch_labels(self, the_idx):
+        return self.labels[the_idx]
 
     def process_test(self):
         """
@@ -251,17 +274,11 @@ class NpyDatasetProvider(object):
         Returns:
             Tuple consisting of (label, processed_image).
         """
-        def fetch_images(the_idx):
-            return self.images[the_idx, ...]
-
-        def fetch_labels(the_idx):
-            return self.labels[the_idx]
-
         index = self.preprocessing_queue.dequeue()
-        label = tf.py_func(fetch_labels, [index], tf.int32)
+        label = tf.py_func(self.fetch_labels, [index], tf.int32)
+        the_img = tf.py_func(self.fetch_images, [index], tf.uint8)
         label.set_shape([])
-        the_img = tf.py_func(fetch_images, [index], tf.uint8)
-        the_img.set_shape(self.images.shape[1:])
+        the_img.set_shape(self.img_shape)
         processed_img = process_image(img=the_img,
                                       #img=self.tf_images[index, ...],
                                       crop=self.data_spec.crop_size,
@@ -294,14 +311,14 @@ class NpyDatasetProvider(object):
                     all_ids.append(valid_mask)
                 all_ids = np.concatenate(all_ids)
                 valid_labels = self.labels[all_ids]
-                valid_images = self.images[all_ids, ...]
+                valid_images = [self.fetch_images(ids) for ids in all_ids]
                 return valid_labels, valid_images
 
             else:
                 valid_mask, = np.nonzero(np.in1d(self.labels, sampled_labels))
                 valid_mask = np.random.choice(valid_mask, size=self.batch_size)
                 valid_labels = self.labels[valid_mask]
-                valid_images = self.images[valid_mask, ...]
+                valid_images = [self.fetch_images(ids) for ids in valid_mask]
                 return valid_labels, valid_images
 
         labels = self.label_queue.dequeue_many(self.labels_per_batch)
@@ -309,7 +326,7 @@ class NpyDatasetProvider(object):
 
         labels, images = tf.py_func(fetch_data, [labels], [tf.int32, tf.uint8])
         labels.set_shape([self.batch_size])
-        images.set_shape([self.batch_size] + list(self.images.shape[1:]))
+        images.set_shape([self.batch_size] + list(self.img_shape))
 
         processed_images = []
         for i in range(self.batch_size):

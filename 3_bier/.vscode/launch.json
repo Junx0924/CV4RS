@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/robin/Documents/CV4RS/code/3_bier/train_bier.py",
+            "console": "integratedTerminal",
+            "args":[
+                "--dataset_name", "MLRSNet",
+                "--source_path", "/media/robin/SSD1/Jun/Dataset",
+                "--lr-anneal", "25000",
+                "--lr-decay","0.5" ,
+                "--num-iterations", "100000",
+                "--labels-per-batch", "60",
+                "--images-per-identity", "2",
+                "--batch-size", "128",
+                "--regularization", "adversarial" ,
+                "--lambda-weight" ,"100000.0",
+                "--lambda-div", "5e-5",
+                "--logdir", "/home/robin/Documents/CV4RS/code/3_bier/log"
+            ]
+        }
+    ]
+}

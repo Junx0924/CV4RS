@@ -6,11 +6,11 @@ train/val/test json files contains class_label: patch_names
 import numpy as np
 from osgeo import gdal
 import os
-import skimage
 from skimage.transform import resize
 import json
 
 TARGET_SIZE = 256
+
 
 def collect_data(patch_path):
     """
@@ -22,9 +22,9 @@ def collect_data(patch_path):
     Returns:
         A list file of preprocessed 12 bands with shape(channels,TARGET_SIZE,TARGET_SIZE)
     """
-    if  not os.path.exists(patch_path):
+    if not os.path.exists(patch_path):
         patch_name = (patch_path.split(".")[0]).split("/")[-1]
-        #band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+        # band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
         # only use the RGB channel
         band_names = ['B04','B03','B02']
         tif_img = []
@@ -58,17 +58,18 @@ def main():
         with open(json_dir + json_files[i], 'r') as json_file:
             data_list.append(json.load(json_file))
     conversion = data_list[3]
+    # get the common keys from train/va/test
+    keys= [ data.keys() for data in data_list[:3]]
+    keys = [ [k for k in i] for i in keys]
+    keys = list(set.intersection(*map(set, keys)))
+    new_keys = {key:i for i,key in enumerate(keys)} 
+    new_conversion = {new_keys[key]:conversion[key] for key in keys}
+
     train_image_dict,val_image_dict,test_image_dict ={},{},{}
     new_data_list = [train_image_dict,val_image_dict,test_image_dict]
-    #new_conversion_list =[]
     for i in range(len(new_data_list)):
-        # make sure the class label is continuous
-        keys = data_list[i].keys()
-        #new_keys = {key:i for i,key in enumerate(keys)} 
-        #new_conversion_list.append({new_keys[key]:conversion[key] for key in keys})
         for key in keys:
-            #new_data_list[i][new_keys[key]] = [datapath + '/' + patch_name +'.npy' for patch_name in data_list[i][key]]
-            new_data_list[i][key] = [datapath + '/' + patch_name +'.npy' for patch_name in data_list[i][key]]
+            new_data_list[i][new_keys[key]] = [datapath + '/' + patch_name +'.npy' for patch_name in data_list[i][key]]
     
     all_train_images = []
     all_train_labels = []
