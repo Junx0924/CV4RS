@@ -31,8 +31,11 @@ class MLRSNet(BaseDataset):
             raise Exception
 
         # get random sample (50%) out of all patches
+        percentage_to_use = 20
+
         random.seed(1)
-        samp = random.sample(list(range(len(patches)-1)), len(patches) // 2)
+        number_of_samples = int(len(patches) * percentage_to_use/100)
+        samp = random.sample(list(range(len(patches)-1)), number_of_samples)
         samp.sort()
 
         logging.info("Loading Dataset: MLRSNet (%s); Processing %i labels" % (classes, len(patches)-len(samp)))

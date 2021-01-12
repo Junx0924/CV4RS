@@ -54,7 +54,7 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, x)
 
 
-def evaluate(model, dataloaders, logging, backend='faiss', config = None):
+def evaluate(model, dataloaders, logging_, backend='faiss', config = None):
     if config is not None and config['dataset_selected'] == 'inshop':
         dl_query = lib.data.loader.make(config, model,
             'eval', inshop_type = 'query')
@@ -73,6 +73,7 @@ def evaluate(model, dataloaders, logging, backend='faiss', config = None):
             use_penultimate = False,
             backend=backend
         )
+        logging_.info("Score:", score)
     return score
 
 
@@ -161,18 +162,12 @@ def start(config, DIYlogger):
         config['log']['name'] += '_'
 
     # initialize logger
+    logger_path = "{0}/{1}.log".format(config['log']['path'], config['log']['name'])
+    # noinspection PyArgumentList
     logging.basicConfig(
         format = "%(asctime)s %(message)s",
         level = logging.DEBUG if config['verbose'] else logging.INFO,
-        handlers = [
-            logging.FileHandler(
-                "{0}/{1}.log".format(
-                    config['log']['path'],
-                    config['log']['name']
-                )
-            ),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler(logger_path), logging.StreamHandler()]
     )
 
     # log gpu and cpu memory info
@@ -197,12 +192,12 @@ def start(config, DIYlogger):
                 logging.info("  Total: {:.3f} GB".format(ram_gb))
                 logging.info("-------------------------------------------------")
         except NVMLError as error:
-            print(error)
-            print("Disabling gpu logging due to NVMLError error...")
+            logging.info(error)
+            logging.info("Disabling gpu logging due to NVMLError error...")
             config['log_gpu_info'] = False
         except OSError as error:
-            print(error)
-            print("Disabling gpu logging due to OSError error...")
+            logging.info(error)
+            logging.info("Disabling gpu logging due to OSError error...")
             config['log_gpu_info'] = False
 
     # print summary of config
@@ -300,6 +295,7 @@ def start(config, DIYlogger):
             plt.hist(np.array(dataloaders['train'][c].dataset.ys), bins = 100)
             plt.show()
 
+    gpu_info = None
     if config['log_gpu_info']:
         from pynvml import nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
         handle = nvmlDeviceGetHandleByIndex(0)

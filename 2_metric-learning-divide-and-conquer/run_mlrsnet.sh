@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J D&C_mlrsnet
-#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/mlrsnet_log_Jan_09_2.out
+#SBATCH -o /home/users/p/paka0401/CV4RS/CV4RS/2_metric-learning-divide-and-conquer/log/ml/mlrsnet_log.out
 
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
@@ -11,7 +11,7 @@
 
 #SBATCH --mem=15G
 #SBATCH --partition=gpu
-#SBATCH --time=15:00:00
+#SBATCH --time=30:00:00
 
 #SBATCH --mail-type=ALL --mail-user=paul.kaufmann12@gmail.com
 
