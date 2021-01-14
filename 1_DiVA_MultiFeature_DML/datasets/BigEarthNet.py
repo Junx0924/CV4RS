@@ -31,7 +31,7 @@ def get_data(img_path):
     with open(patch_json_path, 'rb') as f:
         patch_json = json.load(f)
     original_labels = patch_json['labels']
-    return patch_name ,original_labels, tif_img.reshape(-1)
+    return patch_name ,original_labels, tif_img
 
 # hdf_file: hdf5 file record the images
 # file_list: record the image paths
@@ -41,13 +41,14 @@ def store_hdf(hdf_file, file_list,label_indices):
     pool = multiprocessing.Pool(multiprocessing.cpu_count())
     results = pool.imap(get_data, (img_path for img_path in file_list))
     for idx,(patch_name,original_labels,img_data) in enumerate(results):
-        f.create_dataset(patch_name, data=img_data,compression='gzip',compression_opts=9)
-        # record label names
-        for label in original_labels:
-            key = label_indices['original_labels'][label]
-            if not key in image_dict.keys():
-                image_dict[key] = []
-            image_dict[key].append(patch_name)
+        if len(img_data) == 12 :
+            f.create_dataset(patch_name, data=img_data.reshape(-1),compression='gzip',compression_opts=9)
+            # record label names
+            for label in original_labels:
+                key = label_indices['original_labels'][label]
+                if not key in image_dict.keys():
+                    image_dict[key] = []
+                image_dict[key].append(patch_name)
         
         if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
     # store the dict file to hdf file
