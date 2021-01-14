@@ -89,25 +89,19 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
     for i in range(len(temp_sample_paths)):
         plot_path = temp_sample_paths[i]
         ax = temp_axes[i]
-        if plot_path.split(".")[1] =="png" or plot_path.split(".")[1] =="jpg":
+        if ".png" in plot_path or ".jpg" in plot_path:
             img_data = np.array(PIL.Image.open(plot_path))
         else:
             # get RGB channels from the band data of BigEarthNet
             tif_img =[]
-            if os.path.exists(plot_path):
-                temp = np.load(plot_path)
-                tif_img.append(normalize(temp[3],norm="max")*255)
-                tif_img.append(normalize(temp[2],norm="max")*255)
-                tif_img.append(normalize(temp[1],norm="max")*255)
-            else:
-                patch_name = (plot_path.split(".")[0]).split("/")[-1]
-                for band_name in ['B04','B03','B02']:
-                    img_path = plot_path.split(".")[0] +'/'+ patch_name+'_'+band_name+'.tif'
-                    band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
-                    raster_band = band_ds.GetRasterBand(1)
-                    band_data = np.array(raster_band.ReadAsArray()) 
-                    band_data = normalize(band_data,norm="max")*255
-                    tif_img.append(band_data)
+            patch_name = plot_path.split("/")[-1]
+            for band_name in ['B04','B03','B02']:
+                img_path = plot_path +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = normalize(band_data,norm="max")*255
+                tif_img.append(band_data)
             img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
         ax.imshow(img_data)
         ax.set_xticks([])
@@ -148,25 +142,19 @@ def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matr
     for i in range(len(temp_sample_paths)):
         plot_path = temp_sample_paths[i]
         ax = temp_axes[i]
-        if plot_path.split(".")[1] =="png" or plot_path.split(".")[1] =="jpg":
+        if ".png" in plot_path or ".jpg" in plot_path:
             img_data = np.array(PIL.Image.open(plot_path))
         else:
             # get RGB channels from the band data of BigEarthNet
             tif_img =[]
-            if os.path.exists(plot_path):
-                temp = np.load(plot_path)
-                tif_img.append(normalize(temp[3],norm="max")*255)
-                tif_img.append(normalize(temp[2],norm="max")*255)
-                tif_img.append(normalize(temp[1],norm="max")*255)
-            else:
-                patch_name = (plot_path.split(".")[0]).split("/")[-1]
-                for band_name in ['B04','B03','B02']:
-                    img_path = plot_path.split(".")[0] +'/'+ patch_name+'_'+band_name+'.tif'
-                    band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
-                    raster_band = band_ds.GetRasterBand(1)
-                    band_data = np.array(raster_band.ReadAsArray()) 
-                    band_data = normalize(band_data,norm="max")*255
-                    tif_img.append(band_data)
+            patch_name = plot_path.split("/")[-1]
+            for band_name in ['B04','B03','B02']:
+                img_path = plot_path +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = normalize(band_data,norm="max")*255
+                tif_img.append(band_data)
             img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
         ax.imshow(img_data)
         ax.set_xticks([])

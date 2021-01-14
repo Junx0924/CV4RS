@@ -84,7 +84,7 @@ if opt.savename=='group_plus_seed':
 if opt.log_online:
     import wandb
     os.environ['WANDB_API_KEY'] = opt.wandb_key
-    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(opt.wandb_key))
     wandb.init(project=opt.project, group=opt.group, name=opt.savename, dir=opt.save_path)
     wandb.config.update(opt)

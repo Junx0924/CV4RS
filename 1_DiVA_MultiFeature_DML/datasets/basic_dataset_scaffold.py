@@ -1,20 +1,21 @@
 from torch.utils.data import Dataset
 import torch
-from PIL import Image
 import numpy as np
 from pathlib import Path
 import hypia # for hypespetral image augmentation
 import random
+import h5py
 
 """==================================================================================================="""
 ################## BASIC PYTORCH DATASET USED FOR ALL DATASETS ##################################
 class BaseDataset(Dataset):
-    def __init__(self, image_dict, opt, is_validation=False):
+    def __init__(self, image_dict, hdf5, opt, is_validation=False):
         self.is_validation = is_validation
         self.pars        = opt
 
         #####
         self.image_dict = image_dict
+        self.hdf = hdf5
 
         #####
         self.init_setup()
@@ -43,10 +44,10 @@ class BaseDataset(Dataset):
 
      
     def normal_transform(self,img):
-        if self.pars.dataset =="MLRSNet":
-            img = hypia.functionals.resize(img,256)
-        if  self.pars.dataset =="BigEarthNet":
-            img = hypia.functionals.resize(img,120)
+        # if self.pars.dataset =="MLRSNet":
+        #     img = hypia.functionals.resize(img,256)
+        # if  self.pars.dataset =="BigEarthNet":
+        #     img = hypia.functionals.resize(img,120)
         # normalize
         if 'bninception' not in self.pars.arch:
             img = hypia.functionals.normalise(img,0.485,0.229)
@@ -55,14 +56,14 @@ class BaseDataset(Dataset):
         return torch.Tensor(img)
     
     def real_transform(self,img,idx):
-        if self.pars.dataset =="MLRSNet":
-            img = hypia.functionals.resize(img,256)
-        if  self.pars.dataset =="BigEarthNet":
-            img = hypia.functionals.resize(img,120)
+        # if self.pars.dataset =="MLRSNet":
+        #     img = hypia.functionals.resize(img,256)
+        # if  self.pars.dataset =="BigEarthNet":
+        #     img = hypia.functionals.resize(img,120)
         # apply rotation
         imrot_class = idx%4
-        angle = np.array([0,90,180,270])[imrot_class]
-        im_b = hypia.functionals.rotate(img, angle,reshape=True)
+        angle = np.array([90,270,180,0])[imrot_class]
+        im_b = hypia.functionals.rotate(img, angle,reshape=False)
         im_b = self.normal_transform(im_b)
         # normalize
         if 'bninception' not in self.pars.arch:
@@ -71,24 +72,23 @@ class BaseDataset(Dataset):
             im_b = hypia.functionals.normalise(im_b,0.502,0.0039)
         return torch.Tensor(im_b),imrot_class
     
-    # for images like png, jpg etc
-    def ensure_3dim(self, img):
-        if len(img.size)==2:
-            img = img.convert('RGB')
-        return img
-    
     
     def __getitem__(self, idx):
         img_path = self.image_list[idx][0]
         img_label = self.image_list[idx][-1]
         imrot_class = -1
 
+        # get the image data from hdf5 file
+        patch_name = img_path.split('/')[-1]
+        f = h5py.File(self.hdf, 'r')
+        data = f[patch_name][()]
+        f.close()
+
         if Path(img_path).suffix =='.png' or Path(img_path).suffix =='.jpg':
-            pic = self.ensure_3dim(Image.open(img_path))
-            input_image = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+            input_image = data.reshape(3, 256, 256)
         # hypespectral image (channels more than 3)
         else:
-            input_image = np.load(img_path)
+            input_image = data.reshape(12,120,120)
         
         if self.is_validation:
             im_a = self.normal_transform(input_image)

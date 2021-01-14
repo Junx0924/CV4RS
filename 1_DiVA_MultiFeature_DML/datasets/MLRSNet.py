@@ -7,6 +7,10 @@ import xlrd
 import itertools
 import json
 import os
+import h5py
+from PIL import Image
+import multiprocessing
+ 
 
 def split(image_dict,split_ratio):
     train_image_dict  = {} 
@@ -40,6 +44,8 @@ def split(image_dict,split_ratio):
             
     return train_image_dict,flag
 
+# csv_filename: record the image name and its labels
+# datapath: the source of dataset
 def read_csv(csv_filename,datapath):
     file_list, file_label =[],[]
     with open(csv_filename) as csv_file:
@@ -50,13 +56,36 @@ def read_csv(csv_filename,datapath):
     file_list = np.array(file_list)
     file_label = np.array(file_label,dtype=int)
     file_image_dict  = {i:file_list[np.where(file_label[:,i]==1)[0]] for i in range(file_label.shape[1])}
-    # randomly sample up 30% for quick running
-    for key in file_image_dict.keys():
-        temp = list(file_image_dict[key])
-        k = int(len(temp)*0.3)
-        file_image_dict[key]= np.array(random.sample(temp,k))
-    return file_image_dict
+    # # randomly sample up 30% for quick running
+    # for key in file_image_dict.keys():
+    #     temp = list(file_image_dict[key])
+    #     k = int(len(temp)*0.3)
+    #     file_image_dict[key]= np.array(random.sample(temp,k))
+    return file_image_dict,file_list
 
+
+def get_data(img_path):
+    patch_name = img_path.split('/')[-1]
+    pic = Image.open(img_path)
+    if len(pic.size)==2:
+        pic = pic.convert('RGB')
+    pic = pic.resize((256,256))
+    img_data = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+    return patch_name,img_data.reshape(-1)
+ 
+# hdf_file: hdf5 file record the images
+# file_list: record the image paths
+def store_hdf(hdf_file, file_list):
+    f = h5py.File(hdf_file,'w')
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    result = pool.imap(get_data, (img_path for img_path in file_list))
+    for idx,(patch_name, img_data) in enumerate(result):
+        f.create_dataset(patch_name, data=img_data, dtype='i',compression='gzip',compression_opts=9)
+        if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
+    f.close()
+    pool.close()
+    pool.join()
+            
 def Give(opt, datapath):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
@@ -132,25 +161,38 @@ def Give(opt, datapath):
         category = json.load(json_file)
     with open(csv_dir +'/label_name.json') as json_file:
         conversion= json.load(json_file)
-    train_image_dict = read_csv(csv_dir +'/train.csv',datapath)
-    test_image_dict = read_csv(csv_dir +'/test.csv',datapath)
-    val_image_dict = read_csv(csv_dir +'/val.csv',datapath)
+    train_image_dict,train_list = read_csv(csv_dir +'/train.csv',datapath)
+    val_image_dict,val_list = read_csv(csv_dir +'/val.csv',datapath)
+    test_image_dict ,test_list= read_csv(csv_dir +'/test.csv',datapath)
+    
+    # store all the images in hdf5 files to further reduce disk I/O
+    train_h5 = datapath +'/train.hdf5'
+    if not Path(train_h5).exists(): 
+        print("Start to create ", train_h5," for MLRSNet")
+        store_hdf(train_h5, train_list)
+    val_h5 = datapath +'/val.hdf5'
+    if not Path(val_h5).exists(): 
+        print("Start to create ", val_h5," for MLRSNet")
+        store_hdf(val_h5, val_list)
+    test_h5 = datapath +'/test.hdf5'
+    if not Path(test_h5).exists(): 
+        print("Start to create ", test_h5," for MLRSNet")
+        store_hdf(test_h5, test_list)
 
-    train_dataset = BaseDataset(train_image_dict, opt, is_validation=False)
+    train_dataset = BaseDataset(train_image_dict, train_h5, opt, is_validation=False)
     train_dataset.conversion = conversion
 
-    val_dataset = BaseDataset(val_image_dict, opt, is_validation=True)
+    val_dataset = BaseDataset(val_image_dict, val_h5, opt, is_validation=True)
     val_dataset.conversion   = conversion
 
-    test_dataset  = BaseDataset(test_image_dict,  opt, is_validation=True)
+    test_dataset  = BaseDataset(test_image_dict, test_h5, opt, is_validation=True)
     test_dataset.conversion  =  conversion
 
-    eval_image_dict = {key:train_image_dict[key][:len(train_image_dict[key])//2] for key in train_image_dict.keys()}
-    eval_dataset  = BaseDataset(eval_image_dict, opt, is_validation=True)
+    eval_dataset  = BaseDataset(train_image_dict, train_h5, opt, is_validation=True)
     eval_dataset.conversion  = conversion
     
     # for deep cluster feature
-    eval_train_dataset  = BaseDataset(train_image_dict, opt, is_validation=False)
+    eval_train_dataset  = BaseDataset(train_image_dict, train_h5, opt, is_validation=False)
 
     #return {'training':train_dataset, 'validation':val_dataset, 'testing':test_dataset, 'evaluation':eval_dataset, 'evaluation_train':eval_train_dataset}
     return {'training':train_dataset,'evaluation':eval_dataset,'validation':val_dataset, 'evaluation_train':eval_train_dataset, 'testing_query':val_dataset, 'testing_gallery':test_dataset}
