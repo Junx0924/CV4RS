@@ -44,32 +44,40 @@ class BaseDataset(Dataset):
 
      
     def normal_transform(self,img):
-        # if self.pars.dataset =="MLRSNet":
-        #     img = hypia.functionals.resize(img,256)
-        # if  self.pars.dataset =="BigEarthNet":
-        #     img = hypia.functionals.resize(img,120)
-        # normalize
-        if 'bninception' not in self.pars.arch:
-            img = hypia.functionals.normalise(img,0.485,0.229)
+        img_dim = img.shape[1]
+        if 'MLRSNet' in self.pars.dataset:
+            crop = 224
+        if 'BigEarthNet' in self.pars.dataset:
+            crop = 100
+        # for training randomly crop and randomly flip
+        if not self.is_validation:
+            # randomly crop
+            if img_dim == crop: tl =[0,0]
+            else: tl = np.random.choice(np.arange(img_dim-crop),2)
+            img = hypia.functionals.crop(img, tl, crop, crop,channel_pos='first')
+            # randomly flip
+            choice = np.random.choice([1,2],1)
+            if choice ==1:
+                img = hypia.functionals.hflip(img) 
+            else:
+                img = hypia.functionals.vflip(img) 
         else:
-            img = hypia.functionals.normalise(img,0.502,0.0039)
+            # for validation, use the center crop
+            offset = (img_dim- crop)//2
+            img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
+            
+        if 'resnet' in self.pars.arch:
+            img = hypia.functionals.normalise(img,0.502,0.0039) 
         return torch.Tensor(img)
     
     def real_transform(self,img,idx):
-        # if self.pars.dataset =="MLRSNet":
-        #     img = hypia.functionals.resize(img,256)
-        # if  self.pars.dataset =="BigEarthNet":
-        #     img = hypia.functionals.resize(img,120)
         # apply rotation
         imrot_class = idx%4
-        angle = np.array([90,270,180,0])[imrot_class]
+        angle = np.array([0,90,180,270])[imrot_class]
         im_b = hypia.functionals.rotate(img, angle,reshape=False)
-        im_b = self.normal_transform(im_b)
         # normalize
-        if 'bninception' not in self.pars.arch:
-            im_b = hypia.functionals.normalise(im_b,0.485,0.229)
-        else:
-            im_b = hypia.functionals.normalise(im_b,0.502,0.0039)
+        if 'resnet' in self.pars.arch:
+            im_b = hypia.functionals.normalise(im_b,0.502,0.0039) 
         return torch.Tensor(im_b),imrot_class
     
     
@@ -84,19 +92,19 @@ class BaseDataset(Dataset):
         data = f[patch_name][()]
         f.close()
 
-        if Path(img_path).suffix =='.png' or Path(img_path).suffix =='.jpg':
+        if '.png' in img_path or '.jpg' in img_path:
             input_image = data.reshape(3, 256, 256)
         # hypespectral image (channels more than 3)
         else:
             input_image = data.reshape(12,120,120)
         
-        if self.is_validation:
-            im_a = self.normal_transform(input_image)
-            return (img_label, im_a, idx)
-        else:
-            im_a, _ = self.real_transform(input_image,idx)
+        im_a = self.normal_transform(input_image)
+            
+        if not self.is_validation:
             im_b,imrot_class= self.real_transform(input_image,idx)
             return (img_label, im_a, idx, im_b, imrot_class)
+        else:
+            return (img_label, im_a, idx)
         
 
     def __len__(self):
