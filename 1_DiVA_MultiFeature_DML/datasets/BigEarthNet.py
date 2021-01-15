@@ -18,12 +18,13 @@ def get_data(img_path):
     for band_name in band_names:
         tif_path = img_path + '/'+ patch_name+'_'+band_name+'.tif'
         band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
-        if band_ds:
-            raster_band = band_ds.GetRasterBand(1)
-            band_data = np.array(raster_band.ReadAsArray()) 
-            # interpolate the image to (120,120)
-            temp = resize(band_data,(120,120))
-            tif_img.append(temp)
+        if not band_ds:
+            continue
+        raster_band = band_ds.GetRasterBand(1)
+        band_data = np.array(raster_band.ReadAsArray()) 
+        # interpolate the image to (120,120)
+        temp = resize(band_data,(120,120))
+        tif_img.append(temp)
     tif_img = np.array(tif_img)
     # Spectral band names to read related GeoTIFF files
     patch_json_path = img_path + '/' + patch_name +  '_labels_metadata.json'
