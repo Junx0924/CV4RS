@@ -143,19 +143,13 @@ torch.manual_seed(opt.seed); torch.cuda.manual_seed(opt.seed); torch.cuda.manual
 #NOTE: Networks that can be used: 'bninception, resnet50, resnet101, alexnet...'
 opt.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# arch: resnet50_normalize' or  'bninception_normalize'
+# arch: resnet50_normalize'
 model      = archs.select(opt.arch, opt)
 opt.network_feature_dim = model.feature_dim
 
 print('{} Setup for {} with {} batchmining on {} complete with #weights: {}'.format(opt.loss.upper(), opt.arch.upper(), opt.batch_mining.upper(), opt.dataset.upper(), misc.gimme_params(model)))
 
-if opt.fc_lr<0:
-    to_optim   = [{'params':model.parameters(),'lr':opt.lr,'weight_decay':opt.decay}]
-else:
-    all_but_fc_params = [x[-1] for x in list(filter(lambda x: 'last_linear' not in x[0], model.named_parameters()))]
-    fc_params         = model.model.last_linear.parameters()
-    to_optim          = [{'params':all_but_fc_params,'lr':opt.lr,'weight_decay':opt.decay},
-                         {'params':fc_params,'lr':opt.fc_lr,'weight_decay':opt.decay}]
+to_optim   = [{'params':filter(lambda p: p.requires_grad, model.parameters()),'lr':opt.lr,'weight_decay':opt.decay}]
 
 _  = model.to(opt.device)
 
@@ -165,8 +159,6 @@ if 'selfsimilarity' in opt.diva_features:
     selfsim_model.load_state_dict(model.state_dict())
     _  = selfsim_model.to(opt.device)
 #####
-
-
 
 
 
@@ -181,9 +173,6 @@ if 'dc' in opt.diva_features:
 
 dataloaders['testing_query']       = torch.utils.data.DataLoader(datasets['testing_query'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 dataloaders['testing_gallery'] = torch.utils.data.DataLoader(datasets['testing_gallery'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-
-# dataloaders['evaluation'] = torch.utils.data.DataLoader(datasets['evaluation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
-# dataloaders['validation'] = torch.utils.data.DataLoader(datasets['validation'], num_workers=opt.kernels, batch_size=opt.bs, shuffle=False)
 
 train_data_sampler      = dsamplers.select(opt.data_sampler, opt, datasets['training'].image_dict, datasets['training'].image_list)
 
