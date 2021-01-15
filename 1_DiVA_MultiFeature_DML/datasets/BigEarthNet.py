@@ -18,7 +18,7 @@ def get_data(img_path):
     for band_name in band_names:
         tif_path = img_path + '/'+ patch_name+'_'+band_name+'.tif'
         band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
-        if not band_ds:
+        if band_ds:
             raster_band = band_ds.GetRasterBand(1)
             band_data = np.array(raster_band.ReadAsArray()) 
             # interpolate the image to (120,120)
