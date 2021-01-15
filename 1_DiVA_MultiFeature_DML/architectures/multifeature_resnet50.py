@@ -39,50 +39,39 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.pars  = opt
         self.name  = opt.arch
-        model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
+        self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
         
         if 'frozen' in opt.arch:
-            model.requires_grad_(False)
+            self.model.requires_grad_ = False
            
-        self.feature_dim = model.last_linear.in_features
+        self.feature_dim =  self.model.last_linear.in_features
         # This increases the number of input channels for our network
         if opt.num_in_channels>3:
-            self.conv1 = increase_channels(model.conv1, opt.num_in_channels)
-            self.conv1.requires_grad_ = True
-        else:
-            self.conv1 = model.conv1
-
-        self.bn1 = model.bn1
-        self.relu = model.relu
-        self.maxpool = model.maxpool
-        self.layer1 = model.layer1
-        self.layer2 = model.layer2
-        self.layer3 = model.layer3
-        self.layer4 = model.layer4
-        self.avgpool = model.avgpool
+            self.model.conv1 = increase_channels(self.model.conv1, opt.num_in_channels)
+            self.model.conv1.requires_grad_ = True
 
         # add new linear layer
         out_dict = nn.ModuleDict()
         for mode in opt.diva_features:
             out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
-        self.last_linear  = out_dict
-        self.last_linear.requires_grad_ = True
+        self.model.last_linear  = out_dict
+        self.model.last_linear.requires_grad_ = True
     
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.avgpool(x)
+        x = self.model.conv1(x)
+        x = self.model.bn1(x)
+        x = self.model.relu(x)
+        x = self.model.maxpool(x)
+        x = self.model.layer1(x)
+        x = self.model.layer2(x)
+        x = self.model.layer3(x)
+        x = self.model.layer4(x)
+        x = self.model.avgpool(x)
         x = x.view(x.size(0), -1)
         
         # for the new added linear layer
         out_dict = {}
-        for key,linear_map in self.last_linear.items():
+        for key,linear_map in self.model.last_linear.items():
              # for distance weighted minner, normalize the embedings is required
             if 'normalize' in self.pars.arch:
                 out_dict[key] = torch.nn.functional.normalize(linear_map(x), dim=-1)
