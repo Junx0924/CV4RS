@@ -41,7 +41,7 @@ def store_hdf(hdf_file, file_list,label_indices):
     count = 0
     while (count < len(file_list)):
         if count==0: data_list = file_list
-        elif: 
+        else: 
             f_read = h5py.File(hdf_file,'r')
             data_list = [x for x in file_list if x not in list(f_read.keys())]
             f_read.close()
