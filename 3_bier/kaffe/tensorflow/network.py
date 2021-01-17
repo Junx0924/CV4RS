@@ -51,12 +51,12 @@ class Network(object):
         raise NotImplementedError('Must be implemented by the subclass.')
 
     def create_load_op(self, data_path, ignore_missing=False):
-        data_dict = np.load(data_path).item()
+        data_dict = np.load(data_path, allow_pickle=True).item()
 
         ops = []
         for op_name in data_dict:
             with tf.variable_scope(op_name, reuse=True):
-                for param_name, data in data_dict[op_name].iteritems():
+                for param_name, data in data_dict[op_name].items():
                     try:
                         var = tf.get_variable(param_name)
                         ops.append(var.assign(data))
@@ -75,7 +75,7 @@ class Network(object):
         data_dict = np.load(data_path).item()
         for op_name in data_dict:
             with tf.variable_scope(op_name, reuse=True):
-                for param_name, data in data_dict[op_name].iteritems():
+                for param_name, data in data_dict[op_name].items():
                     try:
                         var = tf.get_variable(param_name)
                         session.run(var.assign(data))
@@ -181,6 +181,9 @@ class Network(object):
     @layer
     def avg_pool(self, input, k_h, k_w, s_h, s_w, name, padding=DEFAULT_PADDING):
         self.validate_padding(padding)
+        h, w = input.get_shape()[1],input.get_shape()[2]
+        if  h.value < k_h : k_h = h.value
+        if  w.value < k_w : k_w = w.value
         return tf.nn.avg_pool(input,
                               ksize=[1, k_h, k_w, 1],
                               strides=[1, s_h, s_w, 1],
@@ -224,7 +227,7 @@ class Network(object):
 
     @layer
     def softmax(self, input, name):
-        input_shape = map(lambda v: v.value, input.get_shape())
+        input_shape = [v.value for v in input.get_shape()]
         if len(input_shape) > 2:
             # For certain models (like NiN), the singleton spatial dimensions
             # need to be explicitly squeezed, since they're not broadcast-able
