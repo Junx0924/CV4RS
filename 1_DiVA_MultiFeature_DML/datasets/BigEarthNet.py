@@ -37,27 +37,39 @@ def get_data(img_path):
 # hdf_file: hdf5 file record the images
 # file_list: record the image paths
 def store_hdf(hdf_file, file_list,label_indices):
-    f = h5py.File(hdf_file,'w')
     image_dict ={}
-    pool = multiprocessing.Pool(multiprocessing.cpu_count())
-    results = pool.imap(get_data, (img_path for img_path in file_list))
-    for idx,(patch_name,original_labels,img_data) in enumerate(results):
-        if len(img_data) == 12 :
-            f.create_dataset(patch_name, data=img_data.reshape(-1),compression='gzip',compression_opts=9)
-            # record label names
-            for label in original_labels:
-                key = label_indices['original_labels'][label]
-                if not key in image_dict.keys():
-                    image_dict[key] = []
-                image_dict[key].append(patch_name)
+    count = 0
+    while (count < len(file_list)):
+        if count==0: data_list = file_list
+        elif: 
+            f_read = h5py.File(hdf_file,'r')
+            data_list = [x for x in file_list if x not in list(f_read.keys())]
+            f_read.close()
         
-        if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
-    # store the dict file to hdf file
-    f.create_dataset("image_dict", data= json.dumps(image_dict))
+        f = h5py.File(hdf_file,'w')
+        pool = multiprocessing.Pool(8)
+        results = pool.imap(get_data, (img_path for img_path in data_list))
+        for idx,(patch_name,original_labels,img_data) in enumerate(results):
+            if len(img_data) == 12 :
+                f.create_dataset(patch_name, data=img_data.reshape(-1),compression='gzip',compression_opts=9)
+                # record label names
+                for label in original_labels:
+                    key = label_indices['original_labels'][label]
+                    if not key in image_dict.keys():
+                        image_dict[key] = []
+                    image_dict[key].append(patch_name)
+            if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(data_list)*100))
+        pool.close()
+        pool.join()
+        f.close()
+        f_read = h5py.File(hdf_file,'r')
+        count = len(list(f_read.keys()))
+        f_read.close()
     
+    # store the dict file to hdf file
+    f = h5py.File(hdf_file,'w')
+    f.create_dataset("image_dict", data= json.dumps(image_dict))
     f.close()
-    pool.close()
-    pool.join()
 
 def Give(opt, datapath):
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
