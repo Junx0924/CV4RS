@@ -18,12 +18,12 @@ def get_padding_type(kernel_params, input_shape, output_shape):
     https://github.com/Yangqing/caffe2/blob/master/caffe2/proto/caffe2_legacy.proto
     '''
     k_h, k_w, s_h, s_w, p_h, p_w = kernel_params
-    s_o_h = np.ceil(input_shape.height / float(s_h))
-    s_o_w = np.ceil(input_shape.width / float(s_w))
+    s_o_h = np.array(np.ceil(input_shape.height / float(s_h)),dtype=float32)
+    s_o_w = np.array(np.ceil(input_shape.width / float(s_w)),dtype=float32)
     if (output_shape.height == s_o_h) and (output_shape.width == s_o_w):
         return 'SAME'
-    v_o_h = np.ceil((input_shape.height - k_h + 1.0) / float(s_h))
-    v_o_w = np.ceil((input_shape.width - k_w + 1.0) / float(s_w))
+    v_o_h = np.array(np.ceil((input_shape.height - k_h + 1.0) / float(s_h)),dtype=float32)
+    v_o_w = np.array(np.ceil((input_shape.width - k_w + 1.0) / float(s_w)),dtype=float32)
     if (output_shape.height == v_o_h) and (output_shape.width == v_o_w):
         return 'VALID'
     return None
@@ -135,7 +135,7 @@ class TensorFlowMapper(NodeMapper):
         # Caffe scales by (alpha/(2*n+1)), whereas TensorFlow
         # just scales by alpha (as does Krizhevsky's paper).
         # We'll account for that here.
-        alpha = params.alpha / float(params.local_size)
+        alpha = np.array(params.alpha / float(params.local_size),dtype=float32)
         return TensorFlowNode('lrn', int(params.local_size / 2), alpha, params.beta)
 
     def map_concat(self, node):
