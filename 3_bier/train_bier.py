@@ -7,16 +7,18 @@ import collections
 import numpy as np
 import random
 import flip_gradient
-
+import os
 
 #import code.deep_inception as models
 import architectures as archs
 
 import tensorflow as tf
+tf.logging.set_verbosity(tf.logging.ERROR) 
+
 from tensorflow.contrib import slim
 
 TrainingData = collections.namedtuple(
-    'TrainingData', ('crop_size', 'channels', 'mean'))
+    'TrainingData', ('crop_size', 'channels', 'mean','std'))
 
 LEARNING_RATE = 1e-5
 WEIGHT_DECAY = 0.0002
@@ -186,7 +188,7 @@ def build_train(predictions, end_points, y, embedding_sizes,
     regular_fvecs = []
 
     # L2 normalize fvecs
-    for i in xrange(len(embedding_sizes)):
+    for i in range(len(embedding_sizes)):
         start = int(sum(embedding_sizes[:i]))
         stop = int(start + embedding_sizes[i])
 
@@ -213,7 +215,7 @@ def build_train(predictions, end_points, y, embedding_sizes,
     tf.summary.histogram('boosting_weights_0_neg', tf.boolean_mask(
         boosting_weights, tf.equal(pairs, 0.0)))
     Ds = []
-    for i in xrange(len(embedding_sizes)):
+    for i in range(len(embedding_sizes)):
         fvec = normed_fvecs[i]
         Ds.append(tf.matmul(fvec, tf.transpose(fvec)))
 
@@ -282,13 +284,13 @@ def build_train(predictions, end_points, y, embedding_sizes,
             fvecs=normed_fvecs, end_points=end_points,
             embedding_weights=embedding_weights,
             embedding_sizes=embedding_sizes,
-            lambda_weight=LAMBDA_WEIGHT) * lambda_div
+            lambda_weight=LAMBDA_WEIGHT,dtype=dtype) * tf.dtypes.cast(lambda_div, dtype)
     tf.summary.scalar('loss', loss)
-    return loss
+    return  tf.dtypes.cast(loss, dtype)
 
 
 def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,
-                              lambda_weight=LAMBDA_WEIGHT):
+                              lambda_weight=LAMBDA_WEIGHT,dtype=tf.float32):
     """
     Builds an adversarial regressor from fvecs_j to fvecs_i.
 
@@ -309,7 +311,7 @@ def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,
     weight_loss = 0.0
     adversarial_loss = 0.0
     with tf.variable_scope(scope):
-        for i in xrange(NUM_HIDDENS_ADVERSARIAL):
+        for i in range(NUM_HIDDENS_ADVERSARIAL):
             if i < NUM_HIDDENS_ADVERSARIAL - 1:
                 net = slim.fully_connected(
                     net, HIDDEN_ADVERSARIAL_SIZE, scope='fc_{}'.format(i),
@@ -330,14 +332,16 @@ def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,
                     0.0,
                     tf.reduce_sum(b * b) - 1.0) * lambda_weight
         adversarial_loss += -tf.reduce_mean(tf.square(fvecs_i * net))
+
         tf.summary.scalar('adversarial loss', adversarial_loss)
         tf.summary.scalar('weight loss', weight_loss)
         tf.summary.scalar('bias loss', bias_loss)
-    return adversarial_loss + weight_loss + bias_loss
+        pairwise_tower_loss = adversarial_loss + weight_loss + bias_loss
+    return  tf.dtypes.cast(pairwise_tower_loss, dtype)
 
 
 def adversarial_loss(fvecs, end_points, embedding_weights, embedding_sizes,
-                     lambda_weight=LAMBDA_WEIGHT):
+                     lambda_weight=LAMBDA_WEIGHT,dtype = tf.float32):
     """
     Applies the adversarial loss on our embedding.
 
@@ -355,26 +359,28 @@ def adversarial_loss(fvecs, end_points, embedding_weights, embedding_sizes,
         for layer_idx, fvecs in enumerate(iterate_regularization_acts(
                 end_points, embedding_sizes)):
 
-            for i in xrange(len(fvecs)):
-                for j in xrange(i + 1, len(fvecs)):
+            for i in range(len(fvecs)):
+                for j in range(i + 1, len(fvecs)):
                     name = 'pw_tower_loss_layer_{}_from_{}_to_{}'.format(
                         layer_idx, i, j)
 
                     loss += build_pairwise_tower_loss(
                         fvecs[i], fvecs[j],
                         name,
-                        lambda_weight=lambda_weight)
+                        lambda_weight=lambda_weight, dtype = dtype)
 
     weight_loss = 0.0
     for W in embedding_weights:
         weight_loss += tf.reduce_mean(
             tf.square(tf.reduce_sum(W * W, axis=1) - 1))
+
     weight_loss = do_print(weight_loss, [weight_loss], 'weight loss')
     loss = do_print(loss, [loss], 'adversarial correlation dann hidden loss')
     tf.summary.scalar('adversarial correlation dann hidden losss', loss)
     tf.summary.scalar('weight loss', weight_loss)
 
-    return loss + lambda_weight * weight_loss
+    adv_loss = loss + lambda_weight * tf.dtypes.cast(weight_loss, dtype)
+    return tf.dtypes.cast(adv_loss, dtype)
 
 
 def iterate_regularization_acts(end_points, embedding_sizes):
@@ -391,14 +397,14 @@ def iterate_regularization_acts(end_points, embedding_sizes):
 
     fvecs = []
     # yield the output layer.
-    for i in xrange(num_embeddings):
+    for i in range(num_embeddings):
         fvecs.append(end_points[EMBEDDING_SCOPE_NAME +
                                 '/embedding/fc_{}_regularizer'.format(i)])
     yield fvecs
 
 
 def activation_loss(fvecs, end_points, embedding_weights, embedding_sizes,
-                    lambda_weight=LAMBDA_WEIGHT):
+                    lambda_weight=LAMBDA_WEIGHT,dtype= tf.float32):
     """
     Applies the activation loss on our embedding.
 
@@ -414,8 +420,8 @@ def activation_loss(fvecs, end_points, embedding_weights, embedding_sizes,
     loss = 0.0
     for fvecs in iterate_regularization_acts(end_points, embedding_sizes):
         print(fvecs)
-        for i in xrange(len(fvecs)):
-            for j in xrange(i + 1, len(fvecs)):
+        for i in range(len(fvecs)):
+            for j in range(i + 1, len(fvecs)):
                 loss += tf.reduce_mean(
                     tf.square(fvecs[i][:, tf.newaxis, :] *
                               fvecs[j][:, :, tf.newaxis]))
@@ -426,8 +432,8 @@ def activation_loss(fvecs, end_points, embedding_weights, embedding_sizes,
             tf.square(tf.reduce_sum(W * W, axis=0) - 1))
     weight_loss = do_print(weight_loss, [weight_loss], 'weight loss')
     loss = do_print(loss, [loss], 'group loss')
-
-    return loss + weight_loss * lambda_weight
+    act_loss = loss + weight_loss * lambda_weight
+    return tf.dtypes.cast(act_loss, dtype)
 
 
 def main():
@@ -440,36 +446,32 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', default='BigEarthNet',required=True)
     parser.add_argument('--source_path', default="../Dataset",  type=str, help='Path to the dataset.')
-    #parser.add_argument('--train-labels', required=True)
-    #parser.add_argument('--test-images', required=False)
-    #parser.add_argument('--test-labels', required=False)
-    parser.add_argument('--batch-size', type=int, default=BATCH_SIZE)
-    parser.add_argument('--weights', default='data/inception.npy')
-    parser.add_argument('--lambda-weight', type=float, default=LAMBDA_WEIGHT)
-    parser.add_argument('--lambda-div', type=float, default=0.0)
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE)
+    parser.add_argument('--lambda_weight', type=float, default=LAMBDA_WEIGHT)
+    parser.add_argument('--lambda_div', type=float, default=0.0)
     parser.add_argument('--shrinkage', type=float, default=0.06)
-    parser.add_argument('--eta-style', action='store_true')
-    parser.add_argument('--lr-decay', type=float, default=LR_DECAY)
-    parser.add_argument('--embedding-sizes', type=str, default='96,160,256')
-    parser.add_argument('--eval-every', type=int, default=1000)
-    parser.add_argument('--num-iterations', type=int, default=20000)
+    parser.add_argument('--eta_style', action='store_true')
+    parser.add_argument('--lr_decay', type=float, default=LR_DECAY)
+    parser.add_argument('--embedding_sizes', type=str, default='96,160,256')
+    parser.add_argument('--eval_every', type=int, default=20)
+    parser.add_argument('--num_iterations', type=int, default=200)
     parser.add_argument('--logdir', type=str, default='train')
     parser.add_argument('--seed', type=int, default=5)
     parser.add_argument('--regularization', type=str, default='activation',
                         choices=REGULARIZATION_CHOICES)
-    parser.add_argument('--hidden-adversarial-size',
+    parser.add_argument('--hidden_adversarial_size',
                         type=int, default=HIDDEN_ADVERSARIAL_SIZE)
-    parser.add_argument('--num-hidden-adversarial', type=int,
+    parser.add_argument('--num_hidden_adversarial', type=int,
                         default=NUM_HIDDENS_ADVERSARIAL)
-    parser.add_argument('--labels-per-batch', type=int, default=6)
-    parser.add_argument('--images-per-identity', type=int)
-    parser.add_argument('--embedding-lr-multiplier', type=float, default=10.0)
-    parser.add_argument('--lr-anneal', type=int)
-    parser.add_argument('--use-same-learnrate', action='store_true')
-    parser.add_argument('--skip-test', action='store_true')
+    parser.add_argument('--samples_per_class', type=int)
+    parser.add_argument('--embedding_lr_multiplier', type=float, default=10.0)
+    parser.add_argument('--lr_anneal', type=int)
+    parser.add_argument('--use_same_learnrate', action='store_true')
+    parser.add_argument('--skip_test', action='store_true')
     parser.add_argument('--arch', type=str, default='resnet')
 
     dtype = tf.float32
+    #dtype = tf.float64
 
     args = parser.parse_args()
     LAMBDA_WEIGHT = args.lambda_weight
@@ -487,21 +489,33 @@ def main():
 
     embedding_sizes = [int(x) for x in args.embedding_sizes.split(',')]
     if 'MLRSNet' in args.dataset_name:
-        crop_size = 256
+        crop_size = 224
         channels = 3
+        if "inception" in args.arch:
+            mean = [0.502, 0.4588, 0.4078]
+            std =  [0.0039, 0.0039, 0.0039]
+        elif "resnet" in args.arch:
+            mean = [0.485, 0.456, 0.406]
+            std =  [0.229, 0.224, 0.225]
     if 'BigEarthNet' in args.dataset_name:
-        crop_size = 120
+        crop_size = 100
         channels =12
+        if "inception" in args.arch:
+            mean = 0.502
+            std =  0.0039
+        elif "resnet" in args.arch:
+            mean = 0.485
+            std =  0.229
 
-    spec = TrainingData(crop_size, channels, mean=(104.0, 117.0, 123.0))
+    spec = TrainingData(crop_size, channels, mean,std)
     print('creating datasets...')
     train_provider = dataset.NpyDatasetProvider(
         data_spec=spec,
-        labels_per_batch=args.labels_per_batch,
-        images_per_identity=args.images_per_identity,
+        samples_per_class=args.samples_per_class,
         dataset_name=args.dataset_name,
         source_path= args.source_path,
         batch_size=BATCH_SIZE,
+        num_concurrent =8,
         is_training = True)
     
     train_labels, train_data = train_provider.dequeue_op
@@ -511,6 +525,7 @@ def main():
             dataset_name=args.dataset_name,
             source_path= args.source_path,
             batch_size=BATCH_SIZE,
+            num_concurrent =8,
             is_training=False)
         test_labels, test_data = test_provider.dequeue_op
     
@@ -554,7 +569,7 @@ def main():
 
     global_step = tf.train.get_or_create_global_step()
 
-    lr = tf.constant(LEARNING_RATE, dtype=tf.float32,
+    lr = tf.constant(LEARNING_RATE, dtype=dtype,
                      shape=(), name='learning_rate')
     if args.lr_anneal:
         lr = tf.train.exponential_decay(
@@ -564,21 +579,22 @@ def main():
     opt_hidden = tf.train.AdamOptimizer(learning_rate=lr)
     train_op_hidden = opt_hidden.minimize(loss, var_list=hidden_vars)
 
-    opt_embedding = tf.train.AdamOptimizer(
-        learning_rate=lr * args.embedding_lr_multiplier)
-    train_op_embedding = opt_embedding.minimize(
-        loss, global_step=global_step, var_list=embedding_vars)
+    opt_embedding = tf.train.AdamOptimizer(learning_rate=lr * args.embedding_lr_multiplier)
+    train_op_embedding = opt_embedding.minimize(loss, global_step=global_step, var_list=embedding_vars)
 
     with tf.control_dependencies([train_op_hidden, train_op_embedding]):
         train_op = tf.no_op()
 
     init_op = tf.global_variables_initializer()
+    if "resnet" in args.arch:
+        net_weights = os.path.dirname(__file__) + '/architectures/weights/resnet50.npy'
+    elif "inception" in args.arch:
+        net_weights = os.path.dirname(__file__) + '/architectures/weights/inception.npy'
 
     with tf.control_dependencies([init_op]):
-        load_train_op = net.create_load_op(args.weights, ignore_missing=True)
+        load_train_op = net.create_load_op(net_weights, ignore_missing=True)
         if not skip_test:
-            load_test_op = test_net.create_load_op(
-                args.weights, ignore_missing=True)
+            load_test_op = test_net.create_load_op(net_weights, ignore_missing=True)
 
     checkpoint_saver = tf.train.CheckpointSaverHook(
         args.logdir,
@@ -610,17 +626,16 @@ def main():
             hidden_test_output = test_net.get_output()
 
         writer = tf.summary.FileWriter(args.logdir)
-        for i in xrange(start_iter, args.num_iterations):
+        for i in range(start_iter, args.num_iterations):
             if not args.skip_test and i % args.eval_every == 0:
                 test_provider.feed_data(sess)
                 all_fvecs = []
                 all_fvecs_hidden = []
                 all_labels = []
                 #all_caffe_fvecs = []
-                num_batches = int(
-                    np.ceil(test_provider.num_images / float(BATCH_SIZE)))
+                num_batches = int(np.ceil(test_provider.num_images / float(BATCH_SIZE)))
                 print('Evaluating {} batches'.format(num_batches))
-                for batch_idx in xrange(num_batches):
+                for batch_idx in range(num_batches):
                     fvec, fvec_hidden, cls = sess.run(
                         [test_preds, hidden_test_output, test_labels])
                     fvec = fvec[cls >= 0, ...]
@@ -642,7 +657,7 @@ def main():
                 summary = tf.Summary(value=[tf.Summary.Value(
                     tag='Recall@1_Embedding_Layer', simple_value=recall)])
                 writer.add_summary(summary, i)
-
+            
             lossval, _ = sess.run([loss, train_op])
             if i % 40 == 0:
                 print('loss: {}@Iteration {}'.format(lossval, i))

@@ -40,7 +40,7 @@ def store_hdf(hdf_file, file_list,label_indices):
     count = 0
     while (count < len(file_list)):
         if count==0: data_list = file_list
-        elif: 
+        else: 
             f_read = h5py.File(hdf_file,'r')
             data_list = [x for x in file_list if x not in list(f_read.keys())]
             f_read.close()
@@ -63,6 +63,7 @@ def store_hdf(hdf_file, file_list,label_indices):
         f_read = h5py.File(hdf_file,'r')
         count = len(list(f_read.keys()))
         f_read.close()
+    return image_dict
 
 def Give(datapath):
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
@@ -87,7 +88,13 @@ def Give(datapath):
         hdf_path = datapath + hdf_dir[i]
         if not Path(hdf_path).exists():
             print("Start to create ", hdf_path," for BigEarthNet")
-            store_hdf(hdf_path,file_lists[i],label_indices)
+            image_dict = store_hdf(hdf_path,file_lists[i],label_indices)
+            # save image dict to jason file
+            json_file = hdf_path.split('.')[0] +'.json'
+            with open(json_file, 'w') as json_f:
+                json.dump(image_dict, json_f,separators=(",", ":"),allow_nan=False,indent=4)
+                print("\ncreate ",json_file)
+
     
     # read image dict from hdf5 file
     data_list =[]
@@ -95,6 +102,9 @@ def Give(datapath):
         hdf_path = datapath + hdf_dir[i]
         with h5py.File(hdf_path, 'r') as f:
             data_list.append(json.loads(f['image_dict'][()]))
+        # json_file = hdf_path.split('.')[0] +'.json'
+        # with open(json_file, 'r') as json_f:
+        #     data_list.append(json.load(json_f))
     
     # get the common keys from train/va/test image dict
     keys= [ data.keys() for data in data_list[:3]]
