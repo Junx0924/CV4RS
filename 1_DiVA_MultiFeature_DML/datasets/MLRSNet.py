@@ -76,28 +76,14 @@ def get_data(img_path):
 # hdf_file: hdf5 file record the images
 # file_list: record the image paths
 def store_hdf(hdf_file, file_list):
-    count = 0
-    while (count < len(file_list)):
-        if count == 0: 
-            data_list = file_list
-        else: 
-            f_read = h5py.File(hdf_file,'r')
-            data_list = [x for x in file_list if x not in list(f_read.keys())]
-            f_read.close()
-        
-        f = h5py.File(hdf_file,'w')
+    with h5py.File(hdf_file, "w") as f:
         pool = multiprocessing.Pool(8)
-        result = pool.imap(get_data, (img_path for img_path in data_list))
+        result = pool.imap(get_data, (img_path for img_path in file_list))
         for idx,(patch_name, img_data) in enumerate(result):
             f.create_dataset(patch_name, data=img_data, dtype='i',compression='gzip',compression_opts=9)
             if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(data_list)*100))
         pool.close()
         pool.join()
-        f.close()
-        f_read = h5py.File(hdf_file,'r')
-        count = len(list(f_read.keys()))
-        f_read.close()
-        
             
 def Give(opt, datapath):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
