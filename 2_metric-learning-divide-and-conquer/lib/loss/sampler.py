@@ -1,98 +1,66 @@
-
-from __future__ import print_function
-from __future__ import division
+import numpy as np, torch
 
 
-import logging
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
-def pdist(A, squared=False, eps=1e-4):
-    prod = torch.mm(A, A.t())
-    norm = prod.diag().unsqueeze(1).expand_as(prod)
-    res = (norm + norm.t() - 2 * prod).clamp(min=0)
-    return res if squared else res.clamp(min=eps).sqrt()
-
-
-def topk_mask(input, dim, K=10, **kwargs):
-    index = input.topk(max(1, min(K, input.size(dim))), dim=dim, **kwargs)[1]
-    return torch.zeros_like(input.data).scatter(dim, index, 1.0)
-
-
-class Sampler(nn.Module):
+class Sampler():
     """
-    Sample for each anchor negative examples
-        are K closest points on the distance >= cutoff
+    Sample for each anchor negative examples on the distance >= cutoff
 
     Inputs:
-        - **data**: input tensor with shape (batch_size, embed_dim).
-        Here we assume the consecutive batch_k examples are of the same class.
-        For example, if batch_k = 5, the first 5 examples belong to the same class,
-        6th-10th examples belong to another class, etc.
-
+        - **batch**: input tensor with shape (batch_size, embed_dim).
+        - **labels**: input tensor with shape (batch_size, 1).
     Outputs:
-        - a_indices: indices of anchors.
-        - x[a_indices]: sampled anchor embeddings.
-        - x[p_indices]: sampled positive embeddings.
-        - x[n_indices]: sampled negative embeddings.
-        - x: embeddings of the input batch.
+        - indices: indices of anchors, positive, negative samples.
     """
-
     def __init__(self, cutoff=0.5, infinity=1e6, eps=1e-6):
-        super(Sampler, self).__init__()
-        self.cutoff = cutoff
         self.infinity = infinity
         self.eps = eps
+        self.lower_cutoff = cutoff
 
-    def forward(self, x, labels):
-        """
-        x: input tensor of shape (batch_size, embed_dim)
-        labels: tensor of class labels of shape (batch_size,)
-        """
-        d = pdist(x)
-        pos = torch.eq(
-            *[labels.unsqueeze(dim).expand_as(d) for dim in [0, 1]]
-        ).type_as(d) - (torch.eye( len(d))).type_as(d)
-        num_neg = int(pos.data.sum()) // len(pos)
-        neg = topk_mask(
-            d + self.infinity * ((pos > 0) + (d < self.cutoff)).type_as(d),
-            dim=1,
-            largest=False,
-            K=num_neg
-        )
+    def __call__(self, batch, labels):
+        if isinstance(labels, torch.Tensor): labels = labels.detach().cpu().numpy()
+        bs = batch.shape[0]
+        distances = self.pdist(batch.detach()).clamp(min=self.lower_cutoff)
 
-        a_indices = []
-        p_indices = []
-        n_indices = []
+        positives, negatives = [],[]
+        anchors = []
 
-        for i in range(len(d)):
-            a_indices.extend([i] * num_neg)
-            p_indices.extend(
-                np.atleast_1d(torch.nonzero(pos[i]).squeeze().cpu().numpy())
-            )
-            n_indices.extend(
-                np.atleast_1d(torch.nonzero(neg[i]).squeeze().cpu().numpy())
-            )
+        for i in range(bs):
+            neg = labels!=labels[i]; pos = labels==labels[i]
 
-            if len(a_indices) != len(p_indices) or len(a_indices) != len(n_indices):
-                logging.warning(
-                    'Probably too many positives, because of lacking classes in' +
-                    ' the current cluster.' +
-                    ' n_anchors={}, n_pos={}, n_neg= {}'.format(
-                        *map(len, [a_indices, p_indices, n_indices])
-                    )
-                )
-                min_len = min(map(len, [a_indices, p_indices, n_indices]))
-                a_indices = a_indices[:min_len]
-                p_indices = p_indices[:min_len]
-                n_indices = n_indices[:min_len]
+            if np.sum(pos)>1:
+                anchors.append(i)
+                q_d_inv = self.inverse_sphere_distances(batch, distances[i], labels, labels[i])
+                #Sample positives randomly
+                pos[i] = 0
+                positives.append(np.random.choice(np.where(pos)[0]))
+                #Sample negatives by distance
+                negatives.append(np.random.choice(bs,p=q_d_inv))
 
-        assert len(a_indices) == len(p_indices) == len(n_indices), \
-                '{}, {}, {}'.format(
-                    *map(len, [a_indices, p_indices, n_indices])
-                )
+        sampled_triplets = [[a,p,n] for a,p,n in zip(anchors, positives, negatives)]
+        return sampled_triplets
 
-        return a_indices, x[a_indices], x[p_indices], x[n_indices]
+
+    def inverse_sphere_distances(self, batch, anchor_to_all_dists, labels, anchor_label):
+            dists        = anchor_to_all_dists
+            bs,dim       = len(dists),batch.shape[-1]
+
+            # make sure the embedings are normalized
+            log_q_d_inv = ((2.0 - float(dim)) * torch.log(dists) - (float(dim-3) / 2) * torch.log(1.0 - 0.25 * (dists.pow(2))))
+            log_q_d_inv[np.where(labels==anchor_label)[0]] = 0
+
+            q_d_inv     = torch.exp(log_q_d_inv - torch.max(log_q_d_inv)) # - max(log) for stability
+            q_d_inv[np.where(labels==anchor_label)[0]] = 0
+
+            ### NOTE: Cutting of values with high distances made the results slightly worse. It can also lead to
+            # errors where there are no available negatives (for high samples_per_class cases).
+            # q_d_inv[np.where(dists.detach().cpu().numpy()>self.upper_cutoff)[0]]    = 0
+
+            q_d_inv = q_d_inv/q_d_inv.sum()
+            return q_d_inv.detach().cpu().numpy()
+
+
+    def pdist(self, A):
+        prod = torch.mm(A, A.t())
+        norm = prod.diag().unsqueeze(1).expand_as(prod)
+        res = (norm + norm.t() - 2 * prod).clamp(min = 0)
+        return res.sqrt()
