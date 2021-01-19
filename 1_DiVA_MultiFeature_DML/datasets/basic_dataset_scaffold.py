@@ -11,6 +11,7 @@ import h5py
 class BaseDataset(Dataset):
     def __init__(self, image_dict, hdf5, opt, is_validation=False):
         self.is_validation = is_validation
+        self.include_aux_augmentations = False
         self.pars        = opt
 
         #####
@@ -47,8 +48,12 @@ class BaseDataset(Dataset):
         img_dim = img.shape[1]
         if 'MLRSNet' in self.pars.dataset:
             crop = 224
+            mean = [0.485, 0.456, 0.406]
+            std =  [0.229, 0.224, 0.225]  
         if 'BigEarthNet' in self.pars.dataset:
             crop = 100
+            mean = 0.485
+            std = 0.229
         # for training randomly crop and randomly flip
         if not self.is_validation:
             # randomly crop
@@ -65,19 +70,14 @@ class BaseDataset(Dataset):
             # for validation, use the center crop
             offset = (img_dim- crop)//2
             img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
-            
-        if 'resnet' in self.pars.arch:
-            img = hypia.functionals.normalise(img,0.502,0.0039) 
+        img = hypia.functionals.normalise(img,mean,std) 
         return torch.Tensor(img)
     
-    def real_transform(self,img,idx):
+    def rotation(self,img,idx):
         # apply rotation
         imrot_class = idx%4
         angle = np.array([0,90,180,270])[imrot_class]
         im_b = hypia.functionals.rotate(img, angle,reshape=False)
-        # normalize
-        if 'resnet' in self.pars.arch:
-            im_b = hypia.functionals.normalise(im_b,0.502,0.0039) 
         return torch.Tensor(im_b),imrot_class
     
     
@@ -91,7 +91,8 @@ class BaseDataset(Dataset):
         f = h5py.File(self.hdf, 'r')
         data = f[patch_name][()]
         f.close()
-
+	
+	data = np.array(data, dtype = float)
         if '.png' in img_path or '.jpg' in img_path:
             input_image = data.reshape(3, 256, 256)
         # hypespectral image (channels more than 3)
@@ -100,8 +101,9 @@ class BaseDataset(Dataset):
         
         im_a = self.normal_transform(input_image)
             
-        if not self.is_validation:
-            im_b,imrot_class= self.real_transform(input_image,idx)
+        if self.include_aux_augmentations:
+            im_b,imrot_class= self.rotation(input_image,idx)
+            im_b = self.normal_transform(im_b)
             return (img_label, im_a, idx, im_b, imrot_class)
         else:
             return (img_label, im_a, idx)
