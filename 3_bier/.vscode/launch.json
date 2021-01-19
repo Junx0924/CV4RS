@@ -10,18 +10,18 @@
             "request": "launch",
             "program": "/home/robin/Documents/CV4RS/code/3_bier/train_bier.py",
             "console": "integratedTerminal",
+            "justMyCode": false,
             "args":[
-                "--dataset_name", "MLRSNet",
-                "--source_path", "/media/robin/SSD1/Jun/Dataset",
-                "--lr-anneal", "25000",
-                "--lr-decay","0.5" ,
-                "--num-iterations", "100000",
-                "--labels-per-batch", "60",
-                "--images-per-identity", "2",
-                "--batch-size", "128",
+                "--dataset_name", "BigEarthNet",
+                "--source_path", "/media/robin/Intenso/Dataset",
+                "--lr_anneal", "25000",
+                "--lr_decay","0.5" ,
+                "--num_iterations", "120",
+                "--samples_per_class", "2",
+                "--batch_size", "128",
                 "--regularization", "adversarial" ,
-                "--lambda-weight" ,"100000.0",
-                "--lambda-div", "5e-5",
+                "--lambda_weight" ,"100000.0",
+                "--lambda_div", "5e-5",
                 "--logdir", "/home/robin/Documents/CV4RS/code/3_bier/log"
             ]
         }

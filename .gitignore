@@ -19,12 +19,13 @@
 3_bier/kaffe/__pycache__
 3_bier/kaffe/tensorflow/__pycache__
 3_bier/kaffe/caffe/__pycache__
+3_bier/datasets/__pycache__
 3_bier/log
 3_bier/architectures/weights/resnet50.npy
-3_bier/run.sh
 2_metric-learning-divide-and-conquer/__pycache__
 2_metric-learning-divide-and-conquer/.vscode
 2_metric-learning-divide-and-conquer/__pycache__
 2_metric-learning-divide-and-conquer/pretrained_weights/evaluation_score_cache.txt
 2_metric-learning-divide-and-conquer/pretrained_weights/evaluation_score_cache2.txt
 2_metric-learning-divide-and-conquer/.ipynb_checkpoints
+2_metric-learning-divide-and-conquer/log
