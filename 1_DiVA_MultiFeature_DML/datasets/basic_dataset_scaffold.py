@@ -92,7 +92,7 @@ class BaseDataset(Dataset):
         data = f[patch_name][()]
         f.close()
 	
-	data = np.array(data, dtype = float)
+	    data = np.array(data, dtype = float)
         if '.png' in img_path or '.jpg' in img_path:
             input_image = data.reshape(3, 256, 256)
         # hypespectral image (channels more than 3)
