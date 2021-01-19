@@ -6,60 +6,38 @@ import random
 
 import torch
 import numpy as np
-from ..set import VehicleID, InShop, SOProducts, BigEarth, MLRSNet
-from ..set import transform
+import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 
-datasets = {
-    'sop': SOProducts,
-    'inshop': InShop,
-    'vid': VehicleID,
-    'bigearth': BigEarth,
-    'mlrsnet': MLRSNet
-}
-
-
-def make(config, model, type, subset_indices = None, inshop_type = None):
+def make(config, model, type, subset_indices = None, dset_type = None):
     """
     subset_indices: indices for selecting subset of dataset, for creating
         clustered dataloaders.
     type: 'init', 'eval' or 'train'.
     """
-    # inshop_types: train, query, gallery; basically instead of labels/classes
     ds_name = config['dataset_selected']
-    if ds_name == 'inshop':
-        ds = datasets[ds_name](
-            root = config['dataset'][ds_name]['root'],
-            dset_type = inshop_type,
-            transform = transform.make(
-                **config['transform_parameters'],
-                is_train = True if type == 'train' else False
-            )
-        )
-    else:
-        ds = datasets[ds_name](
-            root = config['dataset'][ds_name]['root'],
-            classes = config['dataset'][ds_name]['classes'][type],
-            transform = transform.make(
-                **config['transform_parameters'],
-                is_train = True if type == 'train' else False
-            )
-        )
+    batch_size = config['dataloader']["batch_size"]
+    num_samples_per_class = config['num_samples_per_class']
+    num_workers = config['dataloader']["num_workers"]
+    transform = config['transform_parameters'][ds_name]
+    root = config['dataset'][ds_name]['root']
+    shuffle= config['dataloader']['shuffle']
+
+    ds = dataset.select(
+        root = root,
+        dset_type = dset_type, # dset_type: train, query, gallery
+        transform = transform,
+        is_training = dset_type == 'train'
+    )
     if type == 'train':
         ds.set_subset(subset_indices)
-        _c = config['dataloader']
+        train_data_sampler= ClassBalancedSampler(ds.image_dict,ds.image_list, batch_size = batch_size,num_samples_per_class = num_samples_per_class)
         dl = torch.utils.data.DataLoader(
             ds,
-            # ignore batch_size, since batch_sampler enabled
-            **{k: _c[k] for k in _c if k != 'batch_size'},
-            batch_size = 1,# changed this from -1 to 1 due to ValueError in /Users/paulkaufmann/.pyenv/versions/3.7.9/lib/python3.7/site-packages/torch/utils/data/dataloader.py line 247
-            batch_sampler = ClassBalancedSampler(
-                ds,
-                batch_size = config['dataloader']['batch_size'],
-                num_samples_per_class = 4
+            num_workers= num_workers,
+            batch_sampler= train_data_sampler
             )
-        )
     else:
         # else init or eval loader
         dl = torch.utils.data.DataLoader(ds, **config['dataloader'])
@@ -73,7 +51,7 @@ def make_from_clusters(C, subset_indices, model, config):
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(
             config = config, model = model, type = 'train', subset_indices = subset_indices[C == c],
-            inshop_type = 'train')
+            dset_type = 'train')
         dataloaders[c].dataset.id = c
     return dataloaders
 
