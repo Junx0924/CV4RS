@@ -49,7 +49,7 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
 
 
 def evaluate_in_shop(model, dl_query, dl_gallery, use_penultimate, backend,
-        K = [1, 10, 20, 30, 50], with_nmi = False):
+        K = [1, 2, 4, 8], with_nmi = False):
 
     # calculate embeddings with model and get targets
     X_query, T_query, _ = predict_batchwise(
@@ -63,7 +63,7 @@ def evaluate_in_shop(model, dl_query, dl_gallery, use_penultimate, backend,
     # calculate full similarity matrix, choose only first `len(X_query)` rows
     # and only last columns corresponding to the column
     T_eval = torch.cat(
-        [torch.from_numpy(T_query), torch.from_numpy(T_gallery)])
+        [torch.from_numpy(np.array(T_query,dtype = int)), torch.from_numpy(np.array(T_gallery, dtype = int))])
     X_eval = torch.cat(
         [torch.from_numpy(X_query), torch.from_numpy(X_gallery)])
     D = similarity.pairwise_distance(X_eval)[:len(X_query), len(X_query):]
