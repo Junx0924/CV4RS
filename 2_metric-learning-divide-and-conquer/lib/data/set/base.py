@@ -1,88 +1,99 @@
-
 from __future__ import print_function
 from __future__ import division
 
-import os
 import torch
-import torchvision
 import numpy as np
-import PIL.Image
-from osgeo import gdal
-from skimage.transform import resize
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import scale, normalize
+import h5py
+import hypia
 
 
-# Spectral band names to read related GeoTIFF files
-band_names = ['B01', 'B02', 'B03', 'B04', 'B05',
-              'B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-
-
-# for Geotiff images
-def process_geotiff(img):
-    tif_img = []
-    for band_name in band_names:
-        img_path = img + '_' + band_name + '.tif'
-        band_ds = gdal.Open(img_path, gdal.GA_ReadOnly)
-        raster_band = band_ds.GetRasterBand(1)
-        band_data = np.array(raster_band.ReadAsArray())
-        # interpolate the image to (256,256)
-        temp = resize(band_data, (256, 256))
-        # normalize and scale
-        temp = scale(normalize(temp))
-        tif_img.append(temp)
-    Data = np.transpose(np.array(tif_img), axes=[1, 2, 0])
-    [m, n, l] = np.shape(Data)
-    # apply PCA reduce the channel to 3
-    x = np.reshape(Data, (m * n, l))
-    pca = PCA(n_components=3, copy=True, whiten=False)
-    x = pca.fit_transform(x)
-    _, l = x.shape
-    x = np.reshape(x, (m, n, l))  # (256,256,3)
-    # convert np array to pil image
-    m, n = np.max(x), np.min(x)
-    x = (x - n) / (m - n) * 255  # value between [0,255]
-    x = PIL.Image.fromarray(np.uint8(x))
-    return x
-
-
+    
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, root, classes, transform=None):
-        self.classes = classes
-        self.root = root
+    """
+    We use the train set for training, the val set for
+    query and the test set for retrieval
+    """
+    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = True):
+        torch.utils.data.Dataset.__init__(self)
         self.transform = transform
-        self.ys, self.im_paths, self.I = [], [], []
+        self.is_training = is_training
+        self.image_dict = image_dict
+        self.image_list = image_list
+        self.hdf_file = hdf_file
 
-    def nb_classes(self):
-        assert set(self.ys) == set(self.classes)
-        return len(self.classes)
+        self.im_paths = np.array(self.image_list)[:,0]
+        self.ys = np.array(self.image_list)[:,-1]
+        self.I = np.array(self.image_list)[:,1]
 
     def __len__(self):
-        return len(self.ys)
+        return len(self.im_paths)
+
+    def nb_classes(self):
+        return len(set(self.ys))
 
     def __getitem__(self, index):
         img_path = self.im_paths[index]
-
-        which = ""
-        if img_path.lower().endswith(".jpg") | img_path.lower().endswith(".png"):
-            # jpg or png
-            im = PIL.Image.open(img_path)
-        else:
-            # geotiff
-            im = process_geotiff(img_path)
-
-        # convert gray to rgb
-        if len(list(im.split())) == 1:
-            im = im.convert('RGB')
-        if self.transform is not None:
-            im = self.transform(im)
-
-        return im, self.ys[index], index
+        patch_name = img_path.split('/')[-1]
+        f = h5py.File(self.hdf_file, 'r')
+        im = f[patch_name][()]
+        f.close()
+        im = self.process_image(np.array(im, dtype=float),mirror=True)
+        return im, int(self.ys[index]), index
 
     def get_label(self, index):
-        return self.ys[index]
+        return int(self.ys[index])
 
-    def set_subset(self, I):
-        self.ys = [self.ys[i] for i in I]
-        self.I = [self.I[i] for i in I]
-        self.im_paths = [self.im_paths[i] for i in I]
+    def set_subset(self, subset_indices):
+        if len(subset_indices)>0:
+            temp_list = [self.image_list[i] for i in subset_indices]
+            self.image_list = []
+            self.ys =[]
+            self.I = []
+            self.im_paths = []
+            self.image_dict ={}
+
+            for ind in range(len(temp_list)):
+                key = temp_list[ind][-1]
+                img_path = temp_list[ind][0]
+                self.image_list.append([img_path,ind,key])
+                self.ys.append(key)
+                self.I.append(ind)
+                self.im_paths.append(img_path)
+                if key not in self.image_dict.keys():
+                    self.image_dict[key]=[]
+                self.image_dict[key].append([img_path,ind])
+
+    def process_image(self, img, mirror=True):
+        """
+        Preprocessing code. For training this function randomly crop images and
+        flips the image randomly.
+        For testing we use the center crop of the image.
+
+        Args:
+        img: np.array (1 dim)
+        """
+        img_shape = self.transform['input_shape']
+        img = img.reshape(img_shape)
+        img_dim = img_shape[1]
+        crop = self.transform['sz_crop']
+        mean = self.transform['mean']
+        std = self.transform['std']
+        if  self.is_training:
+            # random_image_crop
+            if img_dim == crop: tl =[0,0]
+            else: tl = np.random.choice(range(img_dim-crop),2)
+            img = hypia.functionals.crop(img, tl, crop, crop,channel_pos='first')
+            if mirror:
+                choice = np.random.choice([1,2],1)
+                if choice ==1 :
+                    img = hypia.functionals.hflip(img,channel_pos='first')
+                else:
+                    img = hypia.functionals.vflip(img,channel_pos='first')
+
+        else:
+            offset = (img_dim - crop) // 2
+            img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
+
+        # normalize
+        img = hypia.functionals.normalise(img,mean,std) 
+        return  torch.Tensor(img)
