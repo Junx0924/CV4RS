@@ -10,6 +10,35 @@ import torch
 from torch.nn import Linear, Dropout, AvgPool2d, MaxPool2d
 from torch.nn.init import xavier_normal_
 
+"""============================================================="""
+def increase_channels(m, num_channels=None, copy_weights=0):
+    """
+    takes as input a Conv2d layer and returns the Conv2d layer with `num_channels` input channels
+    and all the previous weights copied into the new layer.
+    """
+    # number of input channels the new module should have
+    new_in_channels = num_channels if num_channels is not None else m.in_channels + 1
+    
+    bias = False if m.bias is None else True
+    
+    # Creating new Conv2d layer
+    new_m = torch.nn.Conv2d(in_channels=new_in_channels, 
+                        out_channels=m.out_channels, 
+                        kernel_size=m.kernel_size, 
+                        stride=m.stride, 
+                        padding=m.padding,
+                        bias=bias)
+    
+    # Copying the weights from the old to the new layer
+    new_m.weight[:, :m.in_channels, :, :] = m.weight.clone()
+    
+    #Copying the weights of the `copy_weights` channel of the old layer to the extra channels of the new layer
+    for i in range(new_in_channels - m.in_channels):
+        channel = m.in_channels + i
+        new_m.weight[:, channel:channel+1, :, :] = m.weight[:, copy_weights:copy_weights+1, : :].clone()
+    new_m.weight = torch.nn.Parameter(new_m.weight)
+
+    return new_m
 
 def resnet50(config, pretrained = True):
     # start edits
@@ -21,6 +50,9 @@ def resnet50(config, pretrained = True):
     state_dict = torch.load(config['pretrained_weights_file'])
     model.load_state_dict(state_dict)
     # end edits
+    if config["dataset_selected"] =="BigEarthNet":
+        input_channels = 12
+        model.conv1 = increase_channels(model.conv1, input_channels)
 
     model.features = torch.nn.Sequential(
         model.conv1, model.bn1, model.relu, model.maxpool,
@@ -81,8 +113,9 @@ def init_splitted(layer, nb_clusters, sz_embedding):
 
 
 def embed_model(model, config, sz_embedding, normalize_output=True):
-
-    model.features_pooling = AvgPool2d(7,
+    if config['dataset_selected'] =="BigEarthNet": k_s = 4
+    else: k_s = 7
+    model.features_pooling = AvgPool2d(k_s,
         stride=1, padding=0, ceil_mode=True, count_include_pad=True
     )
     model.features_dropout = Dropout(0.01)
