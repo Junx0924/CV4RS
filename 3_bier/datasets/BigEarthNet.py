@@ -96,15 +96,13 @@ def Give(datapath):
                 print("\ncreate ",json_file)
 
     
-    # read image dict from hdf5 file
+    # read image dict from json file
     data_list =[]
     for i in range(len(hdf_dir)):
         hdf_path = datapath + hdf_dir[i]
-        with h5py.File(hdf_path, 'r') as f:
-            data_list.append(json.loads(f['image_dict'][()]))
-        # json_file = hdf_path.split('.')[0] +'.json'
-        # with open(json_file, 'r') as json_f:
-        #     data_list.append(json.load(json_f))
+        json_file = hdf_path.split('.')[0] +'.json'
+        with open(json_file, 'r') as json_f:
+            data_list.append(json.load(json_f))
     
     # get the common keys from train/va/test image dict
     keys= [ data.keys() for data in data_list[:3]]
