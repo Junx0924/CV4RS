@@ -238,8 +238,6 @@ if 'selfsimilarity' in criterion_dict:
 #################### OPTIM SETUP ####################
 optimizer    = torch.optim.Adam(to_optim)
 scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.tau, gamma=opt.gamma)
-#optimizer    = torch.optim.SGD(to_optim)
-#scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=0, verbose=True)
 
 """============================================================================"""
 #################### METRIC COMPUTER ####################
@@ -254,7 +252,7 @@ iter_count = 0
 for epoch in range(opt.n_epochs):
     opt.epoch = epoch
     ### Scheduling Changes specifically for cosine scheduling
-    #if opt.scheduler!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_lr())))
+    if opt.scheduler!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_lr())))
 
     """======================================="""
     if train_data_sampler.requires_storage:
@@ -371,12 +369,6 @@ for epoch in range(opt.n_epochs):
         if train_data_sampler.requires_storage and train_data_sampler.update_storage:
             train_data_sampler.replace_storage_entries(features.detach().cpu(), input_indices)
 
-
-
-    # result_metrics = {'loss': np.mean(loss_collect['train'])}
-    # if 'separation' in criterion_dict:
-    #    result_metrics['sep.loss'] = np.mean(loss_collect['separation'])
-
     result_metrics={}
     for key in loss_collect.keys():
         if key not in result_metrics.keys():
@@ -395,9 +387,6 @@ for epoch in range(opt.n_epochs):
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
     
-    # print('\nComputing Train Metrics...')
-    # eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['evaluation']], model, opt, opt.evaltypes, opt.device, log_key='Train')
-    
     test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
     print('\nComputing Validation Metrics...')
     eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
@@ -410,8 +399,6 @@ for epoch in range(opt.n_epochs):
     ### Learning Rate Scheduling Step
     if opt.scheduler != 'none':
         scheduler.step()
-        # scheduler.step(recall1)
-        # scheduler.step(result_metrics["train.loss"])
     print('\n-----\n')
 
 
