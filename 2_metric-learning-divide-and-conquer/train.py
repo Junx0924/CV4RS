@@ -55,25 +55,17 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def evaluate(model, dataloaders, logging_, backend='faiss', config = None):
-    if config is not None and config['dataset_selected'] == 'inshop':
-        dl_query = lib.data.loader.make(config, model,
-            'eval', inshop_type = 'query')
-        dl_gallery = lib.data.loader.make(config, model,
-            'eval', inshop_type = 'gallery')
-        score = lib.utils.evaluate_in_shop(
-            model,
-            dl_query = dl_query,
-            dl_gallery = dl_gallery,
-            use_penultimate = False,
-            backend = backend)
-    else:
-        score = lib.utils.evaluate(
-            model,
-            dataloaders['eval'],
-            use_penultimate = False,
-            backend=backend
-        )
-        logging_.info("Score:", score)
+    dl_query = lib.data.loader.make(config, model,
+        'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,
+        'eval', dset_type = 'gallery')
+    score = lib.utils.evaluate_in_shop(
+        model,
+        dl_query = dl_query,
+        dl_gallery = dl_gallery,
+        use_penultimate = False,
+        backend = backend)
+    logging_.info("Score:", score)
     return score
 
 
@@ -232,14 +224,10 @@ def start(config, DIYlogger):
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     for dl_type in ['init', 'eval']:
-        if config['dataset_selected'] == 'inshop':
-            # query and gallery initialized in `make_clustered_dataloaders`
-            if dl_type == 'init':
-                dataloaders[dl_type] = lib.data.loader.make(config, model,
-                    dl_type, inshop_type = 'train')
-        else:
-            dataloaders[dl_type] = lib.data.loader.make(config, model,
-                dl_type)
+        # query and gallery initialized in `make_clustered_dataloaders`
+        if dl_type == 'init':
+            dataloaders[dl_type] = lib.data.loader.make(config, model,dl_type, dset_type = 'train')
+        
 
     criterion = get_criterion(config)
     opt = get_optimizer(config, model, criterion)
@@ -248,8 +236,7 @@ def start(config, DIYlogger):
     logging.info("Evaluating initial model...")
 
     # added this caching part
-    cache_file_path = config['pretrained_weights_file'].split("pretrained_weights")[0]
-    cache_file_path += "pretrained_weights/evaluation_score_cache.txt"
+    cache_file_path = os.path.dirname(os.path.realpath(__file__)) + "/pretrained_weights/evaluation_score_cache.txt"
     if os.path.exists(cache_file_path) & False:
         logging.info("  Using cached evaluation score..")
         with open(cache_file_path, "r") as cache_file:

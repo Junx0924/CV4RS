@@ -5,51 +5,27 @@
     "cuda_device": 0,
     "sz_embedding": 128,
     "backend": "faiss-gpu",
-    "nb_epochs": 200,
+    "nb_epochs": 120,
     "nb_clusters": 8,
-    "finetune_epoch": 100,
-    "dataset_selected": "bigearth",
+    "finetune_epoch": 110,
+    "num_samples_per_class": 2,
+    "dataset_selected": "BigEarthNet",
     "pretrained_weights_file": "pretrained_weights/resnet50-19c8e357.pth",
     "dataset": {
-        "vid": {
-            "root": "/export/home/vtschern/data/vehicle-id/VehicleID_V1.0",
+        "BigEarthNet": {
+            "root": "/media/robin/Intenso/Dataset/BigEarthNet",
             "classes": {
-                "train": "range(0, 13164)",
-                "init": "range(0, 13164)",
-                "_note": "small: 800, mid: +1600, large: +2400",
-                "eval": "range(13164, 13164 + 2400)"
+                "train": "range(0,25)",
+                "init": "range(0,25)",
+                "eval": "range(0,25)"
             }
         },
-        "inshop": {
-            "root": "/export/home/vtschern/data/in-shop",
+        "MLRSNet": {
+            "root": "/media/robin/Intenso/Dataset/MLRSNet",
             "classes": {
-                "train": "range(0, 3997)",
-                "init": "range(0, 3997)",
-                "eval": "range(0, 3985)"
-            }
-        },
-        "sop": {
-            "root": "/Users/paulkaufmann/Downloads/CV4RS datasets/Stanford_Online_Products",
-            "classes": {
-                "train": "range(0, 11318)",
-                "init": "range(0, 11318)",
-                "eval": "range(11318, 22634)"
-            }
-        },
-        "bigearth": {
-            "root": "/scratch/CV4RS/Dataset/BigEarthNet",
-            "classes": {
-                "train": "train",
-                "init": "init",
-                "eval": "eval"
-            }
-        },
-        "mlrsnet": {
-            "root": "/scratch/CV4RS/Dataset/MLRSNet",
-            "classes": {
-                "train": "train",
-                "init": "init",
-                "eval": "eval"
+                "train": "range(0,60)",
+                "init": "range(0,60)",
+                "eval": "range(0,60)"
             }
         }
     },
@@ -58,11 +34,11 @@
         "name": "sop-K-8-M-2-exp-0"
     },
     "dataloader": {
-        "num_workers": 4,
+        "num_workers": 8,
         "drop_last": false,
         "shuffle": false,
         "pin_memory": true,
-        "batch_size": 128
+        "batch_size": 50
     },
     "opt": {
         "backbone": {
@@ -79,10 +55,18 @@
         "mod_epoch": 2
     },
     "transform_parameters": {
-        "rgb_to_bgr": false,
-        "intensity_scale": [[0, 1], [0, 1]],
-        "mean": [0.485, 0.456, 0.406],
-        "std": [0.229, 0.224, 0.225],
-        "sz_crop": 224
+        "BigEarthNet":{
+            "sz_crop" : 100,
+            "input_shape": [12,120,120],
+            "mean":  0.485,
+            "std": 0.229
+        },
+        "MLRSNet":{
+            "mean": [0.485, 0.456, 0.406],
+            "std": [0.229, 0.224, 0.225],
+            "sz_crop": 224,
+            "input_shape": [3,256,256]
+        }
+        
     }
 }
