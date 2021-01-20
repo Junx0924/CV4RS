@@ -515,7 +515,7 @@ def main():
         dataset_name=args.dataset_name,
         source_path= args.source_path,
         batch_size=BATCH_SIZE,
-        num_concurrent =8,
+        num_concurrent =4,
         is_training = True)
     
     train_labels, train_data = train_provider.dequeue_op
@@ -525,7 +525,7 @@ def main():
             dataset_name=args.dataset_name,
             source_path= args.source_path,
             batch_size=BATCH_SIZE,
-            num_concurrent =8,
+            num_concurrent =4,
             is_training=False)
         test_labels, test_data = test_provider.dequeue_op
     
@@ -601,20 +601,21 @@ def main():
         save_steps=args.eval_every,
         saver=tf.train.Saver(max_to_keep=100000))
     latest_checkpoint = tf.train.latest_checkpoint(args.logdir)
-    need_init = latest_checkpoint is None
-    assign_op = None
-    start_iter = 0
-    if not need_init:
+   
+    if latest_checkpoint is None:
+        start_iter = 0
+    else:
         start_iter = int(latest_checkpoint.split('-')[-1])
         assign_op = global_step.assign(start_iter)
 
-    with tf.train.MonitoredTrainingSession(
+    with tf.compat.v1.train.MonitoredTrainingSession(
             checkpoint_dir=args.logdir,
             is_chief=True,
-            hooks=[checkpoint_saver],
+            hooks=[checkpoint_saver],save_summaries_steps=None, 
+            save_summaries_secs=None,
             save_checkpoint_secs=None) as sess:
 
-        if need_init:
+        if start_iter == 0:
             sess.run(init_op)
             sess.run(load_train_op)
             if not skip_test:
@@ -627,7 +628,7 @@ def main():
 
         writer = tf.summary.FileWriter(args.logdir)
         for i in range(start_iter, args.num_iterations):
-            if not args.skip_test and i % args.eval_every == 0:
+            if not args.skip_test and i>0 and i % args.eval_every == 0:
                 test_provider.feed_data(sess)
                 all_fvecs = []
                 all_fvecs_hidden = []
@@ -636,8 +637,7 @@ def main():
                 num_batches = int(np.ceil(test_provider.num_images / float(BATCH_SIZE)))
                 print('Evaluating {} batches'.format(num_batches))
                 for batch_idx in range(num_batches):
-                    fvec, fvec_hidden, cls = sess.run(
-                        [test_preds, hidden_test_output, test_labels])
+                    fvec, fvec_hidden, cls = sess.run([test_preds, hidden_test_output, test_labels])
                     fvec = fvec[cls >= 0, ...]
                     fvec_hidden = fvec_hidden[cls >= 0, ...]
                     cls = cls[cls >= 0, ...]
@@ -659,8 +659,7 @@ def main():
                 writer.add_summary(summary, i)
             
             lossval, _ = sess.run([loss, train_op])
-            if i % 40 == 0:
-                print('loss: {}@Iteration {}'.format(lossval, i))
+            print('loss: {}@Iteration {}'.format(lossval, i))
 
 
 REGULARIZATION_FUNCTIONS = {
