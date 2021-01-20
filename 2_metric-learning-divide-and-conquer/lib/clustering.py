@@ -85,7 +85,7 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
 
         # assign s.t. least costs w.r.t. L1 norm
         C, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
-        print('Costs before reassignment: {}'.format(costs))
+        #print('Costs before reassignment: {}'.format(costs))
         _, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
         # after printing out the costs now, the trace of matrix should have lower numbers than other entries in matrix
         print('Costs after reassignment: {}'.format(costs))

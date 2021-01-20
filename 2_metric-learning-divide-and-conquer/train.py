@@ -1,30 +1,79 @@
 from __future__ import print_function
 from __future__ import division
 
-import collections
 import os
 import matplotlib
 import numpy as np
-import logging
 import torch
 import time
 import json
 import random
-import shelve
 from tqdm import tqdm
+import argparse
+
+import warnings
+import parameters as par
+from utilities import misc
+from utilities import logger
 import lib
 from lib.clustering import make_clustered_dataloaders
-import warnings
-
 
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
 os.putenv("OMP_NUM_THREADS", "8")
-
+pj_base_path= os.path.dirname(os.path.realpath(__file__))
+os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
 def load_config(config_name):
-    with open(config_name, 'r') as f:
-        config = json.load(f)
-    # config = json.load(open(config_name))
+    ################### INPUT ARGUMENTS ###################
+    parser = argparse.ArgumentParser()
+    parser = par.basic_training_parameters(parser)
+    parser = par.setup_parameters(parser)
+    parser = par.wandb_parameters(parser)
+    ##### Read in parameters
+    args = vars(parser.parse_args())
+
+    ##### Read config.json
+    config_name = pj_base_path +'/config.json'
+    with open(config_name, 'r') as f: config = json.load(f)
+   
+    #### Update config.json from INPUT ARGUMENTS ###########
+    config['pj_base_path'] = pj_base_path
+    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
+    config['dataloader']['batch_size'] = args.pop('batch_size')
+    config['dataloader']['num_workers'] = args.pop('num_workers')
+    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
+    config['opt']['backbone']['lr'] = args.pop('backbone_lr')
+    config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
+    config['opt']['embedding']['lr'] =args.pop('embedding_lr')
+    config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
+    dataset_name =  args.pop('dataset_name')
+    config['dataset_selected'] = dataset_name
+    config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
+    config['random_seed'] = args.pop('random_seed')
+    config['log_online'] = args.pop('log_online')
+    config['log']['save_path'] = args.pop('save_path')
+    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
+   
+    if config['log_online']:
+        config['wandb']['wandb_key'] = args.pop('wandb_key')
+        config['wandb']['project'] =args.pop('project')
+        config['wandb']['group'] =args.pop('group')
+        # update save_name
+        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
+        import wandb
+        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
+        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
+        wandb.config.update(config)
+        # update save_path
+        config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
+        
+    if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
+    
+    for k in args:
+        if k in config:
+            config[k] = args[k]
 
     def eval_json(config):
         for k in config:
@@ -35,7 +84,7 @@ def load_config(config_name):
                         config[k] = eval(config[k])
             else:
                 eval_json(config[k])
-    eval_json(config)
+    eval_json(config)   
     return config
 
 
@@ -54,18 +103,10 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, x)
 
 
-def evaluate(model, dataloaders, logging_, backend='faiss', config = None):
-    dl_query = lib.data.loader.make(config, model,
-        'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,
-        'eval', dset_type = 'gallery')
-    score = lib.utils.evaluate_in_shop(
-        model,
-        dl_query = dl_query,
-        dl_gallery = dl_gallery,
-        use_penultimate = False,
-        backend = backend)
-    logging_.info("Score:", score)
+def evaluate(model, dataloaders, LOG, backend='faiss', config = None, log_key= 'Val'):
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+    score = lib.utils.evaluate(model,  config, dl_query, dl_gallery, False, backend, LOG, log_key)
     return score
 
 
@@ -97,10 +138,10 @@ def train_batch(model, criterion, opt, config, batch, dset, epoch):
 def get_criterion(config):
     name = 'margin'
     ds_name = config['dataset_selected']
-    nb_classes = len(
-        config['dataset'][ds_name]['classes']['train']
-    )
-    logging.debug('Create margin loss. #classes={}'.format(nb_classes))
+    nb_clusters =config['nb_clusters']
+    nb_classes = int(config['transform_parameters'][ds_name]["classes"])
+
+    print('Create margin loss for classes={}'.format(nb_classes))
 
     if torch.cuda.is_available():
         criterion = [lib.loss.MarginLoss(nb_classes,).cuda() for i in range(config['nb_clusters'])]
@@ -114,94 +155,30 @@ def get_optimizer(config, model, criterion):
     opt = torch.optim.Adam([
         {
             'params': model.parameters_dict['backbone'],
-            **config['opt']['backbone']
+            **config['config']['backbone']
         },
         {
             'params': model.parameters_dict['embedding'],
-            **config['opt']['embedding']
+            **config['config']['embedding']
         }
     ])
 
     return opt
 
 
-def start(config, DIYlogger):
-
-    """
-    Import `plt` after setting `matplotlib` backend to `agg`, because `tkinter`
-    missing. If `agg` set, when this module is imported, then plots can not
-    be displayed in jupyter notebook, because backend can be set only once.
-    """
-    import matplotlib.pyplot as plt
-
+def main():
+    config_name = pj_base_path + '/config.json'
+    config = load_config(config_name)
     metrics = {}
-
-    DIYlogger.info("Before GPU mem reserve")
+    #################### CREATE LOGGING FILES ###############
+    sub_loggers = ['Train', 'Val']
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+   
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
-    DIYlogger.info("Before mkdir")
-    # create logging directory
-    os.makedirs(config['log']['path'], exist_ok = True)
-
-    DIYlogger.info("Before Logger init")
-    # warn if log file exists already and append underscore
-    import warnings
-    _fpath = os.path.join(config['log']['path'], config['log']['name'])
-    if os.path.exists(_fpath):
-        warnings.warn('Log file exists already: {}'.format(_fpath))
-        print('Appending underscore to log file and database')
-        config['log']['name'] += '_'
-
-    # initialize logger
-    logger_path = "{0}/{1}.log".format(config['log']['path'], config['log']['name'])
-    # noinspection PyArgumentList
-    logging.basicConfig(
-        format = "%(asctime)s %(message)s",
-        level = logging.DEBUG if config['verbose'] else logging.INFO,
-        handlers=[logging.FileHandler(logger_path), logging.StreamHandler()]
-    )
-
-    # log gpu and cpu memory info
-    if config['log_gpu_info']:
-        from pynvml import nvmlInit, nvmlDeviceGetCount, nvmlDeviceGetHandleByIndex
-        from pynvml import nvmlDeviceGetMemoryInfo, nvmlDeviceGetName, NVMLError
-        from psutil import virtual_memory
-
-        ram_gb = virtual_memory().total / 1e9
-        try:
-            nvmlInit()
-
-            deviceCount = nvmlDeviceGetCount()
-            for i in range(deviceCount):
-                handle = nvmlDeviceGetHandleByIndex(i)
-                mem_info = "(Total memory: {:.3f} GB)".format(nvmlDeviceGetMemoryInfo(handle).total / 1e9)
-                logging.info("-------------------------------------------------")
-                logging.info("  GPU info")
-                logging.info("  Device " + str(i) + ": " + nvmlDeviceGetName(handle).decode("utf-8") + mem_info)
-                logging.info("")
-                logging.info("  RAM info")
-                logging.info("  Total: {:.3f} GB".format(ram_gb))
-                logging.info("-------------------------------------------------")
-        except NVMLError as error:
-            logging.info(error)
-            logging.info("Disabling gpu logging due to NVMLError error...")
-            config['log_gpu_info'] = False
-        except OSError as error:
-            logging.info(error)
-            logging.info("Disabling gpu logging due to OSError error...")
-            config['log_gpu_info'] = False
-
-    # print summary of config
-    logging.info(
-        json_dumps(obj = config, indent=4, cls = JSONEncoder, sort_keys = True)
-    )
-
     if torch.cuda.is_available():
         torch.cuda.set_device(config['cuda_device'])
-
-    if not os.path.isdir(config['log']['path']):
-        os.mkdir(config['log']['path'])
 
     # set random seed for all gpus
     seed = config['random_seed']
@@ -223,110 +200,44 @@ def start(config, DIYlogger):
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
-    for dl_type in ['init', 'eval']:
-        # query and gallery initialized in `make_clustered_dataloaders`
-        if dl_type == 'init':
-            dataloaders[dl_type] = lib.data.loader.make(config, model,dl_type, dset_type = 'train')
+    dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
         
-
     criterion = get_criterion(config)
     opt = get_optimizer(config, model, criterion)
 
     faiss_reserver.release()
-    logging.info("Evaluating initial model...")
-
-    # added this caching part
-    cache_file_path = os.path.dirname(os.path.realpath(__file__)) + "/pretrained_weights/evaluation_score_cache.txt"
-    if os.path.exists(cache_file_path) & False:
-        logging.info("  Using cached evaluation score..")
-        with open(cache_file_path, "r") as cache_file:
-            metrics[-1] = json.load(cache_file)
-
-    else:
-        logging.info("  Computing evaluation score..")
-        metrics[-1] = {
-            'score': evaluate(model, dataloaders, logging,
-                            backend = config['backend'],
-                            config = config)}
-        with open(cache_file_path, "w+") as cache_file:
-            cache_file.write(json.dumps(metrics[-1]))
-
-    logging.info("Evaluation 2...")
-    cache_file_path2 = cache_file_path.replace(".txt", "2.txt")
-    if os.path.exists(cache_file_path2) & False:
-        logging.info("  Using cached evaluation score..")
-        with open(cache_file_path2, "r") as cache_file:
-            initial_values = json.load(cache_file)
-        dataloaders['train'], C, T, I = make_clustered_dataloaders(model,
-                            dataloaders['init'], config, reassign=False, logging=logging,
-                            initial_C_T_I=initial_values)
-    else:
-        logging.info("  Computing evaluation score..")
-        dataloaders['train'], C, T, I = make_clustered_dataloaders(model,
-                dataloaders['init'], config, reassign = False, logging = logging)
-        with open(cache_file_path2, "w+") as cache_file:
-            cache_file.write(json.dumps({'C': C.tolist(), 'T': T.tolist(), 'I': I.tolist()}))
-
+    print("Evaluating initial model...")
+    metrics[-1] = {'score': evaluate(model, dataloaders, LOG, backend = config['backend'],config = config, log_key ='Val')}
+    best_recall = metrics[-1]['score']['recall'][0]
+    dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
 
     metrics[-1].update({'C': C, 'T': T, 'I': I})
 
-    if config['verbose']:
-        print('Printing only first 200 classes (because of SOProducts)')
-        for c in range(config['nb_clusters']):
-            print(
-                np.bincount(
-                    np.array(dataloaders['train'][c].dataset.ys)
-                )[:200]
-            )
-            plt.hist(np.array(dataloaders['train'][c].dataset.ys), bins = 100)
-            plt.show()
-
-    gpu_info = None
-    if config['log_gpu_info']:
-        from pynvml import nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
-        handle = nvmlDeviceGetHandleByIndex(0)
-        gpu_info = nvmlDeviceGetMemoryInfo(handle)
-
-    logging.info("Training for {} epochs.".format(config['nb_epochs']))
-    losses = []
+    print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
     for e in range(start_epoch, config['nb_epochs']):
         is_best = False
-
+        config['epoch'] = e
         metrics[e] = {}
         time_per_epoch_1 = time.time()
         losses_per_epoch = []
 
         if e >= config['finetune_epoch']:
             if e == config['finetune_epoch'] or e == start_epoch:
-                logging.info('Starting to finetune model...')
+                print('Starting to finetune model...')
                 config['nb_clusters'] = 1
-                logging.debug(
-                    "config['nb_clusters']: {})".format(config['nb_clusters']))
+                print("config['nb_clusters']: {})".format(config['nb_clusters']))
                 faiss_reserver.release()
-                dataloaders['train'], C, T, I = make_clustered_dataloaders(
-                    model, dataloaders['init'], config, logging = logging)
+                dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config)
                 assert len(dataloaders['train']) == 1
-        elif e > 0 and config['recluster']['enabled'] and \
-                config['nb_clusters'] > 0:
+        elif e > 0 and config['recluster']['enabled'] and config['nb_clusters'] > 0:
             if e % config['recluster']['mod_epoch'] == 0:
-                logging.info("Reclustering dataloaders...")
+                print("Reclustering dataloaders...")
                 faiss_reserver.release()
-                dataloaders['train'], C, T, I = make_clustered_dataloaders(
-                    model, dataloaders['init'], config, reassign = True,
-                    C_prev = C, I_prev = I, logging = logging)
+                dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config, reassign = True,C_prev = C, I_prev = I, LOG = LOG)
                 faiss_reserver.lock(config['backend'])
-                if config['verbose']:
-                    for c in range(config['nb_clusters']):
-                        print(
-                            np.bincount(
-                                np.array(
-                                    dataloaders['train'][c].dataset.ys)
-                                )[:200]
-                            )
-
                 metrics[e].update({'C': C, 'T': T, 'I': I})
 
         # merge dataloaders (created from clusters) into one dataloader
@@ -336,42 +247,32 @@ def start(config, DIYlogger):
         max_len_dataloaders = max([len(dl) for dl in dataloaders['train']])
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
 
-        if config['log_gpu_info']:
-            print("GPU info: {:.3f}% used ({}Bytes free)".format(gpu_info.used/gpu_info.total*100, gpu_info.free))
-        for batch, dset in tqdm(
-            mdl,
-            total = num_batches_approx,
-            disable = num_batches_approx < 100,
-            desc = 'Train epoch {}.'.format(e)
-        ):
+        for batch, dset in tqdm(mdl,total = num_batches_approx,disable = num_batches_approx < 100,desc = 'Train epoch {}.'.format(e)):
             loss = train_batch(model, criterion, opt, config, batch, dset, e)
             losses_per_epoch.append(loss)
 
         time_per_epoch_2 = time.time()
-        losses.append(np.mean(losses_per_epoch[-20:]))
-        logging.info(
-            "Epoch: {}, loss: {}, time (seconds): {:.2f}.".format(
+        current_loss = np.mean(losses_per_epoch)
+        LOG.progress_saver['Train'].log('epochs', e)
+        LOG.progress_saver['Train'].log('Train_loss', current_loss)
+        LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
+        print(
+            "\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(
                 e,
-                losses[-1],
+                current_loss,
                 time_per_epoch_2 - time_per_epoch_1
             )
         )
-
+        
         faiss_reserver.release()
         tic = time.time()
         metrics[e].update({
-            'score': evaluate(model, dataloaders, logging,
-                        backend=config['backend'],
-                        config = config),
-            'loss': {
-                'train': losses[-1]
-            }
+            'score': evaluate(model, dataloaders, LOG,backend=config['backend'],config = config,log_key='Val'),
+            'loss': {'train': current_loss}
         })
-        logging.debug(
-            'Evaluation total elapsed time: {:.2f} s'.format(
-                time.time() - tic
-            )
-        )
+        LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+        LOG.update(all=True)
+        print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
         faiss_reserver.lock(config['backend'])
 
         recall_curr = metrics[e]['score']['recall'][0] # take R@1
@@ -379,38 +280,13 @@ def start(config, DIYlogger):
             best_recall = recall_curr
             best_epoch = e
             is_best = True
-            logging.info('Best epoch!')
+            print('Best epoch!')
 
         model.current_epoch = e
-
-        # save metrics etc. to shelve file
-        with shelve.open(
-            os.path.join(
-                config['log']['path'], config['log']['name']),
-            writeback = True
-        ) as _f:
-            if 'config' not in _f:
-                _f['config'] = config
-            if 'metrics' not in _f:
-                _f['metrics'] = {}
-                # if initial model evaluated, append metrics
-                if -1 in metrics:
-                    _f['metrics'][-1] = metrics[-1]
-            _f['metrics'][e] = metrics[e]
-
-        if config['save_model'] and is_best:
-            save_suff = '.pt'
-            torch.save(
-                model.state_dict(),
-                os.path.join(
-                    config['log']['path'], config['log']['name'] + save_suff
-                )
-            )
-            logging.info('Save the checkpoint!')
     t2 = time.time()
-    logging.info(
-        "Total training time (minutes): {:.2f}.".format(
-            (t2 - t1) / 60
-        )
-    )
-    logging.info("Best R@1 = {} at epoch {}.".format(best_recall, best_epoch))
+    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
+    print("Best R@1 = {} at epoch {}.".format(best_recall, best_epoch))
+
+
+if __name__ == '__main__':
+    main()

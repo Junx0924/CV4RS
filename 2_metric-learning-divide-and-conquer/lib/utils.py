@@ -47,7 +47,7 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
         return result
 
 
-def evaluate_in_shop(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',with_nmi = False):
+def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',with_nmi = False):
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
     X_query, T_query, _ = predict_batchwise(model, dl_query, use_penultimate)
