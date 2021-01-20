@@ -81,7 +81,7 @@ def store_hdf(hdf_file, file_list):
         result = pool.imap(get_data, (img_path for img_path in file_list))
         for idx,(patch_name, img_data) in enumerate(result):
             f.create_dataset(patch_name, data=img_data, dtype='i',compression='gzip',compression_opts=9)
-            if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(data_list)*100))
+            if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
         pool.close()
         pool.join()
             
