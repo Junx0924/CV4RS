@@ -471,7 +471,6 @@ def main():
     parser.add_argument('--arch', type=str, default='resnet')
 
     dtype = tf.float32
-    #dtype = tf.float64
 
     args = parser.parse_args()
     LAMBDA_WEIGHT = args.lambda_weight
