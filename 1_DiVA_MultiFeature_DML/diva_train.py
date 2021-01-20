@@ -386,12 +386,11 @@ for epoch in range(opt.n_epochs):
     """======================================="""
     ### Evaluate Metric for Training & Test & Validation
     _ = model.eval()
-    
+    tic = time.time()
     test_dataloaders = [dataloaders['testing_query'], dataloaders['testing_gallery']]
     print('\nComputing Validation Metrics...')
     eval.evaluate(opt.dataset, LOG, metric_computer, test_dataloaders, model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
-    # recall1 = eval.evaluate(opt.dataset, LOG, metric_computer, [dataloaders['validation']], model, opt, opt.evaltypes, opt.device, make_recall_plot=True,log_key='Val')
-    
+    LOG.progress_saver['Val'].log('time', np.round(time.time()-tic, 4))
     
     LOG.update(all=True)
 

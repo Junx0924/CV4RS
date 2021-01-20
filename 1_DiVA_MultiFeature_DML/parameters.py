@@ -36,7 +36,7 @@ def basic_training_parameters(parser):
                                                                                                        Note: One may use Combined_embed1_embed2_..._embedn-w1-w1-...-wn to compute evaluation metrics on weighted (normalized) combinations.')
     parser.add_argument('--storage_metrics',    nargs='+', default=['e_recall@1'], type=str, help='Improvement in these metrics on the testset trigger checkpointing.')
     parser.add_argument('--realistic_augmentation', action='store_true', help='Flag, apply preprocessing/augmentation to use on the data, with color/brightness changes, flip')
-    parser.add_argument('--gpu',          default=[0], nargs='+', type=int,   help='Random seed for reproducibility.')
+    parser.add_argument('--gpu',          default=[0], nargs='+', type=int,   help='CUDA device.')
     return parser
 
 def setup_parameters(parser):
