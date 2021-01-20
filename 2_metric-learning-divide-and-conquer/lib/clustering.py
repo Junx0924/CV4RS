@@ -11,12 +11,11 @@ from . import data
 from . import utils
 
 
-def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters,
-       gpu_id=None, backend='faiss'):
+def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_id=None, backend='faiss'):
     is_dry_run = (nb_clusters == 1)
     if not is_dry_run:
         if not use_penultimate:
-            logging.debug('Using the final layer for clustering')
+            print('Using the final layer for clustering')
         X_all, T_all, I_all = utils.predict_batchwise(
             model=model,
             dataloader=data_loader,
@@ -24,12 +23,11 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters,
             is_dry_run=is_dry_run
         )
         perm = np.argsort(I_all)
-        X_all = X_all[perm]
-        I_all = I_all[perm]
-        T_all = T_all[perm]
+        X_all = X_all[perm]  # embeddings
+        I_all = I_all[perm]  # index
+        T_all = T_all[perm]  # labels
         if backend == 'torch+sklearn':
-            clustering_algorithm = sklearn.cluster.KMeans(
-                n_clusters=nb_clusters)
+            clustering_algorithm = sklearn.cluster.KMeans(n_clusters=nb_clusters)
             C = clustering_algorithm.fit(X_all).labels_
         else:
             C = faissext.do_clustering(
@@ -45,11 +43,11 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters,
         T_all = np.array(data_loader.dataset.ys)
         I_all = np.array(data_loader.dataset.I)
         C = np.zeros(len(T_all), dtype=int)
+    # return the clustered index of embeddings, labels, index
     return C, T_all, I_all
 
 
-def make_clustered_dataloaders(model, dataloader_init, config,
-        reassign = False, I_prev = None, C_prev = None, logging = None, initial_C_T_I=None):
+def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, I_prev = None, C_prev = None, LOG = None, initial_C_T_I=None):
 
     def correct_indices(I):
         return torch.sort(torch.LongTensor(I))[1]
@@ -67,12 +65,6 @@ def make_clustered_dataloaders(model, dataloader_init, config,
         T = np.array(initial_C_T_I['T'])
         I = np.array(initial_C_T_I['I'])
 
-    #print("printing C, T and I")
-    #print(C)
-    #print(T)
-    #print(I)
-    #print("###########")
-
     if reassign == True:
 
         # get correct indices for samples by sorting them and return arg sort
@@ -86,25 +78,17 @@ def make_clustered_dataloaders(model, dataloader_init, config,
         I_prev = I_prev[I_prev_correct]
         C_prev = C_prev[I_prev_correct]
 
-        logging.debug('Reassigning clusters...')
-        logging.debug('Calculating NMI for consecutive cluster assignments...')
-        logging.debug(str(
-            evaluation.calc_normalized_mutual_information(
-            C[I],
-            C_prev[I_prev]
-        )))
+        print('Reassigning clusters...')
+        nmi =  evaluation.calc_normalized_mutual_information(C[I],C_prev[I_prev])
+        print("Calculating NMI for consecutive cluster assignments:{}".format(nmi))
+        LOG.progress_saver['Train'].log('nmi',nmi,'reclustering')
 
         # assign s.t. least costs w.r.t. L1 norm
-        C, costs = data.loader.reassign_clusters(C_prev = C_prev,
-                C_curr = C, I_prev = I_prev, I_curr = I)
-        logging.debug('Costs before reassignment')
-        logging.debug(str(costs))
-        _, costs = data.loader.reassign_clusters(C_prev = C_prev,
-                C_curr = C, I_prev = I_prev, I_curr = I)
-        # after printing out the costs now, the trace of matrix should
-        # have lower numbers than other entries in matrix
-        logging.debug('Costs after reassignment')
-        logging.debug(str(costs))
+        C, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
+        print('Costs before reassignment: {}'.format(costs))
+        _, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
+        # after printing out the costs now, the trace of matrix should have lower numbers than other entries in matrix
+        print('Costs after reassignment: {}'.format(costs))
 
     #  remove labels s.t. minimum 2 samples per class per cluster
     for c in range(config['nb_clusters']):
@@ -113,8 +97,6 @@ def make_clustered_dataloaders(model, dataloader_init, config,
                 # assign to cluster -1 if only one sample from class
                 C[(T == t) & (C == c)] = -1
 
-    dls = data.loader.make_from_clusters(
-        C = C, subset_indices = I, model = model, config = config
-    )
+    dls = data.loader.make_from_clusters(C = C, subset_indices = I, model = model, config = config)
 
     return dls, C, T, I

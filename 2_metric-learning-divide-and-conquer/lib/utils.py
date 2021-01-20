@@ -5,7 +5,6 @@ from . import evaluation
 from . import similarity
 import numpy as np
 import torch
-import logging
 from tqdm import tqdm
 
 
@@ -48,14 +47,11 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
         return result
 
 
-def evaluate_in_shop(model, dl_query, dl_gallery, use_penultimate, backend,
-        K = [1, 2, 4, 8], with_nmi = False):
-
+def evaluate_in_shop(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',with_nmi = False):
+    K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
-    X_query, T_query, _ = predict_batchwise(
-        model, dl_query, use_penultimate)
-    X_gallery, T_gallery, _ = predict_batchwise(
-        model, dl_gallery, use_penultimate)
+    X_query, T_query, _ = predict_batchwise(model, dl_query, use_penultimate)
+    X_gallery, T_gallery, _ = predict_batchwise(model, dl_gallery, use_penultimate)
 
     nb_classes = dl_query.dataset.nb_classes()
     assert nb_classes == len(set(T_query))
@@ -72,15 +68,30 @@ def evaluate_in_shop(model, dl_query, dl_gallery, use_penultimate, backend,
     # get top k labels with smallest (`largest = False`) distance
     Y = T_gallery[D.topk(k = max(K), dim = 1, largest = False)[1]]
 
-    scores = {}
+    flag_checkpoint = False
+    history_recall1 = 0
+    if "recall" not in LOG.progress_saver[log_key].groups.keys():
+        flag_checkpoint = True
+    else: 
+        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
+    scores = {}
     recall = []
     for k in K:
         r_at_k = evaluation.calc_recall_at_k(T_query, Y, k)
         recall.append(r_at_k)
-        logging.info("R@{} : {:.3f}".format(k, 100 * r_at_k))
-
+        LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
+        print("recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        if k==1 and r_at_k > history_recall1:
+            flag_checkpoint = True
+        
     scores['recall'] = recall
+
+    ### save checkpoint #####
+    if  flag_checkpoint:
+        savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
+        aux_store = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':aux_store}, savepath)
 
     if with_nmi:
         # calculate NMI with kmeans clustering
@@ -90,46 +101,8 @@ def evaluate_in_shop(model, dl_query, dl_gallery, use_penultimate, backend,
                 X_eval.numpy(), nb_classes, backend=backend
             )
         )
-        logging.info("NMI: {:.3f}".format(nmi * 100))
+        LOG.progress_saver[log_key].log("nmi",nmi)
+        print("NMI: {:.3f}".format(nmi * 100))
         scores['nmi'] = nmi
 
     return scores
-
-
-def evaluate(model, dataloader, use_penultimate, backend,
-        K = [1, 2, 4, 8], with_nmi = False):
-    nb_classes = dataloader.dataset.nb_classes()
-
-    # calculate embeddings with model and get targets
-    X, T, _ = predict_batchwise(model, dataloader, use_penultimate)
-
-    scores = {}
-
-    # calculate NMI with kmeans clustering
-    if with_nmi:
-        nmi = evaluation.calc_normalized_mutual_information(
-            T,
-            similarity.cluster_by_kmeans(
-                X, nb_classes, backend=backend
-            )
-        )
-        logging.info("NMI: {:.3f}".format(nmi * 100))
-        scores['nmi'] = nmi
-
-    # get predictions by assigning nearest 8 neighbors with euclidian
-    assert np.max(K) <= 8, ("Sorry, this is hardcoded here."
-                " You would need to retrieve > 8 nearest neighbors"
-                            " to calculate R@k with k > 8")
-    Y = similarity.assign_by_euclidian_at_k(X, T, 8, backend=backend)
-
-    # calculate recall @ 1, 2, 4, 8
-    recall = []
-    for k in K:
-        r_at_k = evaluation.calc_recall_at_k(T, Y, k)
-        recall.append(r_at_k)
-        logging.info("R@{} : {:.3f}".format(k, 100 * r_at_k))
-
-    scores['recall'] = recall
-
-    return scores
-
