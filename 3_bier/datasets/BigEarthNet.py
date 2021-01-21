@@ -50,12 +50,12 @@ def store_hdf(hdf_file, file_list,label_indices):
                     if not key in image_dict.keys():
                         image_dict[key] = []
                     image_dict[key].append(patch_name)
-            if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
+            if (idx+1) % (len(file_list)//5)==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
         pool.close()
         pool.join()
     return image_dict
 
-def Give(datapath):
+def Give(datapath,dset_type):
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
     
     # read label names
@@ -104,7 +104,10 @@ def Give(datapath):
     train_image_dict,val_image_dict,test_image_dict ={},{},{}
     new_dict_list = [train_image_dict,val_image_dict,test_image_dict]
     
+    # make sure the keys are continuous
     for i in range(len(new_dict_list)):
         for key in keys:
             new_dict_list[i][new_keys[key]] = [datapath + '/' + patch_name for patch_name in data_list[i][key]]
-    return {'training': train_image_dict , 'validation': val_image_dict , 'testing': test_image_dict}
+    
+    dsets = {'train': train_image_dict , 'val': val_image_dict , 'test': test_image_dict}
+    return dsets[dset_type]

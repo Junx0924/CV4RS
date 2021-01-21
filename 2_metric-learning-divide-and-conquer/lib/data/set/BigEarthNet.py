@@ -50,7 +50,7 @@ def store_hdf(hdf_file, file_list,label_indices):
                     if not key in image_dict.keys():
                         image_dict[key] = []
                     image_dict[key].append(patch_name)
-            if (idx+1) % 2000==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
+            if (idx+1) % (len(file_list)//5)==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
         pool.close()
         pool.join()
     return image_dict
