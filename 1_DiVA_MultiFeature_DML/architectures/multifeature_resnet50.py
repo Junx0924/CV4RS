@@ -40,22 +40,26 @@ class Network(nn.Module):
         self.pars  = opt
         self.name  = opt.arch
         self.model = ptm.__dict__['resnet50'](num_classes=1000, pretrained='imagenet')
-        
-        if 'frozen' in opt.arch:
-            self.model.requires_grad_ = False
            
         self.feature_dim =  self.model.last_linear.in_features
         # This increases the number of input channels for our network
         if opt.num_in_channels>3:
             self.model.conv1 = increase_channels(self.model.conv1, opt.num_in_channels)
-            self.model.conv1.requires_grad_ = True
+
+        if 'frozen' is in opt.arch:
+                child_counter = 0
+                for child in model.children():
+                    if child_counter == 0 and opt.dataset =="BigEarthNet":
+                        continue
+                    else:
+                        for param in child.parameters():
+                            param.requires_grad = False
 
         # add new linear layer
         out_dict = nn.ModuleDict()
         for mode in opt.diva_features:
             out_dict[mode] = torch.nn.Linear(self.feature_dim, opt.embed_dim)
         self.model.last_linear  = out_dict
-        self.model.last_linear.requires_grad_ = True
     
     def forward(self, x):
         x = self.model.conv1(x)
