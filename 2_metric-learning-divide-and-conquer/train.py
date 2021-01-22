@@ -51,6 +51,7 @@ def load_config(config_name):
     config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
     config['random_seed'] = args.pop('random_seed')
     config['log_online'] = args.pop('log_online')
+    config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
     config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
    
@@ -66,8 +67,8 @@ def load_config(config_name):
         _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
         wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
         wandb.config.update(config)
-        # update save_path
-        config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
+    # update save_path
+    config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
         
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     
@@ -151,17 +152,26 @@ def get_criterion(config):
 
 
 def get_optimizer(config, model, criterion):
-
     opt = torch.optim.Adam([
         {
-            'params': model.parameters_dict['backbone'],
-            **config['config']['backbone']
+            'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+            **config['opt']['backbone']
         },
         {
             'params': model.parameters_dict['embedding'],
-            **config['config']['embedding']
+            **config['opt']['embedding']
         }
     ])
+    # opt = torch.optim.Adam([
+    #     {
+    #         'params': model.parameters_dict['backbone'],
+    #         **config['opt']['backbone']
+    #     },
+    #     {
+    #         'params': model.parameters_dict['embedding'],
+    #         **config['opt']['embedding']
+    #     }
+    # ])
 
     return opt
 
@@ -256,15 +266,10 @@ def main():
         LOG.progress_saver['Train'].log('epochs', e)
         LOG.progress_saver['Train'].log('Train_loss', current_loss)
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
-        print(
-            "\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(
-                e,
-                current_loss,
-                time_per_epoch_2 - time_per_epoch_1
-            )
-        )
-        
+        print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
         faiss_reserver.release()
+
+        # evaluate
         tic = time.time()
         metrics[e].update({
             'score': evaluate(model, dataloaders, LOG,backend=config['backend'],config = config,log_key='Val'),
@@ -285,7 +290,7 @@ def main():
         model.current_epoch = e
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
-    print("Best R@1 = {} at epoch {}.".format(best_recall, best_epoch))
+    print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
 
 
 if __name__ == '__main__':

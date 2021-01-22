@@ -61,12 +61,20 @@ def resnet50(config, pretrained = True):
 
     model.sz_features_output = 2048
 
-    for module in filter(
-        lambda m: type(m) == torch.nn.BatchNorm2d, model.modules()
-    ):
-        module.eval()
-        module.train = lambda _: None
-
+    # for module in filter(
+    #     lambda m: type(m) == torch.nn.BatchNorm2d, model.modules()
+    # ):
+    #     module.eval()
+    #     module.train = lambda _: None
+    # frozen the backbone except the first layer
+    if config['frozen']:
+        child_counter = 0
+        for child in model.children():
+            if child_counter == 0 and config['dataset_selected'] =="BigEarthNet":
+                continue
+            else:
+                for param in child.parameters():
+                    param.requires_grad = False
     return model
 
 
