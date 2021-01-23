@@ -55,7 +55,7 @@ def load_config(config_name):
     config['log']['save_path'] = args.pop('save_path')
     config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
    
-   #### Bier parameter 
+   #### UPdate Bier parameter 
     config['lambda_weight'] = args.pop('lambda_weight')
     config['sub_embed_sizes'] = args.pop('sub_embed_sizes')
     config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
