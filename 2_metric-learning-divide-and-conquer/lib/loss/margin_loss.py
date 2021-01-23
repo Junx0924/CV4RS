@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-from .semihard import Semihard
+from .batchminner.semihard import Semihard
 
 
 class MarginLoss(torch.nn.Module):
