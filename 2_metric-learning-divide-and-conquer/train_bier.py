@@ -214,9 +214,9 @@ def main():
     opt = get_optimizer(config, model)
 
     faiss_reserver.release()
-    # print("Evaluating initial model...")
-    # metrics[-1] = {'score': evaluate(model, LOG, backend = config['backend'],config = config, log_key ='Val')}
-    # best_recall = metrics[-1]['score']['recall'][0]
+    print("Evaluating initial model...")
+    metrics[-1] = {'score': evaluate(model, LOG, backend = config['backend'],config = config, log_key ='Val')}
+    best_recall = metrics[-1]['score']['recall'][0]
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
