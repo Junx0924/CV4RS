@@ -1,38 +1,25 @@
 from __future__ import print_function
 from __future__ import division
 
+import tensorflow as tf
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR) 
+from tensorflow.contrib import slim
 import argparse
-import dataset
 import collections
 import numpy as np
 import random
-import flip_gradient
 import os
+import time
 
-#import code.deep_inception as models
-import architectures as archs
+import flip_gradient
+import parameters as par
+from utilities import misc
+from utilities import logger
+import model.resnet50 as models
+import dataset
+from evaluate import similarity, nmi,recall
 
-import tensorflow as tf
-tf.logging.set_verbosity(tf.logging.ERROR) 
 
-from tensorflow.contrib import slim
-
-TrainingData = collections.namedtuple(
-    'TrainingData', ('crop_size', 'channels', 'mean','std'))
-
-LEARNING_RATE = 1e-5
-WEIGHT_DECAY = 0.0002
-BATCH_SIZE = 32
-LR_DECAY = 0.1
-NUM_HIDDENS_ADVERSARIAL = 2
-HIDDEN_ADVERSARIAL_SIZE = 512
-
-LAMBDA_WEIGHT = 100.0
-
-REGULARIZATION_CHOICES = ['activation', 'adversarial']
-
-EMBEDDING_SCOPE_NAME = 'embedding_tower'
-VERBOSE = False
 
 
 def do_print(*args, **kwargs):
@@ -85,67 +72,116 @@ def embedding_tower(hidden_layer, embedding_sizes, reuse=False):
         tf.add_to_collection('weights', w)
     return embedding, end_points
 
-
-def evaluate2(fvecs, labels, tag='Hidden'):
+def get_embeddings(sess, data_provider,preds, hidden_output, labels,embedding_size,batch_size):
     """
-    Evaluation of a single embedding.
+    Get the feature vectors from the model
 
     Args:
-        fvecs: numpy array of feature vectors
+        sess: tf.compat.v1.train.MonitoredTrainingSession 
+        data_provider:  dataset
+        hidden_output:  feature vectors from the model
+        preds:  feature vectors from the embedding_tower 
         labels: labels
+        embedding_size: default [96,160,256]
     Returns:
-        The recall @1
+        a tuple contains:
+        nomalized numpy array of feature vectors of the data_provider
+        nomalized numpy array of hidden feature vectors of the data_provider
+        labels
     """
-    fvecs /= np.maximum(1e-5, np.linalg.norm(fvecs, axis=1, keepdims=True))
-    D = fvecs.dot(fvecs.T)
-    # Remove the diagonal for evalution! This is the same sample as the query.
-    I = np.eye(D.shape[0]) * abs(D).max() * 10.0
-    D -= I
-    predictions = D.argmax(axis=1)
-    pred_labels = labels[predictions]
+    all_fvecs = []
+    all_fvecs_hidden = []
+    all_labels = []
+    num_batches = int(np.ceil(data_provider.num_images / float(batch_size)))
+    print('Evaluating {} batches'.format(num_batches))
+    for batch_idx in range(num_batches):
+        fvec, fvec_hidden, cls = sess.run([preds, hidden_output, labels])
+        fvec = fvec[cls >= 0, ...]
+        fvec_hidden = fvec_hidden[cls >= 0, ...]
+        cls = cls[cls >= 0, ...]
+        all_fvecs.append(np.array(fvec))
+        all_fvecs_hidden.append(np.array(fvec_hidden[:, 0, 0, :]))
+        all_labels.append(np.array(cls))
+    
+    fvecs = np.vstack(all_fvecs)
+    fvecs_hidden = np.vstack(all_fvecs_hidden)
+    labels = np.concatenate(all_labels)
 
-    recall = (pred_labels == labels).sum() / float(len(labels))
-    print('R@1 ({}): '.format(tag), recall)
-    return recall
-
-
-def evaluate(fvecs, labels, embedding_sizes):
-    """
-    Evaluation of a bier embedding.
-
-    Args:
-        fvecs: numpy array of feature vectors
-        labels: labels
-    Returns:
-        The recall @1
-    """
-    embedding_scales = [float(e) / sum(embedding_sizes)
-                        for e in embedding_sizes]
+    # normalize the feature vectors
+    fvecs_hidden /= np.maximum(1e-5, np.linalg.norm(fvecs_hidden, axis=1, keepdims=True))
+    
+    # normalize the feature vectors of different learners
+    embedding_scales = [float(e) / sum(embedding_size) for e in embedding_size]
     start_idx = 0
-    for e, s in zip(embedding_sizes, embedding_scales):
+    for e, s in zip(embedding_size, embedding_scales):
         stop_idx = start_idx + e
-        evaluate2(np.array(fvecs[:, start_idx:stop_idx].copy(
-        )), labels, tag='Embedding-{}'.format(e))
-        fvecs[:, start_idx:stop_idx] /= np.maximum(1e-5, np.linalg.norm(
-            fvecs[:, start_idx:stop_idx], axis=1, keepdims=True)) / s
+        fvecs[:, start_idx:stop_idx] /= np.maximum(1e-5, np.linalg.norm(fvecs[:, start_idx:stop_idx], axis=1, keepdims=True)) / s
         start_idx = stop_idx
+    return  fvecs, fvecs_hidden, labels
+        
 
-    # Compute distance matrix.
-    D = fvecs.dot(fvecs.T)
-    I = np.eye(D.shape[0]) * abs(D).max() * 10.0
-    D -= I
+def evaluate(query, query_labels, gallery,gallery_labels, LOG, log_key ='',backend="faiss-gpu",with_nmi = False):
+    """
+    Evaluation the retrieval performance.
 
-    # compute R@1
-    predictions = D.argmax(axis=1)
-    pred_labels = labels[predictions]
+    Args:
+        query: numpy array of feature vectors of query dataset
+        gallery: numpy array of feature vectors of gallery dataset
+        query_labels: labels
+        gallery_labels: labels
+        backend: faiss-gpu
+        with_nmi: calculate nmi
+    Returns:
+        The recall @1, 2, 4, 8
+        nmi if with_nmi = True
+    """
+    if log_val =="Val_h":
+        print("Calculate metrics for hidden layer features")
+    else:
+        print("Calculate metrics for bier layer features")
+    K = [1, 2, 4, 8]
+    nb_classes = len(set(query_labels))
+    assert nb_classes == len(set(gallery_labels))
+    # calculate full similarity matrix, choose only first `len(query)` rows
+    # and only last columns corresponding to the column
+    T_eval = np.concatenate([query_labels, gallery_labels],axis=0)
+    X_eval = np.concatenate([query, gallery],axis=0)
+    D = similarity.pairwise_distance(X_eval)[:len(query_labels), len(query_labels):]
 
-    recall = (pred_labels == labels).sum() / float(len(labels))
-    print('R@1 (Embedding): ', (pred_labels == labels).sum() /
-          float(len(labels)))
-    return recall
+    # get top k labels with smallest distance
+    ind = similarity.get_sorted_top_k(D,max(K),axis = 1)
+    Y = gallery_labels[ind]
 
+    flag_checkpoint = False
+    history_recall1 = 0
+    if "recall" not in LOG.progress_saver[log_key].groups.keys():
+        flag_checkpoint = True
+    else: 
+        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
-def build_train(predictions, end_points, y, embedding_sizes,
+    scores = {}
+    recall = []
+    for k in K:
+        r_at_k = recall.calculate(query_labels, Y, k)
+        recall.append(r_at_k)
+        LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
+        print("recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        if k==1 and r_at_k > history_recall1:
+            flag_checkpoint = True
+        
+    scores['recall'] = recall
+
+    if with_nmi:
+        # calculate NMI with kmeans clustering
+        nmi = nmi.calculate(T_eval,similarity.cluster_by_kmeans(X_eval, nb_classes,gpu_id=0, backend=backend))
+        LOG.progress_saver[log_key].log("nmi",nmi)
+        print("NMI: {:.3f}".format(nmi * 100))
+        scores['nmi'] = nmi
+
+    return scores,flag_checkpoint
+    
+
+def build_train(predictions, end_points, y, embedding_sizes,lambda_weight,
                 shrinkage=0.06,
                 lambda_div=0.0, C=25, alpha=2.0, beta=0.5, initial_acts=0.5,
                 eta_style=False, dtype=tf.float32, regularization=None):
@@ -284,13 +320,12 @@ def build_train(predictions, end_points, y, embedding_sizes,
             fvecs=normed_fvecs, end_points=end_points,
             embedding_weights=embedding_weights,
             embedding_sizes=embedding_sizes,
-            lambda_weight=LAMBDA_WEIGHT,dtype=dtype) * tf.dtypes.cast(lambda_div, dtype)
+            lambda_weight=lambda_weight,dtype=dtype) * tf.dtypes.cast(lambda_div, dtype)
     tf.summary.scalar('loss', loss)
     return  tf.dtypes.cast(loss, dtype)
 
 
-def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,
-                              lambda_weight=LAMBDA_WEIGHT,dtype=tf.float32):
+def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,lambda_weight=100.0,dtype=tf.float32):
     """
     Builds an adversarial regressor from fvecs_j to fvecs_i.
 
@@ -341,7 +376,7 @@ def build_pairwise_tower_loss(fvecs_i, fvecs_j, scope=None,
 
 
 def adversarial_loss(fvecs, end_points, embedding_weights, embedding_sizes,
-                     lambda_weight=LAMBDA_WEIGHT,dtype = tf.float32):
+                     lambda_weight,dtype = tf.float32):
     """
     Applies the adversarial loss on our embedding.
 
@@ -404,7 +439,7 @@ def iterate_regularization_acts(end_points, embedding_sizes):
 
 
 def activation_loss(fvecs, end_points, embedding_weights, embedding_sizes,
-                    lambda_weight=LAMBDA_WEIGHT,dtype= tf.float32):
+                    lambda_weight,dtype= tf.float32):
     """
     Applies the activation loss on our embedding.
 
@@ -435,121 +470,122 @@ def activation_loss(fvecs, end_points, embedding_weights, embedding_sizes,
     act_loss = loss + weight_loss * lambda_weight
     return tf.dtypes.cast(act_loss, dtype)
 
+def load_config():
+    parser = argparse.ArgumentParser()
+    parser = par.basic_training_parameters(parser)
+    parser = par.setup_parameters(parser)
+    parser = par.wandb_parameters(parser)
+    ##### Read in parameters
+    args = parser.parse_args()
+    if args.savename =="":
+        args.savename = args.dataset_name +'_s{}'.format(args.seed)
+    if args.logdir == "":
+        args.logdir = os.path.dirname(__file__) + '/log'
+    if args.log_online:
+        import wandb
+        os.environ['WANDB_API_KEY'] = args.wandb_key
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+        _ = os.system('wandb login --relogin {}'.format(args.wandb_key))
+        ## update savename
+        args.savename = args.group+'_s{}'.format(args.seed)
+        wandb.init(project=args.project, group=args.group, name=args.savename, dir=args.save_path)
+        wandb.config.update(args)
+    args.save_path   += '/'+args.dataset_name
+    return args
 
 def main():
-    global NUM_HIDDENS_ADVERSARIAL
-    global HIDDEN_ADVERSARIAL_SIZE
-    global BATCH_SIZE
-    global LR_DECAY
-    global LAMBDA_WEIGHT
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_name', default='BigEarthNet',required=True)
-    parser.add_argument('--source_path', default="../Dataset",  type=str, help='Path to the dataset.')
-    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE)
-    parser.add_argument('--lambda_weight', type=float, default=LAMBDA_WEIGHT)
-    parser.add_argument('--lambda_div', type=float, default=0.0)
-    parser.add_argument('--shrinkage', type=float, default=0.06)
-    parser.add_argument('--eta_style', action='store_true')
-    parser.add_argument('--lr_decay', type=float, default=LR_DECAY)
-    parser.add_argument('--embedding_sizes', type=str, default='96,160,256')
-    parser.add_argument('--eval_every', type=int, default=20)
-    parser.add_argument('--num_iterations', type=int, default=200)
-    parser.add_argument('--logdir', type=str, default='train')
-    parser.add_argument('--seed', type=int, default=5)
-    parser.add_argument('--regularization', type=str, default='activation',
-                        choices=REGULARIZATION_CHOICES)
-    parser.add_argument('--hidden_adversarial_size',
-                        type=int, default=HIDDEN_ADVERSARIAL_SIZE)
-    parser.add_argument('--num_hidden_adversarial', type=int,
-                        default=NUM_HIDDENS_ADVERSARIAL)
-    parser.add_argument('--samples_per_class', type=int)
-    parser.add_argument('--embedding_lr_multiplier', type=float, default=10.0)
-    parser.add_argument('--lr_anneal', type=int)
-    parser.add_argument('--use_same_learnrate', action='store_true')
-    parser.add_argument('--skip_test', action='store_true')
-    parser.add_argument('--arch', type=str, default='resnet')
-
     dtype = tf.float32
-
-    args = parser.parse_args()
-    LAMBDA_WEIGHT = args.lambda_weight
-    LR_DECAY = args.lr_decay
-    BATCH_SIZE = args.batch_size
+    args = load_config()
+    LEARNING_RATE = args.lr
+    lr_decay = args.lr_decay
+    weight_decay = args.weight_decay
+    batch_size = args.batch_size
+    lambda_weight = args.lambda_weight
+    regularization = args.regularization
     NUM_HIDDENS_ADVERSARIAL = args.num_hidden_adversarial
     HIDDEN_ADVERSARIAL_SIZE = args.hidden_adversarial_size
-    print(args.logdir)
 
+    embedding_sizes = args.embedding_sizes
     skip_test = args.skip_test
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     tf.set_random_seed(args.seed)
 
-    embedding_sizes = [int(x) for x in args.embedding_sizes.split(',')]
+    #################### CREATE LOGGING FILES ###############
+    sub_loggers = ['Train', 'Val', 'Val_h']
+    LOG = logger.LOGGER(args, sub_loggers=sub_loggers, start_new=True, log_online= args.log_online)
+
     if 'MLRSNet' in args.dataset_name:
         crop_size = 224
         channels = 3
-        if "inception" in args.arch:
-            mean = [0.502, 0.4588, 0.4078]
-            std =  [0.0039, 0.0039, 0.0039]
-        elif "resnet" in args.arch:
-            mean = [0.485, 0.456, 0.406]
-            std =  [0.229, 0.224, 0.225]
+        mean = [0.485, 0.456, 0.406]
+        std =  [0.229, 0.224, 0.225]
     if 'BigEarthNet' in args.dataset_name:
         crop_size = 100
         channels =12
-        if "inception" in args.arch:
-            mean = 0.502
-            std =  0.0039
-        elif "resnet" in args.arch:
-            mean = 0.485
-            std =  0.229
+        mean = 0.485
+        std =  0.229
 
+    TrainingData = collections.namedtuple('TrainingData', ('crop_size', 'channels', 'mean','std'))
     spec = TrainingData(crop_size, channels, mean,std)
     print('creating datasets...')
-    train_provider = dataset.NpyDatasetProvider(
+    train_provider = dataset.DatasetProvider(
         data_spec=spec,
         samples_per_class=args.samples_per_class,
         dataset_name=args.dataset_name,
         source_path= args.source_path,
-        batch_size=BATCH_SIZE,
+        dataset_type ="train",
+        batch_size=batch_size,
         num_concurrent =4,
         is_training = True)
     
     train_labels, train_data = train_provider.dequeue_op
     if not skip_test:
-        test_provider = dataset.NpyDatasetProvider(
+        query_provider = dataset.DatasetProvider(
             data_spec=spec,
             dataset_name=args.dataset_name,
             source_path= args.source_path,
-            batch_size=BATCH_SIZE,
+            dataset_type = "query",
+            batch_size=batch_size,
             num_concurrent =4,
             is_training=False)
-        test_labels, test_data = test_provider.dequeue_op
-    
-    #net = models.GoogleNet({'data': train_data})
-    net = archs.select(args.arch)({'data': train_data})
-    hidden_layer = net.get_output()
-    preds, end_points = embedding_tower(
-        hidden_layer, embedding_sizes)
-    end_points['pool5_7x7_s1'] = hidden_layer
+        query_labels, query_data = query_provider.dequeue_op
 
+        gallery_provider = dataset.DatasetProvider(
+            data_spec=spec,
+            dataset_name=args.dataset_name,
+            source_path= args.source_path,
+            dataset_type = "gallery",
+            batch_size=batch_size,
+            num_concurrent =4,
+            is_training=False)
+        gallery_labels, gallery_data = gallery_provider.dequeue_op
+
+    
+    net = models.ResNet50({'data': train_data})
+    hidden_layer = net.get_output()
+    preds, end_points = embedding_tower(hidden_layer, embedding_sizes)
+    end_points['pool5_7x7_s1'] = hidden_layer
     if not skip_test:
         with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-            #test_net = models.GoogleNet({'data': test_data}, trainable=False)
-            test_net = archs.select(args.arch)({'data': test_data}, trainable=False)
-            test_hidden_layer = test_net.get_output()
-            test_preds, test_endpoints = embedding_tower(
-                test_hidden_layer,
+            query_net = models.ResNet50({'data': query_data}, trainable=False)
+            query_hidden_layer = query_net.get_output()
+            query_preds, query_endpoints = embedding_tower(
+                query_hidden_layer,
                 embedding_sizes,
                 reuse=True)
-
+            gallery_net = models.ResNet50({'data': gallery_data}, trainable=False)
+            gallery_hidden_layer = gallery_net.get_output()
+            gallery_preds, query_endpoints = embedding_tower(
+                gallery_hidden_layer,
+                embedding_sizes,
+                reuse=True)
     loss = build_train(
         preds,
         end_points,
         train_labels,
         embedding_sizes,
+        lambda_weight,
         shrinkage=args.shrinkage,
         lambda_div=args.lambda_div,
         eta_style=args.eta_style,
@@ -560,7 +596,7 @@ def main():
     all_weights = tf.get_collection('weights')
     all_weights = list(set(all_weights))
     for w in all_weights:
-        loss += tf.cast(tf.reduce_sum(w * w) * WEIGHT_DECAY, dtype=dtype)
+        loss += tf.cast(tf.reduce_sum(w * w) * weight_decay, dtype=dtype)
 
     all_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
     hidden_vars = [v for v in all_vars if 'embedding' not in v.name]
@@ -568,32 +604,29 @@ def main():
 
     global_step = tf.train.get_or_create_global_step()
 
-    lr = tf.constant(LEARNING_RATE, dtype=dtype,
-                     shape=(), name='learning_rate')
+    lr = tf.constant(LEARNING_RATE, dtype=dtype,shape=(), name='learning_rate')
     if args.lr_anneal:
         lr = tf.train.exponential_decay(
-            lr, global_step, args.lr_anneal, LR_DECAY, staircase=True)
+            lr, global_step, args.lr_anneal, lr_decay, staircase=True)
     lr = do_print(lr, [lr], 'learning rate')
 
     opt_hidden = tf.train.AdamOptimizer(learning_rate=lr)
     train_op_hidden = opt_hidden.minimize(loss, var_list=hidden_vars)
 
-    opt_embedding = tf.train.AdamOptimizer(learning_rate=lr * args.embedding_lr_multiplier)
+    opt_embedding = tf.train.AdamOptimizer(learning_rate=lr* args.embedding_lr_multiplier)
     train_op_embedding = opt_embedding.minimize(loss, global_step=global_step, var_list=embedding_vars)
 
     with tf.control_dependencies([train_op_hidden, train_op_embedding]):
         train_op = tf.no_op()
 
     init_op = tf.global_variables_initializer()
-    if "resnet" in args.arch:
-        net_weights = os.path.dirname(__file__) + '/architectures/weights/resnet50.npy'
-    elif "inception" in args.arch:
-        net_weights = os.path.dirname(__file__) + '/architectures/weights/inception.npy'
-
+    net_weights = os.path.dirname(__file__) + '/model/weights/resnet50.npy'
+   
     with tf.control_dependencies([init_op]):
         load_train_op = net.create_load_op(net_weights, ignore_missing=True)
         if not skip_test:
-            load_test_op = test_net.create_load_op(net_weights, ignore_missing=True)
+            load_query_op = query_net.create_load_op(net_weights, ignore_missing=True)
+            load_gallery_op = gallery_net.create_load_op(net_weights, ignore_missing=True)
 
     checkpoint_saver = tf.train.CheckpointSaverHook(
         args.logdir,
@@ -607,64 +640,63 @@ def main():
         start_iter = int(latest_checkpoint.split('-')[-1])
         assign_op = global_step.assign(start_iter)
 
+    best_recall = 0.0
+    best_epoch = 0
+    t1 = time.time()
+    print("Initialize training...")
     with tf.compat.v1.train.MonitoredTrainingSession(
             checkpoint_dir=args.logdir,
             is_chief=True,
             hooks=[checkpoint_saver],save_summaries_steps=None, 
             save_summaries_secs=None,
             save_checkpoint_secs=None) as sess:
-
         if start_iter == 0:
             sess.run(init_op)
             sess.run(load_train_op)
             if not skip_test:
-                sess.run(load_test_op)
+                sess.run(load_query_op)
+                sess.run(load_gallery_op)
         else:
             sess.run(assign_op)
-
-        if not args.skip_test:
-            hidden_test_output = test_net.get_output()
-
+        print('Initialization elapsed time: {:.2f} s'.format(time.time() - t1))
         writer = tf.summary.FileWriter(args.logdir)
         for i in range(start_iter, args.num_iterations):
-            if not args.skip_test and i>0 and i % args.eval_every == 0:
-                test_provider.feed_data(sess)
-                all_fvecs = []
-                all_fvecs_hidden = []
-                all_labels = []
-                #all_caffe_fvecs = []
-                num_batches = int(np.ceil(test_provider.num_images / float(BATCH_SIZE)))
-                print('Evaluating {} batches'.format(num_batches))
-                for batch_idx in range(num_batches):
-                    fvec, fvec_hidden, cls = sess.run([test_preds, hidden_test_output, test_labels])
-                    fvec = fvec[cls >= 0, ...]
-                    fvec_hidden = fvec_hidden[cls >= 0, ...]
-                    cls = cls[cls >= 0, ...]
-                    all_fvecs.append(np.array(fvec))
-                    all_fvecs_hidden.append(np.array(fvec_hidden[:, 0, 0, :]))
-                    all_labels.append(np.array(cls))
-
-                all_labels = np.concatenate(all_labels)
-
-                recall = evaluate2(np.vstack(all_fvecs_hidden), all_labels)
-                summary = tf.Summary(value=[tf.Summary.Value(
-                    tag='Recall@1_Hidden_Layer', simple_value=recall)])
-                writer.add_summary(summary, i)
-
-                recall = evaluate(np.vstack(all_fvecs),
-                                  all_labels, embedding_sizes)
-                summary = tf.Summary(value=[tf.Summary.Value(
-                    tag='Recall@1_Embedding_Layer', simple_value=recall)])
-                writer.add_summary(summary, i)
-            
+            time_per_epoch_1 = time.time()
             lossval, _ = sess.run([loss, train_op])
-            print('loss: {}@Iteration {}'.format(lossval, i))
+            time_per_epoch_2 = time.time()
+            LOG.progress_saver['Train'].log('epochs', e)
+            LOG.progress_saver["Train"].log('Train_loss',lossval)
+            LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
+            print("Epoch: {}, loss: {}, time (seconds): {:.2f}.".format(i,lossval,time_per_epoch_2 - time_per_epoch_1))
 
+            # for evaluation
+            if not skip_test:
+                print("Start evaluation...")
+                tic = time.time()
+                query_provider.feed_data(sess)
+                gallery_provider.feed_data(sess)
+                query, query_hidden, query_labels = get_embeddings(sess, query_provider,query_preds, query_hidden_output, query_labels,embedding_sizes ,batch_size)
+                gallery, gallery_hidden, gallery_labels = get_embeddings(sess, gallery_provider,gallery_preds, gallery_hidden_output, gallery_labels,embedding_sizes,batch_size)
+                score, checkpoint_flag = evaluate(query, query_labels, gallery,gallery_labels, LOG, log_key ='Val')
+                score_hidden, _ = evaluate(query_hidden, query_labels, gallery_hidden,gallery_labels, LOG, log_key ='Val_h')
+                
+                LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+                LOG.update(all=True)
+                if checkpoint_flag == True: 
+                    best_epoch = i
+                    best_recall = score['recall'][0] # take recall@1
+                    print('Best epoch!')
+                print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
+    t2 = time.time()
+    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
+    print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
 
-REGULARIZATION_FUNCTIONS = {
-    'activation': activation_loss,
-    'adversarial': adversarial_loss,
-}
+############## Gobal variables #############
+REGULARIZATION_FUNCTIONS = {'activation': activation_loss,'adversarial': adversarial_loss}
+EMBEDDING_SCOPE_NAME = 'embedding_tower'
+VERBOSE = False
+NUM_HIDDENS_ADVERSARIAL = 2
+HIDDEN_ADVERSARIAL_SIZE = 512
 
 if __name__ == '__main__':
     main()

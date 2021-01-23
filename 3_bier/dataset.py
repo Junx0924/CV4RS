@@ -11,6 +11,18 @@ import hypia
 import random
 
 def class_random_sampler(image_dict, image_list, batch_size,samples_per_class):
+    """
+    Randomly sample batches,
+    make sure the number of samples for each class equal to samples_per_class
+
+    Args:
+        image_dict : contains {label:[image_path,index]}
+        image_list:   contains [label,index,image_path]
+        batch_size :  batch_size
+        samples_per_class: samples_per_class
+    Returns:
+        batch_ids : contains the index of images for each batch
+    """
     sampler_length     = len(image_list)//batch_size
     assert  batch_size% samples_per_class==0, '#Samples per class must divide batchsize!'
     batch_ids = []
@@ -22,17 +34,23 @@ def class_random_sampler(image_dict, image_list, batch_size,samples_per_class):
         batch_ids.append(subid)
     return batch_ids
 
-def get_dataset(dataset_name,source_path, is_training):
-    # select the train/val dataset
-    data_set = datasets.select(dataset_name,source_path)
-    if is_training :
-        hdf_file = source_path +'/' + dataset_name +'/train.hdf5' 
-        data_dict  = data_set["training"]
-    else:
-        hdf_file = source_path +'/' + dataset_name +'/val.hdf5' 
-        data_dict = data_set["validation"]
+def get_dataset(dataset_name,source_path, dataset_type):
+    """
+    Get the image dict, image list, hdf file for the selected dataset
 
-    # image dict contains {label:[image_path,idx]}
+    Args:
+        dataset_name : choose from ['BigEarthNet', 'MLRSNet']
+        source_path :  dataset source path which doesn't include dataset_name
+        dataset_type : choose from ['train','query','gallery']
+    Returns:
+        image_dict : contains {label:[image_path,index]}
+        image_list : contains [label,index,image_path]
+        hdf_file : record the image data
+    """
+    types = {"train":"train","query":"val","gallery":"test"}
+    data_dict = datasets.select(dataset_name,source_path,types[dataset_type])
+    hdf_file = source_path +'/' + dataset_name + '/' +types[dataset_type]  +'.hdf5'
+
     image_dict = {}
     counter = 0
     for key in data_dict.keys():
@@ -41,14 +59,12 @@ def get_dataset(dataset_name,source_path, is_training):
             image_dict[key].append([path, counter])
             counter += 1
 
-    # image_list contains: [image_path, idx, label]
     image_list = [[(x[0],int(key)) for x in image_dict[key]] for key in image_dict.keys()]
     image_list = [x for y in image_list for x in y]
     return image_dict, image_list, hdf_file
 
 
-def process_image(img, crop=None, mean=None,std= None,
-                  mirror=True, is_training=True):
+def process_image(img, crop=None, mean=None,std= None,mirror=True, is_training=True):
     """
     Preprocessing code. For training this function randomly crop images and
     flips the image randomly.
@@ -90,13 +106,13 @@ def process_image(img, crop=None, mean=None,std= None,
     return tf.to_float(img)
 
 
-class NpyDatasetProvider(object):
+class DatasetProvider(object):
     """
-    This class hooks up a numpy dataset file to tensorflow queue runners.
+    This class hooks up hdf file to tensorflow queue runners.
     """
-    def __init__(self, data_spec, dataset_name,source_path, 
+    def __init__(self, data_spec, dataset_name,source_path, dataset_type, 
                 samples_per_class=None,batch_size=32, is_training=True, num_concurrent=4):
-        super(NpyDatasetProvider, self).__init__()
+        super(DatasetProvider, self).__init__()
         self.data_spec = data_spec
         self.batch_size = batch_size
         self.is_training = is_training
@@ -109,7 +125,7 @@ class NpyDatasetProvider(object):
         if 'BigEarthNet' in dataset_name:
             self.image_shape = [120,120,12]
 
-        image_dict, image_list,self.hdf_file = get_dataset(dataset_name,source_path,is_training)
+        image_dict, image_list,self.hdf_file = get_dataset(dataset_name,source_path,dataset_type)
         if self.is_training:
             self.batch_ids = class_random_sampler(image_dict, image_list, self.batch_size, self.samples_per_class)
         self.image_paths = np.array(image_list)[:,0]
@@ -195,7 +211,7 @@ class NpyDatasetProvider(object):
 
         (labels, processed_images) = self.process()
        
-        processed_queue = tf.FIFOQueue(  # capacity=self.num_images,
+        processed_queue = tf.FIFOQueue( 
             capacity=self.batch_size * 6,
             dtypes=[tf.int32, tf.float32],
             shapes=[(), self.new_image_shape],
@@ -207,9 +223,7 @@ class NpyDatasetProvider(object):
 
         self.dequeue_op = processed_queue.dequeue_many(self.batch_size)
         num_concurrent = min(num_concurrent, self.num_images)
-        #self.batch_runner = tf.compat.v1.train.QueueRunner(self.batch_queue, [self.batch_queue_op] * (num_concurrent + 1))
         self.queue_runner = tf.train.QueueRunner(processed_queue,[enqueue_processed_op] * num_concurrent)
-        #tf.train.add_queue_runner(self.batch_runner)
         tf.train.add_queue_runner(self.queue_runner)
 
     def start(self, session, coordinator, num_concurrent=4):
@@ -225,7 +239,6 @@ class NpyDatasetProvider(object):
             a create threads operation.
         """
         if self.is_training:
-            #self.batch_runner.create_threads(session, coord=coordinator, start=True)
             session.run(self.batch_queue_op) # enqueue batch indices once
         else:
             session.run(self.test_queue_op)  # just enqueue labels once!
