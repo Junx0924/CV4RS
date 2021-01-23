@@ -33,13 +33,14 @@ def divid_and_conquer(parser):
 
 def BIER(parser):
     ## for Method Boosting Independent Embeddings (BIER)
-    parser.add_argument('--lambda_weight', type=float, default=100000.0)
-    parser.add_argument('--eta_style', action='store_true')
-    parser.add_argument('--lambda_div', type=float, default=5e-5)
-    parser.add_argument('--shrinkage', type=float, default=0.06)
-    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of learners')
-    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for caculate adversarial loss')
-    parser.add_argument('--num_hidden_adversarial', type=int,default=2)
+    parser.add_argument('--alpha', type=float, default=25, help ='the cost of negative paris for binominal loss')
+    parser.add_argument('--beta', type=float, default=2.0, help ='the scale parameter for binominal loss')
+    parser.add_argument('--margin', type=float, default=0.5, help ='the magin for binominal loss')
+    parser.add_argument('--hard_mining', action='store_true')
+    parser.add_argument('--lambda_weight', type=float, default=100, help='weight for decorrelation')
+    parser.add_argument('--lambda_div', type=float, default=5e-5, help ='regularization parameter')
+    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of sublearners')
+    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
     return parser 
 
 def wandb_parameters(parser):
