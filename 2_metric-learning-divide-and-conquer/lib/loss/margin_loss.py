@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-from .sampler import Sampler
+from .semihard import Semihard
 
 
 class MarginLoss(torch.nn.Module):
@@ -16,12 +16,11 @@ class MarginLoss(torch.nn.Module):
     nu : float
         Regularization parameter for beta.
     class_specific_beta : bool
-        Are class-specific boundaries beind used?
+        Are class-specific boundaries beind used
+    batchminer: return semihard triplets
     Inputs:
-        - anchors: sampled anchor embeddings.
-        - positives: sampled positive embeddings.
-        - negatives: sampled negative embeddings.
-        - anchor_classes: labels of anchors. Used to get class-specific beta.
+       E: embeddings, shape (batch_size, embedding dim)
+       T: labels, shape (batch_size,1)
     Outputs:
         Loss value.
     """
@@ -40,14 +39,11 @@ class MarginLoss(torch.nn.Module):
         self.beta = torch.nn.Parameter(beta)
         self.margin = margin
         self.nu = nu
-        self.sampler = Sampler()
+        self.batchminer = Semihard()
 
-    # def forward(self, anchors, positives, negatives, anchor_classes=None):
-    def forward(self, E, T):
-
-        # anchors, positives, negatives, anchor_classes = self.sampler(E, T)
-        anchor_idx, anchors, positives, negatives = self.sampler(E, T)
-        anchor_classes = T[anchor_idx]
+    def forward(self, feature, labels):
+        anchor_idx, anchors, positives, negatives = self.batchminer(feature, labels)
+        anchor_classes = labels[anchor_idx]
 
         if anchor_classes is not None:
             if self.class_specific_beta:

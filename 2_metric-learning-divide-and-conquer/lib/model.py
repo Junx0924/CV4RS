@@ -61,12 +61,6 @@ def resnet50(config, pretrained = True):
 
     model.sz_features_output = 2048
 
-    # for module in filter(
-    #     lambda m: type(m) == torch.nn.BatchNorm2d, model.modules()
-    # ):
-    #     module.eval()
-    #     module.train = lambda _: None
-    # frozen the backbone except the first layer
     if config['frozen']:
         child_counter = 0
         for child in model.children():
@@ -100,20 +94,13 @@ def make_parameters_dict(model, filter_module_names):
     return D
 
 
-def init_splitted(layer, nb_clusters, sz_embedding):
+def init_splitted(layer, sub_embed_sizes):
     # initialize splitted embedding parts separately
     from math import ceil
-    for c in range(nb_clusters):
-        i = torch.arange(
-            c * ceil(sz_embedding / nb_clusters),
-            # cut off remaining indices, e.g. if > embedding size
-            min(
-                (c + 1) * ceil(
-                    sz_embedding / nb_clusters
-                ),
-                sz_embedding
-            )
-        ).long()
+    for c in range(len(sub_embed_sizes)):
+        start = int(sum(sub_embed_sizes[:c]))
+        stop = int(start + sub_embed_sizes[c])
+        i = torch.arange(start,stop).long()
 
         _layer = torch.nn.Linear(layer.weight.shape[1], len(i))
         layer.weight.data[i] = xavier_normal_(_layer.weight.data, gain = 1)
@@ -121,6 +108,7 @@ def init_splitted(layer, nb_clusters, sz_embedding):
 
 
 def embed_model(model, config, sz_embedding, normalize_output=True):
+    
     if config['dataset_selected'] =="BigEarthNet": k_s = 4
     else: k_s = 7
     model.features_pooling = AvgPool2d(k_s,
@@ -139,11 +127,17 @@ def embed_model(model, config, sz_embedding, normalize_output=True):
     torch.random.manual_seed(config['random_seed'] + 1)
     np.random.seed(config['random_seed'] + 1)
 
-    init_splitted(
-        model.embedding, config['nb_clusters'], config['sz_embedding']
-    )
+    if 'sub_embed_sizes' not in config.keys():
+        nb_clusters =  config['nb_clusters'] 
+        sub_embed_sizes =[sz_embedding //nb_clusters]*nb_clusters
+    else:
+        sub_embed_sizes = config['sub_embed_sizes']
+        nb_clusters = len(sub_embed_sizes)
+    assert sum(sub_embed_sizes) == config['sz_embedding']
 
-    features_parameters = model.features.parameters()
+    init_splitted(model.embedding, sub_embed_sizes)
+
+    #features_parameters = model.features.parameters()
 
     model.parameters_dict = make_parameters_dict(
         model = model,
@@ -152,20 +146,12 @@ def embed_model(model, config, sz_embedding, normalize_output=True):
 
     assert normalize_output
 
-    nb_clusters = config['nb_clusters']
-
     learner_neurons = [None] * nb_clusters
+
     for c in range(nb_clusters):
-        learner_neurons[c] = np.arange(
-            c * ceil(sz_embedding / nb_clusters),
-            # cut off remaining indices, e.g. if > embedding size
-            min(
-                (c + 1) * ceil(
-                    sz_embedding / nb_clusters
-                ),
-                sz_embedding
-            )
-        )
+        start = int(sum(sub_embed_sizes[:c]))
+        stop = int(start + sub_embed_sizes[c])
+        learner_neurons[c] = np.arange(start,stop)
     model.learner_neurons = learner_neurons
 
     def forward(x, use_penultimate=False):

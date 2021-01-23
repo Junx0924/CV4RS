@@ -44,8 +44,8 @@ class BaseDataset(torch.utils.data.Dataset):
         return int(self.ys[index])
 
     def set_subset(self, subset_indices):
-        if len(subset_indices)>0:
-            temp_list = [self.image_list[i] for i in subset_indices]
+        if subset_indices is not None:
+            temp_list = [self.image_list[int(i)] for i in subset_indices]
             self.image_list = []
             self.ys =[]
             self.I = []

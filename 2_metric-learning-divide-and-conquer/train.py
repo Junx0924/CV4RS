@@ -29,6 +29,7 @@ def load_config(config_name):
     parser = par.basic_training_parameters(parser)
     parser = par.setup_parameters(parser)
     parser = par.wandb_parameters(parser)
+    parser = par.divid_and_conquer(parser)
     ##### Read in parameters
     args = vars(parser.parse_args())
 
@@ -41,7 +42,7 @@ def load_config(config_name):
     config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
     config['dataloader']['batch_size'] = args.pop('batch_size')
     config['dataloader']['num_workers'] = args.pop('num_workers')
-    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
+    
     config['opt']['backbone']['lr'] = args.pop('backbone_lr')
     config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
     config['opt']['embedding']['lr'] =args.pop('embedding_lr')
@@ -55,6 +56,11 @@ def load_config(config_name):
     config['log']['save_path'] = args.pop('save_path')
     config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
    
+    #### Update divide and conquer parameters ###
+    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
+    config['finetune_epoch'] = args.pop('finetune_epoch')
+    config['nb_clusters'] = args.pop('nb_clusters')
+
     if config['log_online']:
         config['wandb']['wandb_key'] = args.pop('wandb_key')
         config['wandb']['project'] =args.pop('project')
@@ -105,13 +111,12 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def evaluate(model, dataloaders, LOG, backend='faiss', config = None, log_key= 'Val'):
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+    dl_query, dl_gallery = dataloaders
     score = lib.utils.evaluate(model,  config, dl_query, dl_gallery, False, backend, LOG, log_key)
     return score
 
 
-def train_batch(model, criterion, opt, config, batch, dset, epoch):
+def train_batch(model, criterion, opt, config, batch, cluster_id, epoch):
     if torch.cuda.is_available():
         X = batch[0].cuda(non_blocking=True) # images
         T = batch[1].cuda(non_blocking=True) # class labels
@@ -124,13 +129,14 @@ def train_batch(model, criterion, opt, config, batch, dset, epoch):
     M = model(X)
 
     if epoch >= config['finetune_epoch'] * 8 / 19:
+        M_sub= M
         pass
     else:
         M = M.split(config['sz_embedding'] // config['nb_clusters'], dim = 1)
-        M = M[dset.id]
+        M_sub = M[cluster_id]
 
-    M = torch.nn.functional.normalize(M, p=2, dim=1)
-    loss = criterion[dset.id](M, T)
+    M_sub = torch.nn.functional.normalize(M_sub, p=2, dim=1)
+    loss = criterion[cluster_id](M_sub, T)
     loss.backward()
     opt.step()
     return loss.item()
@@ -162,17 +168,6 @@ def get_optimizer(config, model, criterion):
             **config['opt']['embedding']
         }
     ])
-    # opt = torch.optim.Adam([
-    #     {
-    #         'params': model.parameters_dict['backbone'],
-    #         **config['opt']['backbone']
-    #     },
-    #     {
-    #         'params': model.parameters_dict['embedding'],
-    #         **config['opt']['embedding']
-    #     }
-    # ])
-
     return opt
 
 
@@ -204,6 +199,7 @@ def main():
     else:
         model = lib.model.make(config)
 
+    #model.embedding.weights
     start_epoch = 0
     best_epoch = -1
     best_recall = 0
@@ -211,13 +207,16 @@ def main():
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
-        
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+    dataloaders['eval'] = [dl_query, dl_gallery] 
+     
     criterion = get_criterion(config)
     opt = get_optimizer(config, model, criterion)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
-    metrics[-1] = {'score': evaluate(model, dataloaders, LOG, backend = config['backend'],config = config, log_key ='Val')}
+    metrics[-1] = {'score': evaluate(model, dataloaders['eval'], LOG, backend = config['backend'],config = config, log_key ='Val')}
     best_recall = metrics[-1]['score']['recall'][0]
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
@@ -258,7 +257,7 @@ def main():
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
 
         for batch, dset in tqdm(mdl,total = num_batches_approx,disable = num_batches_approx < 100,desc = 'Train epoch {}.'.format(e)):
-            loss = train_batch(model, criterion, opt, config, batch, dset, e)
+            loss = train_batch(model, criterion, opt, config, batch, dset.id, e)
             losses_per_epoch.append(loss)
 
         time_per_epoch_2 = time.time()
@@ -272,7 +271,7 @@ def main():
         # evaluate
         tic = time.time()
         metrics[e].update({
-            'score': evaluate(model, dataloaders, LOG,backend=config['backend'],config = config,log_key='Val'),
+            'score': evaluate(model, dataloaders['eval'], LOG,backend=config['backend'],config = config,log_key='Val'),
             'loss': {'train': current_loss}
         })
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
@@ -295,3 +294,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    

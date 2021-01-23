@@ -13,18 +13,33 @@ def basic_training_parameters(parser):
     parser.add_argument('--frozen',   action='store_true',help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthNet frozen the backbone except the first layer')
     parser.add_argument('--cuda-device', default = 0, type = int)
     parser.add_argument('--num-workers', default=4, type=int)
-    parser.add_argument('--sz_embedding', default=512, type=int)
-    parser.add_argument('--nb-clusters', default=8, type = int)
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
     parser.add_argument('--nb-epochs', default=120, type = int)
-    parser.add_argument('--mod-epoch', default=2, type = int)
+    parser.add_argument('--sz_embedding', default=512, type=int, help='the dimension of final embedding')
+    parser.add_argument('--backbone-wd', default=1e-4, type=float, help='weight decay for backbone')
+    parser.add_argument('--backbone-lr', default=1e-5, type=float, help ='learning rate for backbone')
+    parser.add_argument('--embedding-wd', default=1e-4, type=float, help='weight decay for embedding layer')
+    parser.add_argument('--embedding-lr', default=1e-5, type=float, help='learning rate for embedding layer')
+    parser.add_argument('--backend', default='faiss-gpu',choices=('faiss', 'faiss-gpu'))
+    return parser
+
+def divid_and_conquer(parser):
+    ### for Method Divide and conquer
+    parser.add_argument('--mod-epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
+    parser.add_argument('--nb-clusters', default=8, type = int, help='the number of learners')
     parser.add_argument('--finetune-epoch', default=110, type = int)
-    parser.add_argument('--backbone-wd', default=1e-4, type=float)
-    parser.add_argument('--embedding-wd', default=1e-4, type=float)
-    parser.add_argument('--embedding-lr', default=1e-5, type=float)
-    parser.add_argument('--backbone-lr', default=1e-5, type=float)
-    parser.add_argument('--backend', default='faiss-gpu',choices=('torch+sklearn', 'faiss', 'faiss-gpu'))
+    return parser
+
+def BIER(parser):
+    ## for Method Boosting Independent Embeddings (BIER)
+    parser.add_argument('--lambda_weight', type=float, default=100000.0)
+    parser.add_argument('--eta_style', action='store_true')
+    parser.add_argument('--lambda_div', type=float, default=5e-5)
+    parser.add_argument('--shrinkage', type=float, default=0.06)
+    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of learners')
+    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for caculate adversarial loss')
+    parser.add_argument('--num_hidden_adversarial', type=int,default=2)
     return parser 
 
 def wandb_parameters(parser):

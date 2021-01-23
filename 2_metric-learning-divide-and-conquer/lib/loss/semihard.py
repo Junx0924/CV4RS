@@ -19,25 +19,22 @@ def topk_mask(input, dim, K=10, **kwargs):
     return torch.zeros_like(input.data).scatter(dim, index, 1.0)
 
 
-class Sampler(nn.Module):
+class Semihard(nn.Module):
     """
     Sample for each anchor negative examples
         are K closest points on the distance >= cutoff
     Inputs:
-        - **data**: input tensor with shape (batch_size, embed_dim).
-        Here we assume the consecutive batch_k examples are of the same class.
-        For example, if batch_k = 5, the first 5 examples belong to the same class,
-        6th-10th examples belong to another class, etc.
+        x: embeddings, shape (batch_size, embedding dim)
+        labels: labels, shape (batch_size,1)
     Outputs:
         - a_indices: indices of anchors.
         - x[a_indices]: sampled anchor embeddings.
         - x[p_indices]: sampled positive embeddings.
         - x[n_indices]: sampled negative embeddings.
-        - x: embeddings of the input batch.
     """
 
     def __init__(self, cutoff=0.5, infinity=1e6, eps=1e-6):
-        super(Sampler, self).__init__()
+        super(Semihard, self).__init__()
         self.cutoff = cutoff
         self.infinity = infinity
         self.eps = eps

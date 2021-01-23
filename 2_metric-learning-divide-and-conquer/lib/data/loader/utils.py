@@ -28,7 +28,7 @@ def make(config, model, type, subset_indices = None, dset_type = None):
         root = root,
         dset_type = dset_type, # dset_type: train, query, gallery
         transform = transform,
-        is_training = dset_type == 'train'
+        is_training = type == 'train'
     )
     if type == 'train':
         ds.set_subset(subset_indices)

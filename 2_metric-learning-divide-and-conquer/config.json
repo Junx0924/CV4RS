@@ -1,4 +1,5 @@
 {
+    "frozen": true,
     "log_online": true,
     "random_seed": 0,
     "save_model": true,

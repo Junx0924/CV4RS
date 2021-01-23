@@ -22,7 +22,10 @@ class Criterion(torch.nn.Module):
         #Projection network
         self.regressors = nn.ModuleDict()
         for direction in self.directions:
-            self.regressors[direction] = torch.nn.Sequential(torch.nn.Linear(self.embed_dim, self.proj_dim), torch.nn.ReLU(), torch.nn.Linear(self.proj_dim, self.embed_dim)).to(torch.float).to(opt.device)
+            self.regressors[direction] = torch.nn.Sequential(
+                 torch.nn.Linear(self.embed_dim, self.proj_dim),
+                 torch.nn.ReLU(), 
+                 torch.nn.Linear(self.proj_dim, self.embed_dim)).to(torch.float).to(opt.device)
 
         #Learning Rate for Projection Network
         self.lr        = opt.diva_decorrnet_lr
