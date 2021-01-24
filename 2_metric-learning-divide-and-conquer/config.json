@@ -4,7 +4,7 @@
     "random_seed": 0,
     "save_model": true,
     "cuda_device": 0,
-    "sz_embedding": 128,
+    "sz_embedding": 512,
     "backend": "faiss-gpu",
     "nb_epochs": 120,
     "nb_clusters": 8,
