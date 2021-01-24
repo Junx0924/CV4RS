@@ -7,23 +7,21 @@ import numpy as np
 
 
 class BinomialLoss(nn.Module):
-    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=True,  **kwargs):
+    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=False,  **kwargs):
         super(BinomialLoss, self).__init__()
         self.margin = margin
         self.alpha = alpha
         self.beta = beta
         self.hard_mining = hard_mining
     
-    # inputs: normalized, shape (batchsize, embedding dim)
+    # sim_mat:similarity matrix of embeddings, shape (batchsize, batchsize)
     # targets: labels, shape(batchsize,)
-    def forward(self, inputs, targets):
-        assert len(inputs) == len(targets)
-        n = inputs.size(0)
-        sim_mat = torch.matmul(inputs, inputs.t())
+    def forward(self,sim_mat, targets):
+        assert len(sim_mat) == len(targets)
+        n = sim_mat.size(0)
+        sim_mat = sim_mat
         targets = targets
-
         c = 0
-
         pair_grad=torch.zeros(n,n).cuda() # record grad for each pair
         pair_loss=torch.zeros(n,n).cuda() # record loss for each pair
         for i in range(n):

@@ -37,7 +37,7 @@ def BIER(parser):
     parser.add_argument('--beta', type=float, default=2.0, help ='the scale parameter for binominal loss')
     parser.add_argument('--margin', type=float, default=0.5, help ='the magin for binominal loss')
     parser.add_argument('--hard_mining', action='store_true')
-    parser.add_argument('--lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
+    parser.add_argument('--lambda_weight', type=float, default=10000.0, help='weight for decorrelation')
     parser.add_argument('--lambda_div', type=float, default=5e-5, help ='regularization parameter')
     parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of sublearners')
     parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')

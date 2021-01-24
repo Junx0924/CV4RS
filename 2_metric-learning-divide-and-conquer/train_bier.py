@@ -134,6 +134,10 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
 
     opt.zero_grad()
     feature = model(X)
+    
+    n = len(feature)
+    total_loss =0.0
+    bin_loss =0.0
     # l2 normalize feature
     normed_fvecs = []
     sub_dim = config['sub_embed_sizes']
@@ -143,23 +147,27 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
         fvecs = F.normalize(feature[:, start:stop],p =2,dim =1)
         normed_fvecs.append(fvecs)
     
-    total_loss =0.0
-    bin_loss =0.0
-    bin_criterions =[get_criterion(config, 'binominal') for i in range(len(sub_dim))]
+    # create similarity matrix for each sublearner
+    sim_mats =[torch.zeros(n,n).cuda()]
+    for fvecs in normed_fvecs:
+        temp_mat = torch.matmul(fvecs, fvecs.t())
+        sim_mats.append(temp_mat)
     
-    n = len(feature)
-    # init boosting_weights for each pair
+    # init boosting_weights for each label pair
     boosting_weights = torch.ones(n*n).cuda()
     # Pairwise labels
     a = torch.cat(n*[torch.unsqueeze(T, 0)])
     b = torch.transpose(a, 0, 1)
     pairs = torch.flatten(a==b)*1.0
     W = torch.flatten(1.0 - torch.eye(n)).cuda()
-    # initial weight for each pair (not include itself)
+    # initial weight for each label pair (not include itself)
     W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
 
-    for i in range(len(normed_fvecs)):
-        temp_loss,temp_grad = bin_criterions[i](normed_fvecs[i],T)
+    # apply Online gradient boosting algorithm
+    for i in range(1,len(sim_mats)):
+        nu = 2.0/(i + 1.0 )
+        sim_mat = (1.0-nu)*sim_mats[i-1] + nu*sim_mats[i]
+        temp_loss,temp_grad = get_criterion(config, 'binominal')(sim_mat,T)
         bin_loss  = bin_loss + torch.sum(temp_loss*boosting_weights*W)/len(sub_dim)
         # update boosting_weights by the negative loss gradient of previous learner
         boosting_weights = -1.0* temp_grad
