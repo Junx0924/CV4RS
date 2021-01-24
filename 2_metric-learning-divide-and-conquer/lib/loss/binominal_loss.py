@@ -7,59 +7,76 @@ import numpy as np
 
 
 class BinomialLoss(nn.Module):
-    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=False,  **kwargs):
+    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=True,  **kwargs):
         super(BinomialLoss, self).__init__()
         self.margin = margin
         self.alpha = alpha
         self.beta = beta
         self.hard_mining = hard_mining
-
+    
+    # inputs: normalized, shape (batchsize, embedding dim)
+    # targets: labels, shape(batchsize,)
     def forward(self, inputs, targets):
+        assert len(inputs) == len(targets)
         n = inputs.size(0)
         sim_mat = torch.matmul(inputs, inputs.t())
         targets = targets
 
-        base = 0.5
-        loss = list()
         c = 0
 
+        pair_grad=torch.zeros(n,n).cuda() # record grad for each pair
+        pair_loss=torch.zeros(n,n).cuda() # record loss for each pair
         for i in range(n):
-            pos_pair_ = torch.masked_select(sim_mat[i], targets==targets[i])
+            pos_ind = torch.where(targets==targets[i])[0]
+            # remove itself
+            pos_pair_ = sim_mat[i][pos_ind]
+            ind_select = torch.where(pos_pair_<1)[0]
+            pos_ind = pos_ind[ind_select]
+            pos_pair_ = sim_mat[i][pos_ind]
 
-            #  move itself
-            pos_pair_ = torch.masked_select(pos_pair_, pos_pair_ < 1)
-            neg_pair_ = torch.masked_select(sim_mat[i], targets!=targets[i])
+            neg_ind = torch.where(targets!=targets[i])[0]
+            neg_pair_ = sim_mat[i][neg_ind]
 
-            pos_pair_ = torch.sort(pos_pair_)[0]
-            neg_pair_ = torch.sort(neg_pair_)[0]
+            # sorting ascending, get the index
+            pos_pair_,pos_sort = torch.sort(pos_pair_)
+            neg_pair_,neg_sort = torch.sort(neg_pair_)
+            pos_ind =pos_ind[pos_sort]
+            neg_ind =neg_ind[neg_sort]
 
             if self.hard_mining:
                 
-                neg_pair = torch.masked_select(neg_pair_, neg_pair_ + 0.1 > pos_pair_[0])
-                pos_pair = torch.masked_select(pos_pair_, pos_pair_ - 0.1 <  neg_pair_[-1])
+                hard_neg_ind = torch.where(neg_pair_ + 0.1 > pos_pair_[0])[0]
+                neg_ind = neg_ind[hard_neg_ind]
+
+                hard_pos_ind = torch.where(pos_pair_ - 0.1 <  neg_pair_[-1])[0]
+                pos_ind = pos_ind[hard_pos_ind]
                 
-                if len(neg_pair) < 1 or len(pos_pair) < 1:
+                if len(neg_ind) < 1 or len(pos_ind) < 1:
                     c += 1
                     continue 
-            
-                pos_loss = 2.0/self.beta * torch.mean(torch.log(1 + torch.exp(-self.beta*(pos_pair - 0.5))))
-                neg_loss = 2.0/self.alpha * torch.mean(torch.log(1 + torch.exp(self.alpha*(neg_pair - 0.5))))
+                
+                pos_pair = Variable(sim_mat[i][pos_ind], requires_grad = True)
+                neg_pair = Variable(sim_mat[i][neg_ind], requires_grad = True)
+                pos_loss = 2.0/self.beta * torch.log(1 + torch.exp(-self.beta*(pos_pair - self.margin)))
+                neg_loss = 2.0/self.alpha * torch.log(1 + torch.exp(self.alpha*(neg_pair - self.margin)))
 
             else:  
-                pos_pair = pos_pair_
-                neg_pair = neg_pair_ 
+                pos_pair = Variable(sim_mat[i][pos_ind], requires_grad = True)
+                neg_pair = Variable(sim_mat[i][neg_ind], requires_grad = True) 
 
-                pos_loss = torch.mean(torch.log(1 + torch.exp(-self.beta*(pos_pair - self.margin))))
-                neg_loss = torch.mean(torch.log(1 + torch.exp(self.alpha*(neg_pair - self.margin))))
+                pos_loss = torch.log(1 + torch.exp(-self.beta*(pos_pair - self.margin)))
+                neg_loss = torch.log(1 + torch.exp(self.alpha*(neg_pair - self.margin)))
+            # get the gradient of pos_loss and neg_loss respect to input similarity
+            pos_grad = torch.autograd.grad(torch.mean(pos_loss),pos_pair,retain_graph=True)[0]
+            neg_grad = torch.autograd.grad(torch.mean(neg_loss),neg_pair,retain_graph=True)[0]
 
             if len(neg_pair) == 0:
                 c += 1
                 continue
-
-            loss.append(pos_loss + neg_loss)
             
-        loss = sum(loss)/n
-        prec = float(c)/n
-        mean_neg_sim = torch.mean(neg_pair_).item()
-        mean_pos_sim = torch.mean(pos_pair_).item()
-        return loss, prec, mean_pos_sim, mean_neg_sim
+            pair_loss[i][pos_ind] = pos_loss
+            pair_loss[i][neg_ind] = neg_loss
+            pair_grad[i][pos_ind] = pos_grad
+            pair_grad[i][neg_ind] = neg_grad
+            
+        return pair_loss.flatten(), pair_grad.flatten()

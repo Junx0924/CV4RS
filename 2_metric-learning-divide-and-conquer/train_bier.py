@@ -5,11 +5,13 @@ import os
 import matplotlib
 import numpy as np
 import torch
+import torch.nn.functional as F
 import time
 import json
 import random
 from tqdm import tqdm
 import argparse
+import itertools
 
 import warnings
 import parameters as par
@@ -57,11 +59,13 @@ def load_config(config_name):
    
    #### UPdate Bier parameter 
     config['lambda_weight'] = args.pop('lambda_weight')
+    config['lambda_div']= args.pop('lambda_div')
     config['sub_embed_sizes'] = args.pop('sub_embed_sizes')
     config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
-    config['shrinkage'] = args.pop('shrinkage')
-    config['lambda_div']= args.pop('lambda_div')
-    config['eta_style'] = args.pop('eta_style')
+    config['hard_mining'] = args.pop('hard_mining')
+    config['alpha'] = args.pop('alpha')
+    config['beta'] = args.pop('beta')
+    config['margin'] = args.pop('margin')
 
     if config['log_online']:
         config['wandb']['wandb_key'] = args.pop('wandb_key')
@@ -129,33 +133,74 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
     I = batch[2] # image ids
 
     opt.zero_grad()
-    M = model(X)
-    loss = 0.0
-    binominal_loss = get_criterion(config, 'boosted_binominal')(M,T)
-    LOG.progress_saver[log_key].log('boosted_binominal_loss',binominal_loss.item())
-    loss = loss + binominal_loss
-    if config['lambda_div'] > 0.0:
-        adv_loss = get_criterion(config,"adversarial")(M)
-        LOG.progress_saver[log_key].log('adversarial',adv_loss.item())
-        weight_loss = 0.0
-        embedding_weights = model.embedding.weight.data
-        for W in embedding_weights:
-            weight_loss += torch.mean(torch.square(torch.sum(W * W, axis=1) - 1))
-        LOG.progress_saver[log_key].log('weight_loss',weight_loss.item())
-        loss = loss + (adv_loss + weight_loss*config['lambda_weight'])*config['lambda_div']
+    feature = model(X)
+    # l2 normalize feature
+    normed_fvecs = []
+    sub_dim = config['sub_embed_sizes']
+    for i in range(len(sub_dim)):
+        start = int(sum(sub_dim[:i]))
+        stop = int(start + sub_dim[i])
+        fvecs = F.normalize(feature[:, start:stop],p =2,dim =1)
+        normed_fvecs.append(fvecs)
     
-    loss.backward()
+    total_loss =0.0
+    bin_loss =0.0
+    bin_criterions =[get_criterion(config, 'binominal') for i in range(len(sub_dim))]
+    
+    n = len(feature)
+    # init boosting_weights for each pair
+    boosting_weights = torch.ones(n*n).cuda()
+    # Pairwise labels
+    a = torch.cat(n*[torch.unsqueeze(T, 0)])
+    b = torch.transpose(a, 0, 1)
+    pairs = torch.flatten(a==b)*1.0
+    W = torch.flatten(1.0 - torch.eye(n)).cuda()
+    # initial weight for each pair (not include itself)
+    W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
+
+    for i in range(len(normed_fvecs)):
+        temp_loss,temp_grad = bin_criterions[i](normed_fvecs[i],T)
+        bin_loss  = bin_loss + torch.sum(temp_loss*boosting_weights*W)/len(sub_dim)
+        # update boosting_weights by the negative loss gradient of previous learner
+        boosting_weights = -1.0* temp_grad
+        
+
+    total_loss += bin_loss
+    LOG.progress_saver[log_key].log('binominal_loss',bin_loss.item())
+
+    adv_loss = 0.0
+    if config['lambda_div'] > 0.0:
+        lambda_weight = config['lambda_weight']
+        for (fevcs1,fevcs2) in list(itertools.combinations(normed_fvecs,2)):
+            adv_loss = adv_loss + get_criterion(config,"adversarial")(fevcs1,fevcs2)
+        LOG.progress_saver[log_key].log('adv_loss',adv_loss.item())
+
+        weight_loss = 0.0
+        bias_loss =0.0
+        embedding_weights = model.embedding.weight.data
+        embedding_bias = model.embedding.bias.data
+        for i in range(len(sub_dim)):
+            start = int(sum(sub_dim[:i]))
+            stop = int(start + sub_dim[i])
+            W =  embedding_weights[start:stop,:]
+            B =  embedding_bias[start:stop]
+            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2)* lambda_weight
+            bias_loss += torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0])) * lambda_weight
+        
+        total_loss += (adv_loss + weight_loss + bias_loss)* config['lambda_div']
+        LOG.progress_saver[log_key].log('weight_loss',weight_loss.item())
+    
+    total_loss.backward()
     opt.step()
-    return loss.item()
+    return total_loss.item()
 
 
 def get_criterion(config, loss_name):
     sub_embed_sizes = config['sub_embed_sizes'] 
-    print('Create {} loss'.format(loss_name))
     if "adversarial" in loss_name:
-        criterion = lib.loss.adversarial(sub_embed_sizes,config['hidden_adversarial_size'],config['lambda_weight'])
+        criterion = lib.loss.Adversarial(config['hidden_adversarial_size'])
     if 'binominal' in loss_name:
-        criterion = lib.loss.boosted_binominal(sub_embed_sizes,config['shrinkage'],config['lambda_div'])
+        criterion = lib.loss.BinomialLoss(config['alpha'],config['beta'], config['margin'])
     if torch.cuda.is_available(): criterion = criterion.cuda()
     return criterion
 

@@ -1,11 +1,10 @@
 import torch, torch.nn as nn
-import itertools
-
+import torch.nn.functional as F
 
 """================================================================================================="""
-class adversarial(torch.nn.Module):
+class Adversarial(torch.nn.Module):
     def __init__(self,hidden_adversarial_size,decorrnet_lr=0.00001):
-        super(adversarial,self).__init__()
+        super(Adversarial,self).__init__()
         self.proj_dim   = hidden_adversarial_size
         self.lr   =  decorrnet_lr
 
@@ -23,14 +22,15 @@ class adversarial(torch.nn.Module):
 
         #Projection network
         regressor = torch.nn.Sequential(
-                 torch.nn.Linear(len(source), self.proj_dim),
+                 torch.nn.Linear(source.shape[1], self.proj_dim),
                  torch.nn.ReLU(), 
-                 torch.nn.Linear(self.proj_dim, len(target))).to(torch.float).to(opt.device)
+                 torch.nn.Linear(self.proj_dim, target.shape[1])).to(torch.float).cuda()
 
         # Project one sub embedding to the space of the other (with normalization), then compute the correlation.
-        sim_loss  = -1.0*torch.mean(torch.mean((target*torch.nn.functional.normalize(regressor(source]),dim=-1))**2,dim=-1))
+        source_proj = torch.nn.functional.normalize(regressor(source),dim=-1)
+        similarity_loss  = -1.0*torch.mean(torch.mean((target*source_proj)**2,dim=-1))
            
-        return sim_loss
+        return similarity_loss
 
 
 
