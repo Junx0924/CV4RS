@@ -1,3 +1,3 @@
 from .margin_loss import MarginLoss
-from .adversarial_loss import adversarial
-from .boosted_binominal_loss import boosted_binominal
+from .adversarial_loss import Adversarial
+from .binominal_loss import BinomialLoss
