@@ -21,7 +21,7 @@ def select(root,dset_type,transform,is_training = False):
         for path in dict_temp[key]:
             image_dict[key].append([path, counter])
             counter += 1
-    image_list = [[(x[0],int(key)) for x in image_dict[key]] for key in image_dict.keys()]
+    image_list = [[(x[0],x[1],int(key)) for x in image_dict[key]] for key in image_dict.keys()]
     image_list = [x for y in  image_list for x in y]
     
     return BaseDataset(image_dict,image_list,hdf_file,transform,is_training)
