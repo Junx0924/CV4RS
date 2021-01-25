@@ -26,11 +26,22 @@ class Adversarial(torch.nn.Module):
                  torch.nn.ReLU(), 
                  torch.nn.Linear(self.proj_dim, target.shape[1])).to(torch.float).cuda()
 
-        # Project one sub embedding to the space of the other (with normalization), then compute the correlation.
+        # Project one normalized subembedding to the space of another, then compute the correlation.
         source_proj = torch.nn.functional.normalize(regressor(source),dim=-1)
         similarity_loss  = -1.0*torch.mean(torch.mean((target*source_proj)**2,dim=-1))
-           
-        return similarity_loss
+        
+        # get the regressor weights and bias
+        weight_loss = 0.0
+        for i in range(len(regressor)):
+            # relu layer has no weights and bias
+            if i !=1:
+                W_hat = regressor[i].weight.data
+                B_hat = regressor[i].bias.data
+                weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
+
+        # return similarity loss
+        # return the weight and bias of regressor to penalize large weights and bias
+        return similarity_loss, weight_loss
 
 
 
