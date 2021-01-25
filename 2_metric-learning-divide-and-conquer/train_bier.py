@@ -19,6 +19,7 @@ from utilities import misc
 from utilities import logger
 import lib
 from lib.clustering import make_clustered_dataloaders
+from torch.autograd import Variable
 
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
 os.putenv("OMP_NUM_THREADS", "8")
@@ -154,7 +155,7 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
         sim_mats.append(temp_mat)
     
     # init boosting_weights for each label pair
-    boosting_weights = torch.ones(n*n).cuda()
+    boosting_weights = Variable(torch.ones(n*n).cuda(),requires_grad = False)
     # Pairwise labels
     a = torch.cat(n*[torch.unsqueeze(T, 0)])
     b = torch.transpose(a, 0, 1)

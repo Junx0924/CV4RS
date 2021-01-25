@@ -35,7 +35,7 @@ class BinomialLoss(nn.Module):
             neg_ind = torch.where(targets!=targets[i])[0]
             neg_pair_ = sim_mat[i][neg_ind]
 
-            # sorting ascending, get the index
+            # sort ascending, get the index
             pos_pair_,pos_sort = torch.sort(pos_pair_)
             neg_pair_,neg_sort = torch.sort(neg_pair_)
             pos_ind =pos_ind[pos_sort]
