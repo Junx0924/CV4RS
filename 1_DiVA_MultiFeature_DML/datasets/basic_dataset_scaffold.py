@@ -73,13 +73,7 @@ class BaseDataset(Dataset):
         img = hypia.functionals.normalise(img,mean,std) 
         return torch.Tensor(img)
     
-    def rotation(self,img,idx):
-        # apply rotation
-        imrot_class = idx%4
-        angle = np.array([0,90,180,270])[imrot_class]
-        im_b = hypia.functionals.rotate(img, angle,reshape=False)
-        return torch.Tensor(im_b),imrot_class
-    
+     
     
     def __getitem__(self, idx):
         img_path = self.image_list[idx][0]
@@ -101,8 +95,15 @@ class BaseDataset(Dataset):
         im_a = self.normal_transform(input_image)
             
         if self.include_aux_augmentations:
-            im_b,imrot_class= self.rotation(input_image,idx)
-            im_b = self.normal_transform(im_b)
+            def rotation(img,idx):
+                # apply rotation
+                img = img.numpy()
+                imrot_class = idx%4
+                angle = np.array([0,90,180,270])[imrot_class]
+                im_b = hypia.functionals.rotate(img, angle,reshape=False)
+                return torch.Tensor(im_b),imrot_class
+    
+            im_b,imrot_class= rotation(im_a,idx)
             return (img_label, im_a, idx, im_b, imrot_class)
         else:
             return (img_label, im_a, idx)
