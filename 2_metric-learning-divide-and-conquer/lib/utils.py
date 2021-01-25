@@ -20,11 +20,9 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
         is_verbose = len(dataloader.dataset) > 0
 
         # extract batches (A becomes list of samples)
-        for batch in tqdm(dataloader, desc='predict', disable=not is_verbose):
+        for batch in tqdm(dataloader, desc='Filling memory queue', disable=not is_verbose):
             for i, J in enumerate(batch):
-                # i = 0: sz_batch * images
-                # i = 1: sz_batch * labels
-                # i = 2: sz_batch * indices
+                # batch contains: [sz_batch * images, sz_batch * labels, sz_batch * indices]
                 if i == 0:
                     if not is_dry_run:
                         # move images to device of model (approximate device)
@@ -54,8 +52,8 @@ def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG
     X_gallery, T_gallery, _ = predict_batchwise(model, dl_gallery, use_penultimate)
 
     nb_classes = dl_query.dataset.nb_classes()
-    assert nb_classes == len(set(T_query))
-
+    assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
+    
     # calculate full similarity matrix, choose only first `len(X_query)` rows
     # and only last columns corresponding to the column
     T_eval = torch.cat(
