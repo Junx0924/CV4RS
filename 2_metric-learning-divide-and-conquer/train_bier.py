@@ -173,32 +173,28 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
         # update boosting_weights by the negative loss gradient of previous learner
         boosting_weights = -1.0* temp_grad
         
-
-    total_loss += bin_loss
     LOG.progress_saver[log_key].log('binominal_loss',bin_loss.item())
 
     adv_loss = 0.0
     if config['lambda_div'] > 0.0:
-        lambda_weight = config['lambda_weight']
+        weight_loss =0.0
         for (fevcs1,fevcs2) in list(itertools.combinations(normed_fvecs,2)):
-            adv_loss = adv_loss + get_criterion(config,"adversarial")(fevcs1,fevcs2)
+            temp_loss,  adv_weight_loss = get_criterion(config,"adversarial")(fevcs1,fevcs2)
+            adv_loss += adv_loss + temp_loss
+            weight_loss +=  adv_weight_loss
         LOG.progress_saver[log_key].log('adv_loss',adv_loss.item())
-
-        weight_loss = 0.0
-        bias_loss =0.0
+        
         embedding_weights = model.embedding.weight.data
-        embedding_bias = model.embedding.bias.data
         for i in range(len(sub_dim)):
             start = int(sum(sub_dim[:i]))
             stop = int(start + sub_dim[i])
             W =  embedding_weights[start:stop,:]
-            B =  embedding_bias[start:stop]
-            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2)* lambda_weight
-            bias_loss += torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0])) * lambda_weight
-        
-        total_loss += (adv_loss + weight_loss + bias_loss)* config['lambda_div']
+            emb_weight_loss = torch.mean((torch.sum(W * W, axis=1) - 1)**2)
+            weight_loss += emb_weight_loss 
         LOG.progress_saver[log_key].log('weight_loss',weight_loss.item())
+        adv_loss  =  adv_loss + weight_loss * config['lambda_weight']
     
+    total_loss = bin_loss + adv_loss * config['lambda_div']
     total_loss.backward()
     opt.step()
     return total_loss.item()
