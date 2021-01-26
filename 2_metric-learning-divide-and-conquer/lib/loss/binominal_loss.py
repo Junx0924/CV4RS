@@ -7,7 +7,7 @@ import numpy as np
 
 
 class BinomialLoss(nn.Module):
-    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=False,  **kwargs):
+    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=True,  **kwargs):
         super(BinomialLoss, self).__init__()
         self.margin = margin
         self.alpha = alpha
@@ -77,4 +77,4 @@ class BinomialLoss(nn.Module):
             pair_grad[i][pos_ind] = pos_grad
             pair_grad[i][neg_ind] = neg_grad
             
-        return pair_loss.flatten(), pair_grad.flatten()
+        return pair_loss.flatten(),pair_grad.flatten()
