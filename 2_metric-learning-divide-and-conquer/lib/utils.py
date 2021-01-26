@@ -21,21 +21,31 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
 
         # extract batches (A becomes list of samples)
         for batch in tqdm(dataloader, desc='Filling memory queue', disable=not is_verbose):
-            for i, J in enumerate(batch):
-                # batch contains: [sz_batch * images, sz_batch * labels, sz_batch * indices]
-                if i == 0:
-                    if not is_dry_run:
-                        # move images to device of model (approximate device)
-                        J = J.to(list(model.parameters())[0].device)
-                        # predict model output for image
-                        J = model(J, use_penultimate).data.cpu().numpy()
-                        # take only subset of resulting embedding w.r.t dataset
-                    else:
-                        # just a placeholder not to break existing code
-                        J = np.array([-1])
-                for j in J:
-                    A[i].append(np.asarray(j))
-        result = [np.stack(A[i]) for i in range(len(A))]
+            img_data, labels, indices = batch
+            if not is_dry_run:
+                img_data = img_data.to(list(model.parameters())[0].device)
+                img_embeddings = model(img_data, use_penultimate).data.cpu().numpy()
+            else:
+                # just a placeholder not to break existing code
+                img_embeddings = np.array([-1])
+            A[0].append(np.array(img_embeddings))
+            A[1].append(labels.numpy())
+            A[2].append(indices.numpy())
+            # for i, J in enumerate(batch):
+            #     # batch contains: [sz_batch * images, sz_batch * labels, sz_batch * indices]
+            #     if i == 0:
+            #         if not is_dry_run:
+            #             # move images to device of model (approximate device)
+            #             J = J.to(list(model.parameters())[0].device)
+            #             # predict model output for image
+            #             J = model(J, use_penultimate).data.cpu().numpy()
+            #             # take only subset of resulting embedding w.r.t dataset
+            #         else:
+            #             # just a placeholder not to break existing code
+            #             J = np.array([-1])
+            #     for j in J:
+            #         A[i].append(np.asarray(j))
+        result = [np.concatenate(A[i],axis =0) for i in range(len(A))]
     model.train()
     model.train(model_is_training) # revert to previous training state
     if is_dry_run:
@@ -79,7 +89,7 @@ def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG
         r_at_k = evaluation.calc_recall_at_k(T_query, Y, k)
         recall.append(r_at_k)
         LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
-        print("recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        print("eval data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
         if k==1 and r_at_k > history_recall1:
             flag_checkpoint = True
         
@@ -102,5 +112,42 @@ def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG
         LOG.progress_saver[log_key].log("nmi",nmi)
         print("NMI: {:.3f}".format(nmi * 100))
         scores['nmi'] = nmi
+
+    return scores
+
+def evaluate_train(model, dl_train, use_penultimate, backend,LOG, log_key = 'Train', with_nmi = False):
+    nb_classes = dl_train.dataset.nb_classes()
+    K = [1, 2, 4, 8]
+    # calculate embeddings with model and get targets
+    X, T, _ = predict_batchwise(model, dl_train, use_penultimate)
+
+    scores = {}
+
+    # calculate NMI with kmeans clustering
+    if with_nmi:
+        nmi = evaluation.calc_normalized_mutual_information(
+            T,
+            similarity.cluster_by_kmeans(
+                X, nb_classes, backend=backend
+            )
+        )
+        logging.info("NMI: {:.3f}".format(nmi * 100))
+        scores['nmi'] = nmi
+
+    # get predictions by assigning nearest 8 neighbors with euclidian
+    assert np.max(K) <= 8, ("Sorry, this is hardcoded here."
+                " You would need to retrieve > 8 nearest neighbors"
+                            " to calculate R@k with k > 8")
+    Y = similarity.assign_by_euclidian_at_k(X, T, 8, backend=backend)
+
+    # calculate recall @ 1, 2, 4, 8
+    recall = []
+    for k in K:
+        r_at_k = evaluation.calc_recall_at_k(T, Y, k)
+        recall.append(r_at_k)
+        print("train data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
+
+    scores['recall'] = recall
 
     return scores

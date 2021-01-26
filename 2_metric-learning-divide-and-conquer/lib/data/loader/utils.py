@@ -10,7 +10,7 @@ import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 
-def make(config, model, type, subset_indices = None, dset_type = None):
+def make(config, model, type, subset_indices = None, dset_type = None, is_onehot = False):
     """
     subset_indices: indices for selecting subset of dataset, for creating
         clustered dataloaders.
@@ -28,7 +28,8 @@ def make(config, model, type, subset_indices = None, dset_type = None):
         root = root,
         dset_type = dset_type, # dset_type: train, query, gallery
         transform = transform,
-        is_training = type == 'train'
+        is_training = dset_type == 'train',
+        is_onehot= is_onehot
     )
     if type == 'train':
         ds.set_subset(subset_indices)
@@ -44,14 +45,18 @@ def make(config, model, type, subset_indices = None, dset_type = None):
     return dl
 
 
-def make_from_clusters(C, subset_indices, model, config):
+def make_from_clusters(C, subset_indices, model, config, is_onehot = False):
     import numpy as np
     from math import ceil
     dataloaders = [[None] for c in range(config['nb_clusters'])]
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(
-            config = config, model = model, type = 'train', subset_indices = subset_indices[C == c],
-            dset_type = 'train')
+            config = config,
+            model = model,
+            type = 'train',
+            subset_indices = subset_indices[C == c],
+            dset_type = 'train',
+            is_onehot= is_onehot)
         dataloaders[c].dataset.id = c
     return dataloaders
 

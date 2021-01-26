@@ -118,13 +118,13 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def evaluate(model,LOG, backend='faiss-gpu', config = None, log_key= 'Val'):
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    score = lib.utils.evaluate(model,  config, dl_query, dl_gallery, False, backend, LOG, log_key)
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
+    score = lib.utils.evaluate(model, config, dl_query, dl_gallery, False, backend, LOG, log_key)
     return score
 
 
-def train_batch(model, opt, config, batch, LOG, log_key='Train'):
+def train_batch(model, opt, config, batch):
     if torch.cuda.is_available():
         X = batch[0].cuda(non_blocking=True) # images
         T = batch[1].cuda(non_blocking=True) # class labels
@@ -168,12 +168,10 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
     for i in range(1,len(sim_mats)):
         nu = 2.0/(i + 1.0 )
         sim_mat = (1.0-nu)*sim_mats[i-1] + nu*sim_mats[i]
-        temp_loss,temp_grad = get_criterion(config, 'binominal')(sim_mat,T)
+        temp_loss, temp_grad = get_criterion(config, 'binominal')(sim_mat,T)
         bin_loss  = bin_loss + torch.sum(temp_loss*boosting_weights*W)/len(sub_dim)
         # update boosting_weights by the negative loss gradient of previous learner
         boosting_weights = -1.0* temp_grad
-        
-    LOG.progress_saver[log_key].log('binominal_loss',bin_loss.item())
 
     adv_loss = 0.0
     if config['lambda_div'] > 0.0:
@@ -182,7 +180,6 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
             temp_loss,  adv_weight_loss = get_criterion(config,"adversarial")(fevcs1,fevcs2)
             adv_loss += adv_loss + temp_loss
             weight_loss +=  adv_weight_loss
-        LOG.progress_saver[log_key].log('adv_loss',adv_loss.item())
         
         embedding_weights = model.embedding.weight.data
         for i in range(len(sub_dim)):
@@ -191,13 +188,11 @@ def train_batch(model, opt, config, batch, LOG, log_key='Train'):
             W =  embedding_weights[start:stop,:]
             emb_weight_loss = torch.mean((torch.sum(W * W, axis=1) - 1)**2)
             weight_loss += emb_weight_loss 
-        LOG.progress_saver[log_key].log('weight_loss',weight_loss.item())
-        adv_loss  =  adv_loss + weight_loss * config['lambda_weight']
     
-    total_loss = bin_loss + adv_loss * config['lambda_div']
+    total_loss = bin_loss + (adv_loss + weight_loss * config['lambda_weight']) * config['lambda_div']
     total_loss.backward()
     opt.step()
-    return total_loss.item()
+    return total_loss.item(),bin_loss.item(),adv_loss.item(), weight_loss.item()
 
 
 def get_criterion(config, loss_name):
@@ -276,16 +271,20 @@ def main():
         config['epoch'] = e
         metrics[e] = {}
         time_per_epoch_1 = time.time()
-        losses_per_epoch = []
+        losses = []
 
         for batch in tqdm(dataloaders['train'],desc = 'Train epoch {}.'.format(e)):
-            loss = train_batch(model, opt, config, batch, LOG, log_key='Train')
-            losses_per_epoch.append(loss)
+            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, opt, config, batch)
+            losses.append([total_loss, bin_loss, adv_loss, weight_loss])
 
         time_per_epoch_2 = time.time()
-        current_loss = np.mean(losses_per_epoch)
+        losses = np.array(losses)
+        current_loss = np.mean(losses[:,0])
         LOG.progress_saver['Train'].log('epochs', e)
         LOG.progress_saver['Train'].log('Train_loss', current_loss)
+        LOG.progress_saver['Train'].log('bin_loss', np.mean(losses[:,1]))
+        LOG.progress_saver['Train'].log('adv_loss', np.mean(losses[:,2]))
+        LOG.progress_saver['Train'].log('weight_loss', np.mean(losses[:,3]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
         faiss_reserver.release()

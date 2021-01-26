@@ -13,7 +13,7 @@ class BaseDataset(torch.utils.data.Dataset):
     We use the train set for training, the val set for
     query and the test set for retrieval
     """
-    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = True):
+    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = False):
         torch.utils.data.Dataset.__init__(self)
         self.transform = transform
         self.is_training = is_training
@@ -21,15 +21,17 @@ class BaseDataset(torch.utils.data.Dataset):
         self.image_list = image_list
         self.hdf_file = hdf_file
 
-        self.im_paths = np.array(self.image_list)[:,0]
-        self.ys = np.array(self.image_list)[:,-1]
-        self.I = np.array(self.image_list)[:,1]
+        self.im_paths, self.I, self.ys = [], [], []
+        for item in self.image_list:
+            self.im_paths.append(item[0])
+            self.I.append(item[1]) # counter
+            self.ys.append(item[2]) # label
 
     def __len__(self):
         return len(self.im_paths)
 
     def nb_classes(self):
-        return len(set(self.ys))
+        return len([key for key in self.image_dict.keys()])
 
     def __getitem__(self, index):
         img_path = self.im_paths[index]
@@ -38,10 +40,13 @@ class BaseDataset(torch.utils.data.Dataset):
         im = f[patch_name][()]
         f.close()
         im = self.process_image(np.array(im, dtype=float),mirror=True)
-        return im, int(self.ys[index]), index
+        label = self.ys[index]
+        if isinstance(label,list):
+            label = torch.tensor(label, dtype=int)
+        return im, label, index
 
     def get_label(self, index):
-        return int(self.ys[index])
+        return self.ys[index]
 
     def set_subset(self, subset_indices):
         if subset_indices is not None:

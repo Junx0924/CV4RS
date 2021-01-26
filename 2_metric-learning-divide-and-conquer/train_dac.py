@@ -110,8 +110,9 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, x)
 
 
-def evaluate(model, dataloaders, LOG, backend='faiss', config = None, log_key= 'Val'):
-    dl_query, dl_gallery = dataloaders
+def evaluate(model, LOG, backend='faiss', config = None, log_key= 'Val'):
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
     score = lib.utils.evaluate(model,  config, dl_query, dl_gallery, False, backend, LOG, log_key)
     return score
 
@@ -207,16 +208,13 @@ def main():
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    dataloaders['eval'] = [dl_query, dl_gallery] 
-     
+      
     criterion = get_criterion(config)
     opt = get_optimizer(config, model, criterion)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
-    metrics[-1] = {'score': evaluate(model, dataloaders['eval'], LOG, backend = config['backend'],config = config, log_key ='Val')}
+    metrics[-1] = {'score': evaluate(model, LOG, backend = config['backend'],config = config, log_key ='Val')}
     best_recall = metrics[-1]['score']['recall'][0]
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
@@ -271,7 +269,7 @@ def main():
         # evaluate
         tic = time.time()
         metrics[e].update({
-            'score': evaluate(model, dataloaders['eval'], LOG,backend=config['backend'],config = config,log_key='Val'),
+            'score': evaluate(model, LOG,backend=config['backend'],config = config,log_key='Val'),
             'loss': {'train': current_loss}
         })
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
