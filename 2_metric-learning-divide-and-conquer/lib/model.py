@@ -127,17 +127,8 @@ def embed_model(model, config, sz_embedding, normalize_output=True):
     torch.random.manual_seed(config['random_seed'] + 1)
     np.random.seed(config['random_seed'] + 1)
 
-    if 'sub_embed_sizes' not in config.keys():
-        nb_clusters =  config['nb_clusters'] 
-        sub_embed_sizes =[sz_embedding //nb_clusters]*nb_clusters
-    else:
-        sub_embed_sizes = config['sub_embed_sizes']
-        nb_clusters = len(sub_embed_sizes)
-    assert sum(sub_embed_sizes) == config['sz_embedding']
-
+    sub_embed_sizes = config['sub_embed_sizes']
     init_splitted(model.embedding, sub_embed_sizes)
-
-    #features_parameters = model.features.parameters()
 
     model.parameters_dict = make_parameters_dict(
         model = model,
@@ -146,9 +137,9 @@ def embed_model(model, config, sz_embedding, normalize_output=True):
 
     assert normalize_output
 
-    learner_neurons = [None] * nb_clusters
+    learner_neurons = [None] * len(sub_embed_sizes)
 
-    for c in range(nb_clusters):
+    for c in range(len(sub_embed_sizes)):
         start = int(sum(sub_embed_sizes[:c]))
         stop = int(start + sub_embed_sizes[c])
         learner_neurons[c] = np.arange(start,stop)

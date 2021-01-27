@@ -245,16 +245,16 @@ def main():
     faiss_reserver.lock(config['backend'])
 
     # get model
-    # model = lib.model.make(config)
-    # _  = model.to(config['device'])
-    # if 'selfsimilarity' in config['diva_features']:
-    #     selfsim_model = lib.model.make(config)
-    #     _  = selfsim_model.to(config['device'])
-    model = lib.multifeature_resnet50.Network(config)
+    model = lib.model.make(config)
     _  = model.to(config['device'])
     if 'selfsimilarity' in config['diva_features']:
-        selfsim_model = lib.multifeature_resnet50.Network(config)
+        selfsim_model = lib.model.make(config)
         _  = selfsim_model.to(config['device'])
+    # model = lib.multifeature_resnet50.Network(config)
+    # _  = model.to(config['device'])
+    # if 'selfsimilarity' in config['diva_features']:
+    #     selfsim_model = lib.multifeature_resnet50.Network(config)
+    #     _  = selfsim_model.to(config['device'])
 
     
     start_epoch = 0
