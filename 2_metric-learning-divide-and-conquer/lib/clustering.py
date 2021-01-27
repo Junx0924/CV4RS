@@ -11,14 +11,16 @@ from . import data
 from . import utils
 
 
-def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_id=None, backend='faiss'):
+def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids=None, backend='faiss'):
     is_dry_run = (nb_clusters == 1)
+    device = torch.device("cuda:0") if gpu_ids ==0 else torch.device("cpu") 
     if not is_dry_run:
         if not use_penultimate:
             print('Using the final layer for clustering')
         X_all, T_all, I_all = utils.predict_batchwise(
             model=model,
             dataloader=data_loader,
+            device = device,
             use_penultimate=use_penultimate,
             is_dry_run=is_dry_run
         )
@@ -33,8 +35,7 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_id=
             C = faissext.do_clustering(
                 X_all,
                 num_clusters = nb_clusters,
-                gpu_ids = None if backend != 'faiss-gpu'
-                    else torch.cuda.current_device(),
+                gpu_ids = gpu_ids,
                 niter=100,
                 nredo=5,
                 verbose=0
@@ -58,6 +59,7 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
             dataloader_init,
             use_penultimate = True,
             nb_clusters = config['nb_clusters'],
+            gpu_ids= config['cuda_device'],
             backend=config['backend']
         )
     else:
@@ -85,10 +87,10 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
 
         # assign s.t. least costs w.r.t. L1 norm
         C, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
-        #print('Costs before reassignment: {}'.format(costs))
-        _, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
+        # print('Costs before reassignment: {}'.format(costs))
+        # _, costs = data.loader.reassign_clusters(C_prev = C_prev,C_curr = C, I_prev = I_prev, I_curr = I)
         # after printing out the costs now, the trace of matrix should have lower numbers than other entries in matrix
-        print('Costs after reassignment: {}'.format(costs))
+        # print('Costs after reassignment: {}'.format(costs))
 
     #  remove labels s.t. minimum 2 samples per class per cluster
     for c in range(config['nb_clusters']):
