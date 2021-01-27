@@ -57,17 +57,10 @@ def load_config(config_name):
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
     config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
-   
-   #### UPdate Bier parameter 
-    config['lambda_weight'] = args.pop('lambda_weight')
-    config['lambda_div']= args.pop('lambda_div')
-    config['sub_embed_sizes'] = args.pop('sub_embed_sizes')
-    config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
-    config['hard_mining'] = args.pop('hard_mining')
-    config['alpha'] = args.pop('alpha')
-    config['beta'] = args.pop('beta')
-    config['margin'] = args.pop('margin')
-
+    if torch.cuda.is_available():
+        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    ### Update wandb config
     if config['log_online']:
         config['wandb']['wandb_key'] = args.pop('wandb_key')
         config['wandb']['project'] =args.pop('project')
@@ -82,8 +75,16 @@ def load_config(config_name):
         wandb.config.update(config)
     # update save_path
     config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
-        
-    if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
+    
+    #### UPdate Bier parameter 
+    config['lambda_weight'] = args.pop('lambda_weight')
+    config['lambda_div']= args.pop('lambda_div')
+    config['sub_embed_sizes'] = args.pop('sub_embed_sizes')
+    config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
+    config['hard_mining'] = args.pop('hard_mining')
+    config['alpha'] = args.pop('alpha')
+    config['beta'] = args.pop('beta')
+    config['margin'] = args.pop('margin')
     
     for k in args:
         if k in config:
@@ -117,20 +118,11 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, x)
 
 
-def evaluate(model,LOG, backend='faiss-gpu', config = None, log_key= 'Val'):
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
-    score = lib.utils.evaluate(model, config, dl_query, dl_gallery, False, backend, LOG, log_key)
-    return score
 
-
-def train_batch(model, opt, config, batch):
-    if torch.cuda.is_available():
-        X = batch[0].cuda(non_blocking=True) # images
-        T = batch[1].cuda(non_blocking=True) # class labels
-    else:
-        X = batch[0]
-        T = batch[1]
+def train_batch(model, criterion_dict,opt, config, batch):
+    
+    X = batch[0].to(config['device']) # images
+    T = batch[1].to(config['device']) # class labels
     I = batch[2] # image ids
 
     opt.zero_grad()
@@ -149,18 +141,18 @@ def train_batch(model, opt, config, batch):
         normed_fvecs.append(fvecs)
     
     # create similarity matrix for each sublearner
-    sim_mats =[torch.zeros(n,n).cuda()]
+    sim_mats =[torch.zeros(n,n).to(config['device'])]
     for fvecs in normed_fvecs:
         temp_mat = torch.matmul(fvecs, fvecs.t())
         sim_mats.append(temp_mat)
     
     # init boosting_weights for each label pair
-    boosting_weights = Variable(torch.ones(n*n).cuda(),requires_grad = False)
+    boosting_weights = Variable(torch.ones(n*n).to(config['device']),requires_grad = False)
     # Pairwise labels
     a = torch.cat(n*[torch.unsqueeze(T, 0)])
     b = torch.transpose(a, 0, 1)
     pairs = torch.flatten(a==b)*1.0
-    W = torch.flatten(1.0 - torch.eye(n)).cuda()
+    W = torch.flatten(1.0 - torch.eye(n)).to(config['device'])
     # initial weight for each label pair (not include itself)
     W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
 
@@ -168,7 +160,8 @@ def train_batch(model, opt, config, batch):
     for i in range(1,len(sim_mats)):
         nu = 2.0/(i + 1.0 )
         sim_mat = (1.0-nu)*sim_mats[i-1] + nu*sim_mats[i]
-        temp_loss, temp_grad = get_criterion(config, 'binominal')(sim_mat,T)
+        criterion = criterion_dict['binominal']
+        temp_loss, temp_grad = criterion(sim_mat,T)
         bin_loss  = bin_loss + torch.sum(temp_loss*boosting_weights*W)/len(sub_dim)
         # update boosting_weights by the negative loss gradient of previous learner
         boosting_weights = -1.0* temp_grad
@@ -177,7 +170,8 @@ def train_batch(model, opt, config, batch):
     if config['lambda_div'] > 0.0:
         weight_loss =0.0
         for (fevcs1,fevcs2) in list(itertools.combinations(normed_fvecs,2)):
-            temp_loss,  adv_weight_loss = get_criterion(config,"adversarial")(fevcs1,fevcs2)
+            criterion = criterion_dict['adversarial']
+            temp_loss,  adv_weight_loss = criterion(fevcs1,fevcs2)
             adv_loss += adv_loss + temp_loss
             weight_loss +=  adv_weight_loss
         
@@ -193,16 +187,6 @@ def train_batch(model, opt, config, batch):
     total_loss.backward()
     opt.step()
     return total_loss.item(),bin_loss.item(),adv_loss.item(), weight_loss.item()
-
-
-def get_criterion(config, loss_name):
-    sub_embed_sizes = config['sub_embed_sizes'] 
-    if "adversarial" in loss_name:
-        criterion = lib.loss.Adversarial(config['hidden_adversarial_size'])
-    if 'binominal' in loss_name:
-        criterion = lib.loss.BinomialLoss(config['alpha'],config['beta'], config['margin'])
-    if torch.cuda.is_available(): criterion = criterion.cuda()
-    return criterion
 
 
 def get_optimizer(config, model):
@@ -230,9 +214,6 @@ def main():
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
-    if torch.cuda.is_available():
-        torch.cuda.set_device(config['cuda_device'])
-
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -242,10 +223,12 @@ def main():
 
     faiss_reserver.lock(config['backend'])
 
-    if torch.cuda.is_available():
-        model = lib.model.make(config).cuda()
-    else:
-        model = lib.model.make(config)
+    model = lib.model.make(config)
+    _ = model.to(config['device'])
+
+    criterion_dict ={} 
+    criterion_dict['binominal'] = lib.loss.select(config,'binominal')
+    criterion_dict['adversarial'] = lib.loss.select(config,'adversarial')
 
     #model.embedding.weights
     start_epoch = 0
@@ -255,12 +238,16 @@ def main():
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     dataloaders['train'] = lib.data.loader.make(config, model,'train', dset_type = 'train')
-        
+
+    # create query and gallery dataset for evaluation
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)  
+
     opt = get_optimizer(config, model)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
-    metrics[-1] = {'score': evaluate(model, LOG, backend = config['backend'],config = config, log_key ='Val')}
+    metrics[-1] = {'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')}
     best_recall = metrics[-1]['score']['recall'][0]
 
     print("Training for {} epochs.".format(config['nb_epochs']))
@@ -274,7 +261,7 @@ def main():
         losses = []
 
         for batch in tqdm(dataloaders['train'],desc = 'Train epoch {}.'.format(e)):
-            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, opt, config, batch)
+            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, opt, config, batch)
             losses.append([total_loss, bin_loss, adv_loss, weight_loss])
 
         time_per_epoch_2 = time.time()
@@ -292,7 +279,7 @@ def main():
         # evaluate
         tic = time.time()
         metrics[e].update({
-            'score': evaluate(model,LOG,backend=config['backend'],config = config,log_key='Val'),
+            'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
             'loss': {'train': current_loss}
         })
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))

@@ -38,11 +38,11 @@ def load_config(config_name):
     with open(config_name, 'r') as f: config = json.load(f)
    
     #### Update config.json from INPUT ARGUMENTS ###########
+    config['sz_embedding'] = args.pop('sz_embedding')
     config['pj_base_path'] = pj_base_path
     config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
     config['dataloader']['batch_size'] = args.pop('batch_size')
     config['dataloader']['num_workers'] = args.pop('num_workers')
-    
     config['opt']['backbone']['lr'] = args.pop('backbone_lr')
     config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
     config['opt']['embedding']['lr'] =args.pop('embedding_lr')
@@ -55,12 +55,10 @@ def load_config(config_name):
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
     config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
-   
-    #### Update divide and conquer parameters ###
-    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
-    config['finetune_epoch'] = args.pop('finetune_epoch')
-    config['nb_clusters'] = args.pop('nb_clusters')
+    if torch.cuda.is_available():
+        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+    #### wandb config ####
     if config['log_online']:
         config['wandb']['wandb_key'] = args.pop('wandb_key')
         config['wandb']['project'] =args.pop('project')
@@ -75,7 +73,14 @@ def load_config(config_name):
         wandb.config.update(config)
     # update save_path
     config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
-        
+
+    #### Update divide and conquer parameters ###
+    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
+    config['finetune_epoch'] = args.pop('finetune_epoch')
+    config['nb_clusters'] = args.pop('nb_clusters')
+    if 'sub_embed_sizes' not in config.keys():
+        config['sub_embed_sizes'] = [config['sz_embedding']//config['nb_clusters']]*config['nb_clusters']
+        assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     
     for k in args:
@@ -110,23 +115,12 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, x)
 
 
-def evaluate(model, LOG, backend='faiss', config = None, log_key= 'Val'):
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
-    score = lib.utils.evaluate(model,  config, dl_query, dl_gallery, False, backend, LOG, log_key)
-    return score
-
 
 def train_batch(model, criterion, opt, config, batch, cluster_id, epoch):
-    if torch.cuda.is_available():
-        X = batch[0].cuda(non_blocking=True) # images
-        T = batch[1].cuda(non_blocking=True) # class labels
-    else:
-        X = batch[0]
-        T = batch[1]
+    X = batch[0].to(config['device']) # images
+    T = batch[1].to(config['device']) # class labels
     I = batch[2] # image ids
 
-    opt.zero_grad()
     M = model(X)
 
     if epoch >= config['finetune_epoch'] * 8 / 19:
@@ -138,23 +132,17 @@ def train_batch(model, criterion, opt, config, batch, cluster_id, epoch):
 
     M_sub = torch.nn.functional.normalize(M_sub, p=2, dim=1)
     loss = criterion[cluster_id](M_sub, T)
+    opt.zero_grad()
     loss.backward()
     opt.step()
     return loss.item()
 
 
 def get_criterion(config):
-    name = 'margin'
-    ds_name = config['dataset_selected']
-    nb_clusters =config['nb_clusters']
-    nb_classes = int(config['transform_parameters'][ds_name]["classes"])
-
+    dataset_selected = config['dataset_selected']
+    nb_classes = config['transform_parameters'][dataset_selected]['classes']
     print('Create margin loss for classes={}'.format(nb_classes))
-
-    if torch.cuda.is_available():
-        criterion = [lib.loss.MarginLoss(nb_classes,).cuda() for i in range(config['nb_clusters'])]
-    else:
-        criterion = [lib.loss.MarginLoss(nb_classes,) for i in range(config['nb_clusters'])]
+    criterion = [lib.loss.select(config) for i in range(config['nb_clusters'])]
     return criterion
 
 
@@ -183,9 +171,7 @@ def main():
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
-    if torch.cuda.is_available():
-        torch.cuda.set_device(config['cuda_device'])
-
+   
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -195,10 +181,9 @@ def main():
 
     faiss_reserver.lock(config['backend'])
 
-    if torch.cuda.is_available():
-        model = lib.model.make(config).cuda()
-    else:
-        model = lib.model.make(config)
+    
+    model = lib.model.make(config)
+    _ = model.to(config['device'])
 
     #model.embedding.weights
     start_epoch = 0
@@ -208,13 +193,17 @@ def main():
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
-      
+    
+    # create query and gallery dataset for evaluation
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
+    
     criterion = get_criterion(config)
     opt = get_optimizer(config, model, criterion)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
-    metrics[-1] = {'score': evaluate(model, LOG, backend = config['backend'],config = config, log_key ='Val')}
+    metrics[-1] = {'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')}
     best_recall = metrics[-1]['score']['recall'][0]
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
@@ -269,7 +258,7 @@ def main():
         # evaluate
         tic = time.time()
         metrics[e].update({
-            'score': evaluate(model, LOG,backend=config['backend'],config = config,log_key='Val'),
+            'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
             'loss': {'train': current_loss}
         })
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
