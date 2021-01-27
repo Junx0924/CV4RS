@@ -8,15 +8,15 @@ def one_hot(y,num_classes):
         label[i] = 1
     return label
 
-def select(root,dset_type,transform,is_training = False, is_onehot = False,include_aux_augmentations=False):
+def select(datapath,dset_type,transform,is_training = False, is_onehot = False,include_aux_augmentations=False):
     types = {"train":"train","query":"val","gallery":"test"}
     dset_type = types[dset_type]
-    hdf_file =  root + '/'+ dset_type +'.hdf5'
+    hdf_file =  datapath + '/'+ dset_type +'.hdf5'
 
-    if 'MLRSNet' in root:
-        dict_temp = MLRSNet.Give(root,dset_type)
-    if 'BigEarthNet' in root:
-        dict_temp = BigEarthNet.Give(root,dset_type)
+    if 'MLRSNet' in datapath:
+        dict_temp = MLRSNet.Give(datapath,dset_type)
+    if 'BigEarthNet' in datapath:
+        dict_temp = BigEarthNet.Give(datapath,dset_type)
     
     # add file index to image_dict
     image_dict = {}
