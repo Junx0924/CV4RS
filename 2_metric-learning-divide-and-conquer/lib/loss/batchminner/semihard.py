@@ -28,9 +28,8 @@ class Semihard(nn.Module):
         labels: labels, shape (batch_size,1)
     Outputs:
         - a_indices: indices of anchors.
-        - x[a_indices]: sampled anchor embeddings.
-        - x[p_indices]: sampled positive embeddings.
-        - x[n_indices]: sampled negative embeddings.
+        - p_indices: indices of positive embeddings.
+        - n_indices: indices of negative embeddings.
     """
 
     def __init__(self, cutoff=0.5, infinity=1e6, eps=1e-6):
@@ -80,4 +79,4 @@ class Semihard(nn.Module):
                     *map(len, [a_indices, p_indices, n_indices])
                 )
 
-        return a_indices, x[a_indices], x[p_indices], x[n_indices]
+        return a_indices, p_indices, n_indices
