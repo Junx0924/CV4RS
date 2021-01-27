@@ -8,7 +8,7 @@ def one_hot(y,num_classes):
         label[i] = 1
     return label
 
-def select(root,dset_type,transform,is_training = False, is_onehot = False):
+def select(root,dset_type,transform,is_training = False, is_onehot = False,include_aux_augmentations=False):
     types = {"train":"train","query":"val","gallery":"test"}
     dset_type = types[dset_type]
     hdf_file =  root + '/'+ dset_type +'.hdf5'
@@ -46,4 +46,4 @@ def select(root,dset_type,transform,is_training = False, is_onehot = False):
                 counter = temp_dict[img_path][0]
                 image_dict[key].append([img_path, counter])
 
-    return BaseDataset(image_dict,image_list,hdf_file,transform,is_training)
+    return BaseDataset(image_dict,image_list,hdf_file,transform,is_training,include_aux_augmentations)

@@ -27,20 +27,43 @@ def basic_training_parameters(parser):
 def divid_and_conquer(parser):
     ### for Method Divide and conquer
     parser.add_argument('--mod-epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
-    parser.add_argument('--nb-clusters', default=8, type = int, help='the number of learners')
+    parser.add_argument('--nb-clusters', default=4, type = int, help='the number of learners')
     parser.add_argument('--finetune-epoch', default=110, type = int)
     return parser
 
 def BIER(parser):
     ## for Method Boosting Independent Embeddings (BIER)
-    parser.add_argument('--alpha', type=float, default=25, help ='the cost of negative paris for binominal loss')
-    parser.add_argument('--beta', type=float, default=2.0, help ='the scale parameter for binominal loss')
-    parser.add_argument('--margin', type=float, default=0.5, help ='the magin for binominal loss')
+    ## Binomial Deviance Loss
+    parser.add_argument('--alpha', type=float, default=25, help ='Weighting on negative similarities.')
+    parser.add_argument('--beta', type=float, default=2.0, help ='Weighting on positive similarities.')
+    parser.add_argument('--margin', type=float, default=0.5, help ='Distance margin for both positive and negative similarities')
     parser.add_argument('--hard_mining', action='store_true')
+
     parser.add_argument('--lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
     parser.add_argument('--lambda_div', type=float, default=5e-5, help ='regularization parameter')
-    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of sublearners')
+    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')
     parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
+    return parser 
+
+def diva(parser):
+    ## for Method Diverse Visual Feature Aggregation (Diva)
+    parser.add_argument('--diva_features',   default=['discriminative', 'selfsimilarity', 'shared', 'intra'], nargs='+', type=str,   help='Type of features to learn, this version support: [discriminative, selfsimilarity, shared, intra]')
+    parser.add_argument('--diva_alpha_ssl',      default=0.3,  type=float, help='weight for selfsimilarity feature')
+    parser.add_argument('--diva_alpha_shared',   default=0.3,  type=float, help='weight for Class-shared feature') 
+    parser.add_argument('--diva_alpha_intra',    default=0.3,  type=float, help='weight for Intra-class feature') 
+    parser.add_argument('--evaluation_weight', nargs='+', default=[0.5,1,1,1], type=float, help='to compute evaluation metrics on weighted (normalized) combinations')
+    
+    ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
+    parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')
+    parser.add_argument('--diva_moco_temperature',   default=0.07, type=float, help='softmax temperature (default: 0.07)')
+    parser.add_argument('--diva_moco_n_key_batches', default=30,  type=int, help='mini-batch size (default: 256), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel')
+    parser.add_argument('--diva_moco_lower_cutoff',  default=0.5,  type=float, help='Lower cutoff on distances - values below are sampled with equal prob.')
+    parser.add_argument('--diva_moco_upper_cutoff',  default=1.4,  type=float, help='Upper cutoff on distances - values above are IGNORED.')
+
+    ### Adversarial loss for decorrelating features
+    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
+    parser.add_argument('--diva_adversarial_weight',      default=[1500,1500,1500], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
+
     return parser 
 
 def wandb_parameters(parser):

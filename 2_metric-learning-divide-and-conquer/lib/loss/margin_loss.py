@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-from .batchminner.semihard import Semihard
+
 
 
 class MarginLoss(torch.nn.Module):
@@ -26,7 +26,7 @@ class MarginLoss(torch.nn.Module):
     """
 
     def __init__(self, nb_classes, beta=1.2, margin=0.2, nu=0.0,
- 		 class_specific_beta=False, **kwargs):
+ 		 class_specific_beta=False, batchminer = None,**kwargs):
         super(MarginLoss, self).__init__()
 
         self.nb_classes = nb_classes
@@ -39,10 +39,15 @@ class MarginLoss(torch.nn.Module):
         self.beta = torch.nn.Parameter(beta)
         self.margin = margin
         self.nu = nu
-        self.batchminer = Semihard()
+       
+        self.batchminer = batchminer
+
 
     def forward(self, feature, labels):
-        anchor_idx, anchors, positives, negatives = self.batchminer(feature, labels)
+        anchor_idx, pos_idx, neg_idx = self.batchminer(feature, labels)
+        anchors = feature[anchor_idx] 
+        positives = feature[pos_idx]
+        negatives = feature[neg_idx]
         anchor_classes = labels[anchor_idx]
 
         if anchor_classes is not None:

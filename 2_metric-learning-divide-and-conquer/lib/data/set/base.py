@@ -13,13 +13,14 @@ class BaseDataset(torch.utils.data.Dataset):
     We use the train set for training, the val set for
     query and the test set for retrieval
     """
-    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = False):
+    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = False, include_aux_augmentations= False):
         torch.utils.data.Dataset.__init__(self)
         self.transform = transform
         self.is_training = is_training
         self.image_dict = image_dict
         self.image_list = image_list
         self.hdf_file = hdf_file
+        self.include_aux_augmentations = include_aux_augmentations
 
         self.im_paths, self.I, self.ys = [], [], []
         for item in self.image_list:
@@ -37,13 +38,27 @@ class BaseDataset(torch.utils.data.Dataset):
         img_path = self.im_paths[index]
         patch_name = img_path.split('/')[-1]
         f = h5py.File(self.hdf_file, 'r')
-        im = f[patch_name][()]
+        im = np.array(f[patch_name][()], dtype=float)
         f.close()
-        im = self.process_image(np.array(im, dtype=float),mirror=True)
+
+        input = im.reshape(self.transform['input_shape'])
+        im_a = self.process_image(input,mirror=True)
         label = self.ys[index]
         if isinstance(label,list):
             label = torch.tensor(label, dtype=int)
-        return im, label, index
+        
+        if self.include_aux_augmentations and self.is_training:
+            def rotation(img,idx):
+                # apply rotation
+                imrot_class = idx%4
+                angle = np.array([0,90,180,270])[imrot_class]
+                im_b = hypia.functionals.rotate(img, angle,reshape=False)
+                return im_b,imrot_class
+            im_b,imrot_class= rotation(input, index)
+            im_b = self.process_image(im_b,mirror=False)
+            return (im_a, label, index, im_b, imrot_class)
+        else:
+            return (im_a, label, index)
 
     def get_label(self, index):
         return self.ys[index]
@@ -77,8 +92,7 @@ class BaseDataset(torch.utils.data.Dataset):
         Args:
         img: np.array (1 dim)
         """
-        img_shape = self.transform['input_shape']
-        img = img.reshape(img_shape)
+        img_shape =self.transform['input_shape']
         img_dim = img_shape[1]
         crop = self.transform['sz_crop']
         mean = self.transform['mean']

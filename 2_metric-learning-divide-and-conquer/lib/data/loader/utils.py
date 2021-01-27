@@ -10,7 +10,7 @@ import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 
-def make(config, model, type, subset_indices = None, dset_type = None, is_onehot = False):
+def make(config, model, type, subset_indices = None, dset_type = None, is_onehot = False,include_aux_augmentations = False):
     """
     subset_indices: indices for selecting subset of dataset, for creating
         clustered dataloaders.
@@ -23,13 +23,14 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
     transform = config['transform_parameters'][ds_name]
     root = config['dataset'][ds_name]['root']
     shuffle= config['dataloader']['shuffle']
-
+    
     ds = dataset.select(
         root = root,
         dset_type = dset_type, # dset_type: train, query, gallery
         transform = transform,
-        is_training = dset_type == 'train',
-        is_onehot= is_onehot
+        is_training = type == 'train',
+        is_onehot= is_onehot,
+        include_aux_augmentations = include_aux_augmentations, 
     )
     if type == 'train':
         ds.set_subset(subset_indices)
