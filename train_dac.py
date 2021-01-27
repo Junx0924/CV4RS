@@ -146,7 +146,7 @@ def get_criterion(config):
     return criterion
 
 
-def get_optimizer(config, model, criterion):
+def get_optimizer(config, model):
     opt = torch.optim.Adam([
         {
             'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
@@ -199,7 +199,7 @@ def main():
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
     
     criterion = get_criterion(config)
-    opt = get_optimizer(config, model, criterion)
+    opt = get_optimizer(config, model)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
