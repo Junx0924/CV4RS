@@ -3,27 +3,32 @@ from __future__ import division
 
 from . import evaluation
 from . import similarity
+from . import faissext
 import numpy as np
 import torch
 from tqdm import tqdm
+from sklearn.preprocessing import scale,normalize
+import matplotlib.pyplot as plt, numpy as np, torch
+import PIL
+import os
+from osgeo import gdal
 
-
-def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
+def predict_batchwise(model, dataloader, device,use_penultimate, is_dry_run=False,desc=''):
     # list with N lists, where N = |{image, label, index}|
     model_is_training = model.training
     model.eval()
     ds = dataloader.dataset
     A = [[] for i in range(len(ds[0]))]
+    if desc =='': desc ='Filling memory queue'
     with torch.no_grad():
-
         # use tqdm when the dataset is large (SOProducts)
         is_verbose = len(dataloader.dataset) > 0
 
         # extract batches (A becomes list of samples)
-        for batch in tqdm(dataloader, desc='Filling memory queue', disable=not is_verbose):
+        for batch in tqdm(dataloader, desc= desc, disable=not is_verbose):
             img_data, labels, indices = batch
             if not is_dry_run:
-                img_data = img_data.to(list(model.parameters())[0].device)
+                img_data = img_data.to(device)
                 img_embeddings = model(img_data, use_penultimate).data.cpu().numpy()
             else:
                 # just a placeholder not to break existing code
@@ -31,20 +36,7 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
             A[0].append(np.array(img_embeddings))
             A[1].append(labels.numpy())
             A[2].append(indices.numpy())
-            # for i, J in enumerate(batch):
-            #     # batch contains: [sz_batch * images, sz_batch * labels, sz_batch * indices]
-            #     if i == 0:
-            #         if not is_dry_run:
-            #             # move images to device of model (approximate device)
-            #             J = J.to(list(model.parameters())[0].device)
-            #             # predict model output for image
-            #             J = model(J, use_penultimate).data.cpu().numpy()
-            #             # take only subset of resulting embedding w.r.t dataset
-            #         else:
-            #             # just a placeholder not to break existing code
-            #             J = np.array([-1])
-            #     for j in J:
-            #         A[i].append(np.asarray(j))
+            
         result = [np.concatenate(A[i],axis =0) for i in range(len(A))]
     model.train()
     model.train(model_is_training) # revert to previous training state
@@ -54,12 +46,26 @@ def predict_batchwise(model, dataloader, use_penultimate, is_dry_run=False):
     else:
         return result
 
+def get_weighted_embed(X,weights,sub_dim):
+    assert len(weights) == len(sub_dim)
+    for i in range(len(sub_dim)):
+        start = int(sum(sub_dim[:i]))
+        stop = int(start + sub_dim[i])
+        X[:, start:stop] = weights[i]*X[:, start:stop]
+    # L2 normalize weighted X   
+    X = normalize(X,axis= 1)
+    return X
 
-def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',with_nmi = False):
+
+def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',with_nmi = False,init_eval =False):
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
-    X_query, T_query, _ = predict_batchwise(model, dl_query, use_penultimate)
-    X_gallery, T_gallery, _ = predict_batchwise(model, dl_gallery, use_penultimate)
+    X_query, T_query, I_query = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
+    X_gallery, T_gallery, I_gallery = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
+
+    if 'evaluation_weight' in config.keys() and not init_eval:
+        X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
+        X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
 
     nb_classes = dl_query.dataset.nb_classes()
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
@@ -98,41 +104,46 @@ def evaluate(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG
     ### save checkpoint #####
     if  flag_checkpoint:
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
-        aux_store = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':aux_store}, savepath)
+        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
 
-    if with_nmi:
-        # calculate NMI with kmeans clustering
-        nmi = evaluation.calc_normalized_mutual_information(
-            T_eval.numpy(),
-            similarity.cluster_by_kmeans(
-                X_eval.numpy(), nb_classes, backend=backend
-            )
-        )
-        LOG.progress_saver[log_key].log("nmi",nmi)
-        print("NMI: {:.3f}".format(nmi * 100))
-        scores['nmi'] = nmi
-
+    # if with_nmi:
+    #     # calculate NMI with kmeans clustering
+    #     nmi = evaluation.calc_normalized_mutual_information(
+    #         T_eval.numpy(),
+    #         similarity.cluster_by_kmeans(
+    #             X_eval.numpy(), nb_classes, backend=backend
+    #         )
+    #     )
+    #     LOG.progress_saver[log_key].log("nmi",nmi)
+    #     print("NMI: {:.3f}".format(nmi * 100))
+    #     scores['nmi'] = nmi
+    recover_closest_query_gallery( X_query,X_gallery,
+                                    dl_query.dataset.im_paths,
+                                    dl_gallery.dataset.im_paths,
+                                    LOG.config['checkfolder']+'/sample_recoveries.png',
+                                    n_image_samples=10, n_closest=4
+                                    )
     return scores
 
-def evaluate_train(model, dl_train, use_penultimate, backend,LOG, log_key = 'Train', with_nmi = False):
+def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val', with_nmi = False):
     nb_classes = dl_train.dataset.nb_classes()
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
-    X, T, _ = predict_batchwise(model, dl_train, use_penultimate)
-
+    X, T, _ = predict_batchwise(model, dl, use_penultimate, desc='Extraction Eval Features')
+    if 'evaluation_weight' in config.keys():
+        X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     scores = {}
 
     # calculate NMI with kmeans clustering
-    if with_nmi:
-        nmi = evaluation.calc_normalized_mutual_information(
-            T,
-            similarity.cluster_by_kmeans(
-                X, nb_classes, backend=backend
-            )
-        )
-        logging.info("NMI: {:.3f}".format(nmi * 100))
-        scores['nmi'] = nmi
+    # if with_nmi:
+    #     nmi = evaluation.calc_normalized_mutual_information(
+    #         T,
+    #         similarity.cluster_by_kmeans(
+    #             X, nb_classes, backend=backend
+    #         )
+    #     )
+    #     logging.info("NMI: {:.3f}".format(nmi * 100))
+    #     scores['nmi'] = nmi
 
     # get predictions by assigning nearest 8 neighbors with euclidian
     assert np.max(K) <= 8, ("Sorry, this is hardcoded here."
@@ -149,5 +160,103 @@ def evaluate_train(model, dl_train, use_penultimate, backend,LOG, log_key = 'Tra
         LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
 
     scores['recall'] = recall
-
+    recover_closest_standard(X, dl.dataset.im_paths, 
+                             LOG.config['checkfolder']+'/sample_recoveries.png',
+                             n_image_samples=10, n_closest=4
+                            )
     return scores
+
+    ####### RECOVER CLOSEST EXAMPLE IMAGES #######
+def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matrix_all, query_image_paths, gallery_image_paths, \
+                                  save_path, n_image_samples=10, n_closest=4):
+    query_image_paths, gallery_image_paths   = np.array(query_image_paths), np.array(gallery_image_paths)
+    sample_idxs = np.random.choice(np.arange(len(query_feature_matrix_all)), n_image_samples)
+
+    nns, _ = faissext.find_nearest_neighbors(gallery_feature_matrix_all, queries= query_feature_matrix_all[sample_idxs],
+                                                 k=n_closest,
+                                                 gpu_id= torch.cuda.current_device()
+        )
+    
+    image_paths = np.array([[gallery_image_paths[i] for i in ii] for ii in nns])
+    sample_paths = query_image_paths[sample_idxs]
+    temp = np.expand_dims(sample_paths,axis=1)
+    image_paths  = np.concatenate([temp, image_paths],axis=1)
+
+    f,axes = plt.subplots(n_image_samples, n_closest+1)
+
+    temp_sample_paths = image_paths.flatten()
+    temp_axes = axes.flatten()
+    for i in range(len(temp_sample_paths)):
+        plot_path = temp_sample_paths[i]
+        ax = temp_axes[i]
+        if ".png" in plot_path or ".jpg" in plot_path:
+            img_data = np.array(PIL.Image.open(plot_path))
+        else:
+            # get RGB channels from the band data of BigEarthNet
+            tif_img =[]
+            patch_name = plot_path.split("/")[-1]
+            for band_name in ['B04','B03','B02']:
+                img_path = plot_path +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = normalize(band_data,norm="max")*255
+                tif_img.append(band_data)
+            img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
+        ax.imshow(img_data)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if i%(n_closest+1):
+            ax.axvline(x=0, color='g', linewidth=13)
+        else:
+            ax.axvline(x=0, color='r', linewidth=13)
+    f.set_size_inches(10,20)
+    f.tight_layout()
+    f.savefig(save_path)
+    plt.close()
+
+##########################
+def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image_samples=10, n_closest=4):
+    sample_idxs = np.random.choice(np.arange(len(feature_matrix_all)), n_image_samples)
+
+    nns, _ = faissext.find_nearest_neighbors(feature_matrix_all, queries= feature_matrix_all[sample_idxs],
+                                                 k=n_closest,
+                                                 gpu_id= torch.cuda.current_device()
+        )
+    image_paths = np.array([[image_paths[i] for i in ii] for ii in nns])
+    sample_paths = image_paths[sample_idxs]
+    temp = np.expand_dims(sample_paths,axis=1)
+    image_paths  = np.concatenate([temp, image_paths],axis=1)
+
+    f,axes = plt.subplots(n_image_samples, n_closest+1)
+
+    temp_sample_paths = image_paths.flatten()
+    temp_axes = axes.flatten()
+    for i in range(len(temp_sample_paths)):
+        plot_path = temp_sample_paths[i]
+        ax = temp_axes[i]
+        if ".png" in plot_path or ".jpg" in plot_path:
+            img_data = np.array(PIL.Image.open(plot_path))
+        else:
+            # get RGB channels from the band data of BigEarthNet
+            tif_img =[]
+            patch_name = plot_path.split("/")[-1]
+            for band_name in ['B04','B03','B02']:
+                img_path = plot_path +'/'+ patch_name+'_'+band_name+'.tif'
+                band_ds = gdal.Open(img_path,  gdal.GA_ReadOnly)
+                raster_band = band_ds.GetRasterBand(1)
+                band_data = np.array(raster_band.ReadAsArray()) 
+                band_data = normalize(band_data,norm="max")*255
+                tif_img.append(band_data)
+            img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
+        ax.imshow(img_data)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        if i%(n_closest+1):
+            ax.axvline(x=0, color='g', linewidth=13)
+        else:
+            ax.axvline(x=0, color='r', linewidth=13)
+    f.set_size_inches(10,20)
+    f.tight_layout()
+    f.savefig(save_path)
+    plt.close()
