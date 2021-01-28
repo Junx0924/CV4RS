@@ -26,80 +26,27 @@ os.putenv("OMP_NUM_THREADS", "8")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
-def load_config(config_name):
-    ################### INPUT ARGUMENTS ###################
-    parser = argparse.ArgumentParser()
-    parser = par.basic_training_parameters(parser)
-    parser = par.setup_parameters(parser)
-    parser = par.wandb_parameters(parser)
-    parser = par.BIER(parser)
-    ##### Read in parameters
-    args = vars(parser.parse_args())
-
-    ##### Read config.json
-    config_name = pj_base_path +'/config.json'
-    with open(config_name, 'r') as f: config = json.load(f)
-   
-    #### Update config.json from INPUT ARGUMENTS ###########
-    config['pj_base_path'] = pj_base_path
-    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
-    config['dataloader']['batch_size'] = args.pop('batch_size')
-    config['dataloader']['num_workers'] = args.pop('num_workers')
-    config['opt']['backbone']['lr'] = args.pop('backbone_lr')
-    config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
-    config['opt']['embedding']['lr'] =args.pop('embedding_lr')
-    config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
-    dataset_name =  args.pop('dataset_name')
-    config['dataset_selected'] = dataset_name
-    config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
-    config['random_seed'] = args.pop('random_seed')
-    config['log_online'] = args.pop('log_online')
-    config['frozen'] = args.pop('frozen')
-    config['log']['save_path'] = args.pop('save_path')
-    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
-    if torch.cuda.is_available():
-        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
-    ### Update wandb config
-    if config['log_online']:
-        config['wandb']['wandb_key'] = args.pop('wandb_key')
-        config['wandb']['project'] =args.pop('project')
-        config['wandb']['group'] =args.pop('group')
-        # update save_name
-        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
-        import wandb
-        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
-        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
-        wandb.config.update(config)
-    # update save_path
-    config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
+def load_bier_config(config, args):
     
     #### UPdate Bier parameter 
-    config['lambda_weight'] = args.pop('lambda_weight')
-    config['lambda_div']= args.pop('lambda_div')
-    config['sub_embed_sizes'] = args.pop('sub_embed_sizes')
-    config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
-    config['hard_mining'] = args.pop('hard_mining')
-    config['alpha'] = args.pop('alpha')
-    config['beta'] = args.pop('beta')
-    config['margin'] = args.pop('margin')
+    config['project'] = 'bier'
+    config['lambda_weight'] = args.pop('bier_lambda_weight')
+    config['lambda_div']= args.pop('bier_lambda_div')
+    config['sub_embed_sizes'] = args.pop('bier_sub_embed_sizes')
     
-    for k in args:
-        if k in config:
-            config[k] = args[k]
+    # config the decorrelation between features
+    decorrelation = list(itertools.combinations(config['sub_embed_sizes'],2))
+    config['decorrelation'] = {}
+    for item in decorrelation:
+        direction_name = str(item[0])+ '-' + str(item[1])
+        config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':config['lambda_weight']}
 
-    def eval_json(config):
-        for k in config:
-            if type(config[k]) != dict:
-                if type(config[k]) is str:
-                    # if python types, then evaluate str expressions
-                    if config[k][:5] in ['range', 'float']:
-                        config[k] = eval(config[k])
-            else:
-                eval_json(config[k])
-    eval_json(config)   
+    config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
+    config['hard_mining'] = args.pop('bier_hard_mining')
+    config['alpha'] = args.pop('bier_alpha')
+    config['beta'] = args.pop('bier_beta')
+    config['margin'] = args.pop('bier_margin')
+    
     return config
 
 
@@ -119,30 +66,29 @@ class JSONEncoder(json.JSONEncoder):
 
 
 
-def train_batch(model, criterion_dict,opt, config, batch):
+def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     
     X = batch[0].to(config['device']) # images
     T = batch[1].to(config['device']) # class labels
     I = batch[2] # image ids
 
-    opt.zero_grad()
     feature = model(X)
     
     n = len(feature)
     total_loss =0.0
     bin_loss =0.0
     # l2 normalize feature
-    normed_fvecs = []
+    normed_fvecs = {}
     sub_dim = config['sub_embed_sizes']
     for i in range(len(sub_dim)):
         start = int(sum(sub_dim[:i]))
         stop = int(start + sub_dim[i])
         fvecs = F.normalize(feature[:, start:stop],p =2,dim =1)
-        normed_fvecs.append(fvecs)
+        normed_fvecs[str(sub_dim[i])] = fvecs
     
     # create similarity matrix for each sublearner
     sim_mats =[torch.zeros(n,n).to(config['device'])]
-    for fvecs in normed_fvecs:
+    for fvecs in normed_fvecs.values():
         temp_mat = torch.matmul(fvecs, fvecs.t())
         sim_mats.append(temp_mat)
     
@@ -169,12 +115,9 @@ def train_batch(model, criterion_dict,opt, config, batch):
     adv_loss = 0.0
     if config['lambda_div'] > 0.0:
         weight_loss =0.0
-        for (fevcs1,fevcs2) in list(itertools.combinations(normed_fvecs,2)):
-            criterion = criterion_dict['adversarial']
-            temp_loss,  adv_weight_loss = criterion(fevcs1,fevcs2)
-            adv_loss += adv_loss + temp_loss
-            weight_loss +=  adv_weight_loss
-        
+        adv_loss, adv_weight_loss = criterion_dict['adversarial'](normed_fvecs)
+        weight_loss += adv_weight_loss
+
         embedding_weights = model.embedding.weight.data
         for i in range(len(sub_dim)):
             start = int(sum(sub_dim[:i]))
@@ -183,32 +126,31 @@ def train_batch(model, criterion_dict,opt, config, batch):
             emb_weight_loss = torch.mean((torch.sum(W * W, axis=1) - 1)**2)
             weight_loss += emb_weight_loss 
     
-    total_loss = bin_loss + (adv_loss + weight_loss * config['lambda_weight']) * config['lambda_div']
+    total_loss = bin_loss + (adv_loss + weight_loss) * config['lambda_div']
+    opt.zero_grad()
     total_loss.backward()
+    # log the gradient of each layer
+    #lib.utils.GradientMeasure(model,LOG,log_key)
+    ### Update network weights!
     opt.step()
     return total_loss.item(),bin_loss.item(),adv_loss.item(), weight_loss.item()
 
 
-def get_optimizer(config, model):
-    opt = torch.optim.Adam([
-        {
-            'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-            **config['opt']['backbone']
-        },
-        {
-            'params': model.parameters_dict['embedding'],
-            **config['opt']['embedding']
-        }
-    ])
-    return opt
+def get_optim(config, model):
+    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+    #                **config['opt']['backbone'] }]
+    to_optim = [{'params': model.parameters_dict['backbone'],
+                    **config['opt']['backbone']}]
+    to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
+    return to_optim
 
 
 def main():
-    config_name = pj_base_path + '/config.json'
-    config = load_config(config_name)
+    config, args = par.load_common_config()
+    config = load_bier_config(config, args)
     metrics = {}
     #################### CREATE LOGGING FILES ###############
-    sub_loggers = ['Train', 'Val']
+    sub_loggers = ['Train', 'Val','Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
    
     # reserve GPU memory for faiss if faiss-gpu used
@@ -226,9 +168,11 @@ def main():
     model = lib.model.make(config)
     _ = model.to(config['device'])
 
+    to_optim = get_optim(config, model)
     criterion_dict ={} 
-    criterion_dict['binominal'] = lib.loss.select(config,'binominal')
-    criterion_dict['adversarial'] = lib.loss.select(config,'adversarial')
+    criterion_dict['binominal'],to_optim = lib.loss.select(config,to_optim,'binominal')
+    criterion_dict['adversarial'],to_optim = lib.loss.select(config,to_optim,'adversarial')
+    optimizer = torch.optim.Adam(to_optim)
 
     #model.embedding.weights
     start_epoch = 0
@@ -242,8 +186,10 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)  
+    #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
 
-    opt = get_optimizer(config, model)
+    to_optim = get_optim(config,model)
+    optimizer = torch.optim.Adam(to_optim)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
@@ -261,7 +207,7 @@ def main():
         losses = []
 
         for batch in tqdm(dataloaders['train'],desc = 'Train epoch {}.'.format(e)):
-            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, opt, config, batch)
+            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
             losses.append([total_loss, bin_loss, adv_loss, weight_loss])
 
         time_per_epoch_2 = time.time()
@@ -282,6 +228,9 @@ def main():
             'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
             'loss': {'train': current_loss}
         })
+        # evaluate the distance among inter and intra class
+        lib.utils.DistanceMeasure(model,config,dl_query,LOG,'Val')
+
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
