@@ -1,6 +1,10 @@
 from __future__ import print_function
 
 import argparse
+import os
+import json
+import torch
+
 def setup_parameters(parser):
      ##### Setup Parameters
     parser.add_argument('--dataset_name',      default='MLRSNet',   type=str,choices=['BigEarthNet', 'MLRSNet'], required = True,  help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
@@ -22,27 +26,31 @@ def basic_training_parameters(parser):
     parser.add_argument('--embedding-wd', default=1e-4, type=float, help='weight decay for embedding layer')
     parser.add_argument('--embedding-lr', default=1e-5, type=float, help='learning rate for embedding layer')
     parser.add_argument('--backend', default='faiss-gpu',choices=('faiss', 'faiss-gpu'))
+    parser.add_argument('--scheduler',         default='step',   type=str,   help='Type of learning rate scheduling. Currently: step & exp.')
+    parser.add_argument('--gamma',             default=0.3,      type=float, help='Learning rate reduction after tau epochs.')
+    parser.add_argument('--decay',             default=0.0004,   type=float, help='Weight decay for optimizer.')
+    parser.add_argument('--tau',               default=[30,55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
     return parser
 
 def divid_and_conquer(parser):
     ### for Method Divide and conquer
-    parser.add_argument('--mod-epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
-    parser.add_argument('--nb-clusters', default=4, type = int, help='the number of learners')
-    parser.add_argument('--finetune-epoch', default=110, type = int)
+    parser.add_argument('--dac_mod_epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
+    parser.add_argument('--dac_nb_clusters', default=4, type = int, help='the number of learners')
+    parser.add_argument('--dac_finetune_epoch', default=110, type = int)
     return parser
 
-def BIER(parser):
+def bier(parser):
     ## for Method Boosting Independent Embeddings (BIER)
     ## Binomial Deviance Loss
-    parser.add_argument('--alpha', type=float, default=25, help ='Weighting on negative similarities.')
-    parser.add_argument('--beta', type=float, default=2.0, help ='Weighting on positive similarities.')
-    parser.add_argument('--margin', type=float, default=0.5, help ='Distance margin for both positive and negative similarities')
-    parser.add_argument('--hard_mining', action='store_true')
+    parser.add_argument('--bier_alpha', type=float, default=25, help ='Weighting on negative similarities.')
+    parser.add_argument('--bier_beta', type=float, default=2.0, help ='Weighting on positive similarities.')
+    parser.add_argument('--bier_margin', type=float, default=0.5, help ='Distance margin for both positive and negative similarities')
+    parser.add_argument('--bier_hard_mining', action='store_true')
 
-    parser.add_argument('--lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
-    parser.add_argument('--lambda_div', type=float, default=5e-5, help ='regularization parameter')
-    parser.add_argument('--sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')
-    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
+    parser.add_argument('--bier_lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
+    parser.add_argument('--bier_lambda_div', type=float, default=5e-5, help ='regularization parameter')
+    parser.add_argument('--bier_sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')
+    parser.add_argument('--bier_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
     return parser 
 
 def diva(parser):
@@ -51,7 +59,7 @@ def diva(parser):
     parser.add_argument('--diva_alpha_ssl',      default=0.3,  type=float, help='weight for selfsimilarity feature')
     parser.add_argument('--diva_alpha_shared',   default=0.3,  type=float, help='weight for Class-shared feature') 
     parser.add_argument('--diva_alpha_intra',    default=0.3,  type=float, help='weight for Intra-class feature') 
-    parser.add_argument('--evaluation_weight', nargs='+', default=[0.5,1,1,1], type=float, help='to compute evaluation metrics on weighted (normalized) combinations')
+    parser.add_argument('--diva_evaluation_weight', nargs='+', default=[0.5,1,1,1], type=float, help='to compute evaluation metrics on weighted (normalized) combinations')
     
     ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
     parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')
@@ -61,8 +69,8 @@ def diva(parser):
     parser.add_argument('--diva_moco_upper_cutoff',  default=1.4,  type=float, help='Upper cutoff on distances - values above are IGNORED.')
 
     ### Adversarial loss for decorrelating features
-    parser.add_argument('--hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
-    parser.add_argument('--diva_adversarial_weight',      default=[1500,1500,1500], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
+    parser.add_argument('--diva_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
+    parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
 
     return parser 
 
@@ -74,3 +82,77 @@ def wandb_parameters(parser):
     parser.add_argument('--group',           default='Sample_Run',  type=str,   help='Name of the group - relates to W&B group names - all runs with same setup but different seeds are logged into one group. \
                                                                                                In --savename default setting part of the savename.')
     return parser 
+
+def load_common_config():
+    parser = argparse.ArgumentParser()
+    parser = basic_training_parameters(parser)
+    parser = setup_parameters(parser)
+    parser = wandb_parameters(parser)
+    parser = diva(parser)
+    parser = divid_and_conquer(parser)
+    parser = bier(parser)
+    args = vars(parser.parse_args())
+
+    ##### Read config.json
+    pj_base_path= os.path.dirname(os.path.realpath(__file__))
+    config_name = pj_base_path +'/config.json'
+    with open(config_name, 'r') as f: config = json.load(f)
+   
+    #### Update config.json from INPUT ARGUMENTS ###########
+    config['sz_embedding'] = args.pop('sz_embedding')
+    config['pj_base_path'] = pj_base_path
+    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
+    config['dataloader']['batch_size'] = args.pop('batch_size')
+    config['dataloader']['num_workers'] = args.pop('num_workers')
+    config['opt']['backbone']['lr'] = args.pop('backbone_lr')
+    config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
+    config['opt']['embedding']['lr'] =args.pop('embedding_lr')
+    config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
+    dataset_name =  args.pop('dataset_name')
+    config['dataset_selected'] = dataset_name
+    config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
+    config['random_seed'] = args.pop('random_seed')
+    config['log_online'] = args.pop('log_online')
+    config['frozen'] = args.pop('frozen')
+    config['log']['save_path'] = args.pop('save_path')
+    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
+    config['scheduler'] = args.pop('scheduler')
+    config['decay'] = args.pop('decay')
+    config['gamma'] = args.pop('gamma')
+    config['tau'] = args.pop('tau')
+
+    if torch.cuda.is_available():
+        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    ### Update wandb config  ###########
+    if config['log_online']:
+        config['wandb']['wandb_key'] = args.pop('wandb_key')
+        config['wandb']['project'] =args.pop('project')
+        config['wandb']['group'] =args.pop('group')
+        # update save_name
+        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
+        import wandb
+        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
+        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
+        wandb.config.update(config)
+    # update save_path
+    config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
+
+    for k in args:
+        if k in config:
+            config[k] = args[k]
+
+    def eval_json(config):
+        for k in config:
+            if type(config[k]) != dict:
+                if type(config[k]) is str:
+                    # if python types, then evaluate str expressions
+                    if config[k][:5] in ['range', 'float']:
+                        config[k] = eval(config[k])
+            else:
+                eval_json(config[k])
+    eval_json(config)   
+    return config, args
+
