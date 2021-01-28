@@ -4,14 +4,14 @@ import numpy as np
 
 """================================================================================================="""
 class Fast_moco(torch.nn.Module):
-    def __init__(self, config,moco_temperature = 0.07, moco_momentum= 0.9, moco_n_key_batches= 30,moco_temp_lr= 0.0005,lower_cutoff=0.5, upper_cutoff=1.4):
+    def __init__(self, config,moco_temperature = 0.07, moco_momentum= 0.9, moco_n_key_batches= 30,lower_cutoff=0.5, upper_cutoff=1.4):
         
         super(Fast_moco, self).__init__()
 
-        self.temperature   = moco_temperature
+        self.temperature = moco_temperature
+
         self.momentum      = moco_momentum
         self.n_key_batches = moco_n_key_batches
-        self.lr          = moco_temp_lr
         self.lower_cutoff = lower_cutoff
         self.upper_cutoff = upper_cutoff
         batch_size = config['dataloader']['batch_size']
@@ -19,6 +19,7 @@ class Fast_moco(torch.nn.Module):
 
         self.diva_features = config['diva_features'] 
         self.sz_embedding = config['sz_embedding']
+        
     def update_memory_queue(self, embeddings):
         self.memory_queue = self.memory_queue[len(embeddings):,:]
         self.memory_queue = torch.cat([self.memory_queue, embeddings], dim=0)
