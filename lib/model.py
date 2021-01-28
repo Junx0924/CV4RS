@@ -62,13 +62,16 @@ def resnet50(config, pretrained = True):
     model.sz_features_output = 2048
 
     if config['frozen']:
-        child_counter = 0
-        for child in model.children():
-            if child_counter == 0 and config['dataset_selected'] =="BigEarthNet":
-                continue
-            else:
-                for param in child.parameters():
-                    param.requires_grad = False
+        # child_counter = 0
+        # for child in model.children():
+        #     if child_counter == 0 and config['dataset_selected'] =="BigEarthNet":
+        #         continue
+        #     else:
+        #         for param in child.parameters():
+        #             param.requires_grad = False
+        for module in filter(lambda m: type(m) == torch.nn.BatchNorm2d, model.modules()):
+            module.eval()
+            module.train = lambda _: None
     return model
 
 
@@ -108,7 +111,6 @@ def init_splitted(layer, sub_embed_sizes):
 
 
 def embed_model(model, config, sz_embedding, normalize_output=True):
-    
     if config['dataset_selected'] =="BigEarthNet": k_s = 4
     else: k_s = 7
     model.features_pooling = AvgPool2d(k_s,
