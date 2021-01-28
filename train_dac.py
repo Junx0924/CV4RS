@@ -23,80 +23,18 @@ os.putenv("OMP_NUM_THREADS", "8")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
-def load_config(config_name):
-    ################### INPUT ARGUMENTS ###################
-    parser = argparse.ArgumentParser()
-    parser = par.basic_training_parameters(parser)
-    parser = par.setup_parameters(parser)
-    parser = par.wandb_parameters(parser)
-    parser = par.divid_and_conquer(parser)
-    ##### Read in parameters
-    args = vars(parser.parse_args())
-
-    ##### Read config.json
-    config_name = pj_base_path +'/config.json'
-    with open(config_name, 'r') as f: config = json.load(f)
-   
-    #### Update config.json from INPUT ARGUMENTS ###########
-    config['sz_embedding'] = args.pop('sz_embedding')
-    config['pj_base_path'] = pj_base_path
-    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
-    config['dataloader']['batch_size'] = args.pop('batch_size')
-    config['dataloader']['num_workers'] = args.pop('num_workers')
-    config['opt']['backbone']['lr'] = args.pop('backbone_lr')
-    config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
-    config['opt']['embedding']['lr'] =args.pop('embedding_lr')
-    config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
-    dataset_name =  args.pop('dataset_name')
-    config['dataset_selected'] = dataset_name
-    config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
-    config['random_seed'] = args.pop('random_seed')
-    config['log_online'] = args.pop('log_online')
-    config['frozen'] = args.pop('frozen')
-    config['log']['save_path'] = args.pop('save_path')
-    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
-    if torch.cuda.is_available():
-        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    #### wandb config ####
-    if config['log_online']:
-        config['wandb']['wandb_key'] = args.pop('wandb_key')
-        config['wandb']['project'] =args.pop('project')
-        config['wandb']['group'] =args.pop('group')
-        # update save_name
-        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
-        import wandb
-        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
-        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
-        wandb.config.update(config)
-    # update save_path
-    config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
+def load_dac_config(config, args):
 
     #### Update divide and conquer parameters ###
-    config['recluster']['mod_epoch'] = args.pop('mod_epoch')
-    config['finetune_epoch'] = args.pop('finetune_epoch')
-    config['nb_clusters'] = args.pop('nb_clusters')
+    config['project'] = 'dac'
+    config['recluster']['mod_epoch'] = args.pop('dac_mod_epoch')
+    config['finetune_epoch'] = args.pop('dac_finetune_epoch')
+    config['nb_clusters'] = args.pop('dac_nb_clusters')
     if 'sub_embed_sizes' not in config.keys():
         config['sub_embed_sizes'] = [config['sz_embedding']//config['nb_clusters']]*config['nb_clusters']
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     
-    for k in args:
-        if k in config:
-            config[k] = args[k]
-
-    def eval_json(config):
-        for k in config:
-            if type(config[k]) != dict:
-                if type(config[k]) is str:
-                    # if python types, then evaluate str expressions
-                    if config[k][:5] in ['range', 'float']:
-                        config[k] = eval(config[k])
-            else:
-                eval_json(config[k])
-    eval_json(config)   
     return config
 
 
@@ -116,7 +54,7 @@ class JSONEncoder(json.JSONEncoder):
 
 
 
-def train_batch(model, criterion, opt, config, batch, cluster_id, epoch):
+def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
     X = batch[0].to(config['device']) # images
     T = batch[1].to(config['device']) # class labels
     I = batch[2] # image ids
@@ -131,38 +69,26 @@ def train_batch(model, criterion, opt, config, batch, cluster_id, epoch):
         M_sub = M[cluster_id]
 
     M_sub = torch.nn.functional.normalize(M_sub, p=2, dim=1)
-    loss = criterion[cluster_id](M_sub, T)
-    opt.zero_grad()
+    #loss = criterion[cluster_id](M_sub, T)
+    loss = criterion(M_sub, T)
+    optimizer.zero_grad()
     loss.backward()
-    opt.step()
+    optimizer.step()
     return loss.item()
 
 
-def get_criterion(config):
-    dataset_selected = config['dataset_selected']
-    nb_classes = config['transform_parameters'][dataset_selected]['classes']
-    print('Create margin loss for classes={}'.format(nb_classes))
-    criterion = [lib.loss.select(config) for i in range(config['nb_clusters'])]
-    return criterion
-
-
-def get_optimizer(config, model):
-    opt = torch.optim.Adam([
-        {
-            'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-            **config['opt']['backbone']
-        },
-        {
-            'params': model.parameters_dict['embedding'],
-            **config['opt']['embedding']
-        }
-    ])
-    return opt
+def get_optim(config, model):
+    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+    #                **config['opt']['backbone'] }]
+    to_optim = [{'params': model.parameters_dict['backbone'],
+                    **config['opt']['backbone']}]
+    to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
+    return to_optim
 
 
 def main():
-    config_name = pj_base_path + '/config.json'
-    config = load_config(config_name)
+    config, args = par.load_common_config()
+    config = load_dac_config(config, args)
     metrics = {}
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val']
@@ -171,7 +97,6 @@ def main():
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
-   
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -197,9 +122,15 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
+    #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
+
     
-    criterion = get_criterion(config)
-    opt = get_optimizer(config, model)
+    to_optim = get_optim(config, model)
+    # temp = [lib.loss.select(config,to_optim,'margin','semihard') for i in range(config['nb_clusters'])]
+    # criterion = [item[0] for item in temp]
+    # optimizer = [torch.optim.Adam(item[1]) for item in temp]
+    criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
+    optimizer = torch.optim.Adam(to_optim)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
@@ -242,9 +173,10 @@ def main():
         # calculate number of batches for tqdm
         max_len_dataloaders = max([len(dl) for dl in dataloaders['train']])
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
-
+        
+        _ = model.train()
         for batch, dset in tqdm(mdl,total = num_batches_approx,disable = num_batches_approx < 100,desc = 'Train epoch {}.'.format(e)):
-            loss = train_batch(model, criterion, opt, config, batch, dset.id, e)
+            loss = train_batch(model, criterion, optimizer, config, batch, dset.id, e)
             losses_per_epoch.append(loss)
 
         time_per_epoch_2 = time.time()
@@ -256,11 +188,16 @@ def main():
         faiss_reserver.release()
 
         # evaluate
+        _ = model.eval()
         tic = time.time()
         metrics[e].update({
             'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
             'loss': {'train': current_loss}
         })
+
+        # evaluate the distance among inter and intra class
+        lib.utils.DistanceMeasure(model,config,dl_query,LOG,'Val')
+
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
