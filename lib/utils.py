@@ -12,8 +12,9 @@ import matplotlib.pyplot as plt, numpy as np, torch
 import PIL
 import os
 from osgeo import gdal
+import scipy
 
-def predict_batchwise(model, dataloader, device,use_penultimate, is_dry_run=False,desc=''):
+def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
     # list with N lists, where N = |{image, label, index}|
     model_is_training = model.training
     model.eval()
@@ -53,7 +54,7 @@ def get_weighted_embed(X,weights,sub_dim):
         stop = int(start + sub_dim[i])
         X[:, start:stop] = weights[i]*X[:, start:stop]
     # L2 normalize weighted X   
-    X = normalize(X,axis= 1)
+    # X = normalize(X,axis= 1)
     return X
 
 
@@ -72,15 +73,12 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     
     # calculate full similarity matrix, choose only first `len(X_query)` rows
     # and only last columns corresponding to the column
-    T_eval = torch.cat(
-        [torch.from_numpy(np.array(T_query,dtype = int)), torch.from_numpy(np.array(T_gallery, dtype = int))])
-    X_eval = torch.cat(
-        [torch.from_numpy(X_query), torch.from_numpy(X_gallery)])
-    D = similarity.pairwise_distance(X_eval)[:len(X_query), len(X_query):]
-
-    D = torch.from_numpy(D)
+    T_eval = torch.cat([torch.from_numpy(np.array(T_query,dtype = int)), torch.from_numpy(np.array(T_gallery, dtype = int))])
+    X_eval = torch.cat([torch.from_numpy(X_query), torch.from_numpy(X_gallery)])
+    D_check = similarity.pairwise_distance(X_eval)[:len(X_query), len(X_query):]
+    D_check = torch.from_numpy(D_check)
     # get top k labels with smallest (`largest = False`) distance
-    Y = T_gallery[D.topk(k = max(K), dim = 1, largest = False)[1]]
+    T_query_pred = T_gallery[D_check.topk(k = max(K), dim = 1, largest = False)[1]]
 
     flag_checkpoint = False
     history_recall1 = 0
@@ -92,7 +90,7 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     scores = {}
     recall = []
     for k in K:
-        r_at_k = evaluation.calc_recall_at_k(T_query, Y, k)
+        r_at_k = evaluation.calc_recall_at_k(T_query, T_query_pred, k)
         recall.append(r_at_k)
         LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
         print("eval data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
@@ -117,12 +115,12 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     #     LOG.progress_saver[log_key].log("nmi",nmi)
     #     print("NMI: {:.3f}".format(nmi * 100))
     #     scores['nmi'] = nmi
-    recover_closest_query_gallery( X_query,X_gallery,
-                                    dl_query.dataset.im_paths,
-                                    dl_gallery.dataset.im_paths,
-                                    LOG.config['checkfolder']+'/sample_recoveries.png',
-                                    n_image_samples=10, n_closest=4
-                                    )
+    # recover_closest_query_gallery( X_query,X_gallery,
+    #                                 dl_query.dataset.im_paths,
+    #                                 dl_gallery.dataset.im_paths,
+    #                                 LOG.config['checkfolder']+'/sample_recoveries.png',
+    #                                 n_image_samples=10, n_closest=4
+    #                                 )
     return scores
 
 def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val', with_nmi = False):
@@ -149,12 +147,12 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
     assert np.max(K) <= 8, ("Sorry, this is hardcoded here."
                 " You would need to retrieve > 8 nearest neighbors"
                             " to calculate R@k with k > 8")
-    Y = similarity.assign_by_euclidian_at_k(X, T, 8, backend=backend)
+    T_pred = similarity.assign_by_euclidian_at_k(X, T, 8, backend=backend)
 
     # calculate recall @ 1, 2, 4, 8
     recall = []
     for k in K:
-        r_at_k = evaluation.calc_recall_at_k(T, Y, k)
+        r_at_k = evaluation.calc_recall_at_k(T, T_pred, k)
         recall.append(r_at_k)
         print("train data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
         LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
@@ -165,6 +163,8 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
                              n_image_samples=10, n_closest=4
                             )
     return scores
+
+
 
     ####### RECOVER CLOSEST EXAMPLE IMAGES #######
 def recover_closest_query_gallery(query_feature_matrix_all, gallery_feature_matrix_all, query_image_paths, gallery_image_paths, \
@@ -260,3 +260,45 @@ def recover_closest_standard(feature_matrix_all, image_paths, save_path, n_image
     f.tight_layout()
     f.savefig(save_path)
     plt.close()
+
+def DistanceMeasure(model,config,dataloader,LOG, log_key):
+    """
+    log the change of distance ratios
+    between intra-class distances and inter-class distances.
+    X: embedding lists
+    label_dict: for each class contains all the indices belong to the same class
+
+    """
+    print("Start to evaluate the distance ratios between intra-class and inter-class")
+    image_dict = dataloader.dataset.image_dict
+    X, _,_ = predict_batchwise(model,dataloader,config['device'])
+    if 'evaluation_weight' in config.keys():
+        X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
+    #Compute average intra-class distance and center feature of each class.
+    common_X , intra_dist =[],[]
+    for label in image_dict.keys():
+        inds = [ item[-1] for item in image_dict[label]]
+        dists = scipy.spatial.distance.cdist(X[inds],X[inds],'cosine')
+        dists = np.sum(dists)/(len(dists)**2-len(dists))
+        x   = normalize(np.mean(X[inds],axis=0).reshape(1,-1)).reshape(-1)
+        intra_dist.append(dists)
+        common_X.append(x)
+    
+    # mean intra-class distance
+    mean_intra_dist = np.mean(intra_dist)
+
+    #Compute mean inter-class distances by common_X
+    mean_inter_dist = scipy.spatial.distance.cdist(np.array(common_X),np.array(common_X),'cosine')
+    mean_inter_dist = np.sum(mean_inter_dist)/(len(mean_inter_dist)**2-len(mean_inter_dist))
+
+    LOG.progress_saver[log_key].log('inter',mean_inter_dist,group='cosine_dist')
+    LOG.progress_saver[log_key].log('intra',mean_intra_dist,group='cosine_dist')
+
+def GradientMeasure(model,LOG,log_key):
+    # record the gradient of the weight of each layer in the model
+    for name, param in model.named_parameters():
+        if param.requires_grad == True and 'weight' in name and param.grad is not None:
+            grads = param.grad.detach().cpu().numpy().flatten()
+            grad_l2, grad_max  = np.mean(np.sqrt(np.mean(np.square(grads)))), np.mean(np.max(np.abs(grads)))
+            LOG.progress_saver[log_key].log(name+'_l2',grad_l2)
+            LOG.progress_saver[log_key].log(name+'_max',grad_max)
