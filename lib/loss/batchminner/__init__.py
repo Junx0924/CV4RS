@@ -1,4 +1,4 @@
-from .distance import distance
-from .intra_random import intra_random
+from .distance import Distance
+from .intra_random import Intra_random
 from .semihard import Semihard
-from .random_distance import random_distance
+from .random_distance import Random_distance
