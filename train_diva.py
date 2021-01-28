@@ -25,99 +25,42 @@ os.putenv("OMP_NUM_THREADS", "8")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
-def load_config(config_name):
-    ################### INPUT ARGUMENTS ###################
-    parser = argparse.ArgumentParser()
-    parser = par.basic_training_parameters(parser)
-    parser = par.setup_parameters(parser)
-    parser = par.wandb_parameters(parser)
-    parser = par.diva(parser)
-    ##### Read in parameters
-    args = vars(parser.parse_args())
-
-    ##### Read config.json
-    config_name = pj_base_path +'/config.json'
-    with open(config_name, 'r') as f: config = json.load(f)
-   
-    #### Update config.json from INPUT ARGUMENTS ###########
-    config['sz_embedding'] = args.pop('sz_embedding')
-    config['pj_base_path'] = pj_base_path
-    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
-    config['dataloader']['batch_size'] = args.pop('batch_size')
-    config['dataloader']['num_workers'] = args.pop('num_workers')
-    config['opt']['backbone']['lr'] = args.pop('backbone_lr')
-    config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
-    config['opt']['embedding']['lr'] =args.pop('embedding_lr')
-    config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
-    dataset_name =  args.pop('dataset_name')
-    config['dataset_selected'] = dataset_name
-    config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
-    config['random_seed'] = args.pop('random_seed')
-    config['log_online'] = args.pop('log_online')
-    config['frozen'] = args.pop('frozen')
-    config['log']['save_path'] = args.pop('save_path')
-    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
-    if torch.cuda.is_available():
-        config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    ### Update wandb config
-    if config['log_online']:
-        config['wandb']['wandb_key'] = args.pop('wandb_key')
-        config['wandb']['project'] =args.pop('project')
-        config['wandb']['group'] =args.pop('group')
-        # update save_name
-        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
-        import wandb
-        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
-        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
-        wandb.config.update(config)
-    # update save_path
-    config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
-
-    #### Update Diva parameter 
+def load_diva_config(config,args):
+    #### Update Diva parameter  ###########
+    config['project'] = 'diva'
     config['diva_features'] = args.pop('diva_features')
     if 'sub_embed_sizes' not in config.keys():
         num_feature =  len(config['diva_features'])
         config['sub_embed_sizes'] =[config['sz_embedding'] //num_feature]*num_feature
+        config['dive_feature_size'] = { feature:int(size) for feature, size in zip(config['diva_features'],config['sub_embed_sizes'])}
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
 
-    config['hidden_adversarial_size'] = args.pop('hidden_adversarial_size')
+    config['hidden_adversarial_size'] = args.pop('diva_hidden_adversarial_size')
 
-    config['loss_weight']={'selfsimilarity':args.pop('diva_alpha_ssl'),
-                    'intra':args.pop('diva_alpha_intra'),
-                    'shared':args.pop('diva_alpha_shared'),
-                    'discriminative': 1,
-                    'separation':1}
+    config['criterion']={'selfsimilarity':{'weight':args.pop('diva_alpha_ssl'),'loss':'fast_moco','batchminner':None},
+                         'intra':         {'weight':args.pop('diva_alpha_intra'),'loss':'margin', 'batchminner':'intra_random'},
+                         'shared':        {'weight':args.pop('diva_alpha_shared'),'loss': 'margin','batchminner':'random_distance'},
+                         'discriminative':{'weight':1,'loss': 'margin','batchminner':'distance'},
+                         'decorrelation':    {'weight':1,'loss':'adversarial','batchminner':None}
+                        }
+    
+    # config the decorrelation between features
+    if 'shared' in config['diva_features'] and len(config['diva_features'])==4:
+        decorrelation =  ['selfsimilarity-discriminative', 'shared-discriminative', 'intra-discriminative']
+        weights = args.pop('diva_adversarial_weight')
+
+        assert len(weights) == len(decorrelation)
+        config['decorrelation']= {}
+        for item, weight in zip(decorrelation, weights) :
+            feature1, feature2 = item.split('-')
+            dim1, dim2 = config['dive_feature_size'][feature1], config['dive_feature_size'][feature2]
+            config['decorrelation'][item] = {'dim':str(dim1)+'-'+str(dim2), 'weight':weight}
+    
     if len(config['diva_features']) >1:
-        config['evaluation_weight'] = args.pop('evaluation_weight')
+        config['evaluation_weight'] = args.pop('diva_evaluation_weight')
         assert len(config['diva_features']) == len(config['evaluation_weight'])
 
-    if 'selfsimilarity' in config['diva_features']:
-       config['include_aux_augmentations'] = True 
-    else:
-        config['include_aux_augmentations'] = False 
-
-    if 'shared' in config['diva_features'] and len(config['diva_features'])==4:
-        config['diva_adversarial_weight'] =args.pop('diva_adversarial_weight')
-        config['diva_decorrelations'] = ['selfsimilarity-discriminative', 'shared-discriminative', 'intra-discriminative']
-        assert len(config['diva_decorrelations']) == len(config['diva_adversarial_weight'])
-    
-    for k in args:
-        if k in config:
-            config[k] = args[k]
-
-    def eval_json(config):
-        for k in config:
-            if type(config[k]) != dict:
-                if type(config[k]) is str:
-                    # if python types, then evaluate str expressions
-                    if config[k][:5] in ['range', 'float']:
-                        config[k] = eval(config[k])
-            else:
-                eval_json(config[k])
-    eval_json(config)   
+    config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
     return config
 
 
@@ -137,7 +80,7 @@ class JSONEncoder(json.JSONEncoder):
 
 
 
-def train_batch(model,criterion_dict, opt, config, batch,selfsim_model=None):
+def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):
     if len(batch) ==5:
         X = batch[0] # images
         T = batch[1] # class labels
@@ -168,27 +111,27 @@ def train_batch(model,criterion_dict, opt, config, batch,selfsim_model=None):
     
     # record different losses
     losses ={} 
-    loss_weight = config['loss_weight']
     total_loss =0.0
     for key in criterion_dict.keys():
         if key =='selfsimilarity':
             temp_loss = criterion_dict[key](features[key],selfsim_key_features)
-        elif key =='separation':
-            temp_loss =0.0
-            for direction, weight in zip(config['diva_decorrelations'], config['diva_adversarial_weight']):
-                source, target = direction.split('-')
-                temp_loss += weight* criterion_dict[key](features[source],features[target])
+        elif key =='decorrelation':
+            temp_loss = criterion_dict[key](features)
         else:
-            temp_loss =  criterion_dict[key](features[key],T)
+            temp_loss = criterion_dict[key](features[key],T)
         
         losses[key] = temp_loss.item()
-        total_loss += loss_weight[key]*temp_loss
+        weight = config['criterion'][key]['weight']
+        total_loss += weight*temp_loss
     losses['total'] = total_loss.item()
         
-    opt.zero_grad()
+    optimizer.zero_grad()
     total_loss.backward()
+
+    # log the gradient of each layer
+    #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
-    opt.step()
+    optimizer.step()
 
     if 'selfsimilarity' in criterion_dict:
         ### Update Key Network
@@ -201,35 +144,34 @@ def train_batch(model,criterion_dict, opt, config, batch,selfsim_model=None):
     return losses
 
 
-def get_criterion(config):
+def get_criterion(config, to_optim):
     criterion_dict ={}
-    for name in config['diva_features']:
-        criterion_dict[name] = lib.loss.select(config,name)
-    if len(config['diva_features']) >1:
-        criterion_dict['separation'] =  lib.loss.select(config,'separation')
-    return criterion_dict
+    for feature in config['diva_features']:
+        loss_name = config['criterion'][feature]['loss']
+        batchminner = config['criterion'][feature]['batchminner']
+        criterion_dict[feature], to_optim = lib.loss.select(config,to_optim,loss_name,batchminner)
+    if 'decorrelation' in config.keys():
+        loss_name = config['criterion']['decorrelation']['loss']
+        batchminner = config['criterion']['decorrelation']['batchminner']
+        criterion_dict['decorrelation'], to_optim = lib.loss.select(config,to_optim,loss_name,batchminner)
 
+    return criterion_dict,to_optim
 
-def get_optimizer(config, model):
-    opt = torch.optim.Adam([
-        {
-            'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-            **config['opt']['backbone']
-        },
-        {
-            'params': model.parameters_dict['embedding'],
-            **config['opt']['embedding']
-        }
-    ])
-    return opt
+def get_optim(config, model):
+    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+    #                **config['opt']['backbone'] }]
+    to_optim = [{'params': model.parameters_dict['backbone'],
+                    **config['opt']['backbone']}]
+    to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
+    return to_optim
 
 
 def main():
-    config_name = pj_base_path + '/config.json'
-    config = load_config(config_name)
+    config, args = par.load_common_config()
+    config = load_diva_config(config, args)
     metrics = {}
     #################### CREATE LOGGING FILES ###############
-    sub_loggers = ['Train', 'Val']
+    sub_loggers = ['Train', 'Val', 'Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
    
     # reserve GPU memory for faiss if faiss-gpu used
@@ -262,24 +204,36 @@ def main():
     best_recall = 0
  
     # create train dataset
-    dataloaders = {}
     flag_aux =config['include_aux_augmentations']
-    dataloaders['train'] = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
+    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
     
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
-
+    #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
+    
     # define loss function for each feature
-    criterion_dict = get_criterion(config)
-    if 'selfsimilarity' in criterion_dict.keys():
-        dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train',is_onehot=True)
-        criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dataloaders['init'], config['device'], opt_key='selfsimilarity') 
+    to_optim = get_optim(config, model)
+    criterion_dict, to_optim = get_criterion(config, to_optim)
+    
+    # As optimizer, Adam with standard parameters is used.
+    optimizer = torch.optim.Adam(to_optim)
+    if config['scheduler']=='exp':
+        scheduler    = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config['gamma'])
+    elif config['scheduler']=='step':
+        scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config['tau'], gamma=config['gamma'])
+    elif config['scheduler']=='none':
+        print('No scheduling used!')
+    else:
+        raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
-    opt = get_optimizer(config, model)
+    if 'selfsimilarity' in criterion_dict.keys():
+        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train',is_onehot=True)
+        criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
+    
 
     faiss_reserver.release()
-    print("Evaluating initial model...")
+    print("\nEvaluating initial model...")
     metrics[-1] = {'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, init_eval= True)}
     best_recall = metrics[-1]['score']['recall'][0]
 
@@ -287,17 +241,19 @@ def main():
     t1 = time.time()
 
     for e in range(start_epoch, config['nb_epochs']):
+        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
         is_best = False
         config['epoch'] = e
         metrics[e] = {}
         time_per_epoch_1 = time.time()
 
         loss_collect ={}
-        for batch in tqdm(dataloaders['train'],desc = 'Train epoch {}.'.format(e)):
+        _ = model.train()
+        for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
             if 'selfsimilarity' in criterion_dict.keys():
-                losses = train_batch(model, criterion_dict,opt, config, batch,selfsim_model=selfsim_model)
+                losses = train_batch(model, criterion_dict,optimizer, config, batch, LOG, 'Grad', selfsim_model)
             else:
-                losses = train_batch(model, criterion_dict,opt, config, batch)
+                losses = train_batch(model, criterion_dict,optimizer, config, batch, LOG, 'Grad')
             for key in losses:
                 if key not in loss_collect.keys():
                     loss_collect[key] = []
@@ -313,11 +269,15 @@ def main():
         faiss_reserver.release()
 
         # evaluate
+        _ = model.eval()
         tic = time.time()
         metrics[e].update({
             'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG),
             'loss': {'train': current_loss}
         })
+        # evaluate the distance inter and intra class
+        lib.utils.DistanceMeasure(model,config,dl_query,LOG,'Val')
+
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
@@ -331,6 +291,9 @@ def main():
             print('Best epoch!')
 
         model.current_epoch = e
+        ### Learning Rate Scheduling Step
+        if config['scheduler'] != 'none':  scheduler.step()
+           
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
     print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
