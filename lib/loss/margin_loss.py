@@ -25,8 +25,8 @@ class MarginLoss(torch.nn.Module):
         Loss value.
     """
 
-    def __init__(self, nb_classes, beta=1.2, margin=0.2, nu=0.0,
- 		 class_specific_beta=False, batchminer = None,**kwargs):
+    def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.0,
+ 		 class_specific_beta=True, batchminner = None,**kwargs):
         super(MarginLoss, self).__init__()
 
         self.nb_classes = nb_classes
@@ -36,15 +36,17 @@ class MarginLoss(torch.nn.Module):
             beta = torch.ones(nb_classes, dtype=torch.float32) * beta
         else:
             beta = torch.tensor([beta], dtype=torch.float32)
+        # make beta trainable
         self.beta = torch.nn.Parameter(beta)
         self.margin = margin
         self.nu = nu
        
-        self.batchminer = batchminer
-
+        self.batchminner = batchminner
+        # Learning Rate for class margin parameters in MarginLoss
+        self.beta_lr = beta_lr 
 
     def forward(self, feature, labels):
-        anchor_idx, pos_idx, neg_idx = self.batchminer(feature, labels)
+        anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
         anchors = feature[anchor_idx] 
         positives = feature[pos_idx]
         negatives = feature[neg_idx]
