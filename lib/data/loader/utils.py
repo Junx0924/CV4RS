@@ -25,7 +25,7 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
     shuffle= config['dataloader']['shuffle']
     
     ds = dataset.select(
-        root = root,
+        datapath = root,
         dset_type = dset_type, # dset_type: train, query, gallery
         transform = transform,
         is_training = type == 'train',
@@ -38,10 +38,10 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
         dl = torch.utils.data.DataLoader(
             ds,
             num_workers= num_workers,
-            batch_sampler= train_data_sampler
+            batch_sampler= train_data_sampler,
             )
     else:
-        # else init or eval loader
+        # else init or eval loader (shuffle = false)
         dl = torch.utils.data.DataLoader(ds, **config['dataloader'])
     return dl
 
