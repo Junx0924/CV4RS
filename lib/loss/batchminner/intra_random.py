@@ -2,7 +2,7 @@ import numpy as np, torch
 import itertools as it
 import random
 
-class intra_random():
+class Intra_random():
     def __call__(self, batch, labels):
         if isinstance(labels, torch.Tensor): labels = labels.detach().cpu().numpy()
         unique_classes   = np.unique(labels)

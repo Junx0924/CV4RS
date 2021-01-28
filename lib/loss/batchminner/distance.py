@@ -1,7 +1,7 @@
 import numpy as np, torch
 
 
-class distance():
+class Distance():
     def __init__(self, lower_cutoff =0.5,upper_cutoff =1.4):
         self.lower_cutoff =  lower_cutoff
         self.upper_cutoff =  upper_cutoff
