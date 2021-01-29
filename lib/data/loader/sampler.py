@@ -29,7 +29,8 @@ class ClassBalancedSampler(torch.utils.data.sampler.Sampler):
             ### Random Subset from Random classes
             for _ in range(self.batch_size//self.samples_per_class):
                 class_key = random.choice(list(self.image_dict.keys()))
-                subset.extend([random.choice(self.image_dict[class_key])[-1] for _ in range(self.samples_per_class)])
+                index_pool = [item[-1] for item in self.image_dict[class_key]]
+                subset.extend(np.random.choice(index_pool, self.samples_per_class, replace=False))
             yield subset
 
     def __len__(self):
