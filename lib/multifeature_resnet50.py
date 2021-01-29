@@ -34,60 +34,39 @@ def increase_channels(m, num_channels=None, copy_weights=0):
 
     return new_m
 
-def make_parameters_dict(model, filter_module_names):
-    """
-    Separates model parameters into 'backbone' and other modules whose names
-    are given in as list in `filter_module_names`, e.g. ['embedding_layer'].
-    """
-
-    # init parameters dict
-    D = {k: [] for k in ['backbone', *filter_module_names]}
-    for name, param in model.named_parameters():
-        name = name.split('.')[0]
-        if name not in filter_module_names:
-            D['backbone'] += [param]
-        else:
-            D[name] += [param]
-
-    # verify that D contains same number of parameters as in model
-    nb_total = len(list(model.parameters()))
-    nb_dict_params = sum([len(D[d]) for d in D])
-    assert nb_total == nb_dict_params
-    return D
-
 class Network(nn.Module):
     def __init__(self, config):
         super(Network, self).__init__()
         # set pretrained = False to stop downloading weight from internet
-        self.model = torchvision.models.resnet50(pretrained = False)
+        model = torchvision.models.resnet50(pretrained = False)
         state_dict = torch.load(config['pretrained_weights_file'])
-        self.model.load_state_dict(state_dict)  
+        model.load_state_dict(state_dict)  
 
-        self.feature_dim = 2048
+        self.feature_dim = model.fc.in_features
         # This increases the number of input channels for our network
         if config["dataset_selected"] =="BigEarthNet":
             input_channels = 12
-            self.model.conv1 = increase_channels(self.model.conv1, input_channels)
+            self.conv1 = increase_channels(model.conv1, input_channels)
+
+        self.features = torch.nn.Sequential(
+            self.conv1, model.bn1, model.relu, model.maxpool,
+           model.layer1, model.layer2, model.layer3, model.layer4)
 
         if config['frozen']:
             child_counter = 0
-            for child in self.model.children():
+            for child in self.features:
                 if child_counter == 0 and config['dataset_selected'] =="BigEarthNet":
                     continue
                 else:
                     for param in child.parameters():
                         param.requires_grad = False
 
-        self.model.features = torch.nn.Sequential(
-            self.model.conv1, self.model.bn1, self.model.relu, self.model.maxpool,
-            self.model.layer1, self.model.layer2, self.model.layer3, self.model.layer4)
-
         # add pooling layer
         k_s = 4 if config['dataset_selected'] =="BigEarthNet" else 7
-        self.model.features_pooling = torch.nn.AvgPool2d(k_s,stride=1, padding=0, ceil_mode=True, count_include_pad=True)
+        self.features_pooling = torch.nn.AvgPool2d(k_s,stride=1, padding=0, ceil_mode=True, count_include_pad=True)
 
         # add dropout layer
-        self.model.features_dropout = torch.nn.Dropout(0.01)
+        self.features_dropout = torch.nn.Dropout(0.01)
 
         # add new embedding layer
         out_dict = nn.ModuleDict()
@@ -101,18 +80,25 @@ class Network(nn.Module):
         for name,size in zip(embed_names,sub_embed_sizes):
             out_dict[name] = torch.nn.Linear(self.feature_dim, size)
         
-        self.model.last_linear  = out_dict
+        self.last_linear  = out_dict
 
-        self.parameters_dict = make_parameters_dict( model = self.model, filter_module_names = ['embedding'])
+        #Separates model parameters into 'backbone' and 'embedding'
+        self.parameters_dict = {'backbone':[],'embedding':[]}
+        for child in self.features:
+            for param in child.parameters():
+                self.parameters_dict['backbone'].append(param)
+        for child in self.last_linear.values():
+            for param in child.parameters():
+                self.parameters_dict['embedding'].append(param)
     
     def forward(self, x, use_penultimate=False):
-        x = self.model.features(x)
-        x = self.model.features_pooling(x)
-        x = self.model.features_dropout(x)
+        x = self.features(x)
+        x = self.features_pooling(x)
+        x = self.features_dropout(x)
         x = x.view(x.size(0), -1)
         if not use_penultimate:
             new_x = []
-            for key,linear_map in self.model.last_linear.items():
+            for key,linear_map in self.last_linear.items():
                 temp = torch.nn.functional.normalize(linear_map(x), dim=-1)
                 new_x.append(temp)
             new_x = torch.cat(new_x,dim=1)
