@@ -131,6 +131,16 @@ def main():
     # optimizer = [torch.optim.Adam(item[1]) for item in temp]
     criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
     optimizer = torch.optim.Adam(to_optim)
+    # As optimizer, Adam with standard parameters is used.
+    optimizer = torch.optim.Adam(to_optim)
+    if config['scheduler']=='exp':
+        scheduler    = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config['gamma'])
+    elif config['scheduler']=='step':
+        scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config['tau'], gamma=config['gamma'])
+    elif config['scheduler']=='none':
+        print('No scheduling used!')
+    else:
+        raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     faiss_reserver.release()
     print("Evaluating initial model...")
@@ -145,6 +155,7 @@ def main():
     t1 = time.time()
 
     for e in range(start_epoch, config['nb_epochs']):
+        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
         is_best = False
         config['epoch'] = e
         metrics[e] = {}
@@ -211,6 +222,9 @@ def main():
             print('Best epoch!')
 
         model.current_epoch = e
+        ### Learning Rate Scheduling Step
+        if config['scheduler'] != 'none':  scheduler.step()
+        
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
     print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
