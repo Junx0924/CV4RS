@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.autograd import Function
+
 import math
 
 eps = 1e-8
@@ -15,15 +16,16 @@ class NCACrossEntropy(nn.Module):
         """
         Args:
             labels: all the labels for training dataset
-                    tensor shape (N, num_classes), onehot encoding like 1011011111
+                    tensor shape (N, num_classes), multi-hot encoding like [1,0,1,0]
             margin: classification margin
         """
         super(NCACrossEntropy, self).__init__()
         self.register_buffer('labels_sim', torch.FloatTensor(labels.size(0),labels.size(0)))
-        num_classes = labels[1]
+
+        num_classes = labels.size(1)
         labels_sim = torch.mm(labels,labels.t())
         # scale the similarity to [0,1]
-        self.labels_sim = 0.5 + labels_sim/(2.0*num_classes)
+        self.labels_sim = labels_sim/num_classes
         self.margin = margin
 
     def forward(self, embed_sim, indexes):
