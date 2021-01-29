@@ -10,7 +10,7 @@ import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 
-def make(config, model, type, subset_indices = None, dset_type = None, is_onehot = False,include_aux_augmentations = False):
+def make(config, model, type, subset_indices = None, dset_type = None, is_multihot = False,include_aux_augmentations = False):
     """
     subset_indices: indices for selecting subset of dataset, for creating
         clustered dataloaders.
@@ -30,7 +30,7 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
         dset_type = dset_type, # dset_type: train, query, gallery
         transform = transform,
         is_training = type == 'train',
-        is_onehot= is_onehot,
+        is_multihot= is_multihot,
         include_aux_augmentations = include_aux_augmentations,
         use_hdf5 = use_hdf5
     )

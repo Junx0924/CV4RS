@@ -3,8 +3,8 @@ from __future__ import division
 import numpy as np
 import itertools
 
-def get_label(one_hot):
-    labels = np.where(one_hot ==1)[0]
+def get_label(multihot):
+    labels = np.where(multihot ==1)[0]
     return list(labels)
 
 def calc_recall_at_k(T, Y, k):
@@ -17,9 +17,9 @@ def calc_recall_at_k(T, Y, k):
         for t, y in zip(T,Y):
             s = sum([1 for t, y in zip(T, Y) if t in y[:k]])
     else:
-        # label is one-hot encoding
+        # label is multi-hot encoding
         for t, y in zip(T,Y):
-            t_labels = get_label(t) # true lables
+            t_labels = get_label(t) # category lables like 0,1,2,..
             y_labels = [get_label(yy) for yy in y[:k]] # predicted labels
             y_labels = list(itertools.chain.from_iterable(y_labels))
             y_labels = np.unique(y_labels)
