@@ -33,6 +33,7 @@ def load_bier_config(config, args):
     config['lambda_weight'] = args.pop('bier_lambda_weight')
     config['lambda_div']= args.pop('bier_lambda_div')
     config['sub_embed_sizes'] = args.pop('bier_sub_embed_sizes')
+    assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     
     # config the decorrelation between features
     decorrelation = list(itertools.combinations(config['sub_embed_sizes'],2))
@@ -68,12 +69,17 @@ class JSONEncoder(json.JSONEncoder):
 
 def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     
-    X = batch[0].to(config['device']) # images
-    T = batch[1].to(config['device']) # class labels
+    X = batch[0] # images
+    T = batch[1] # class labels
     I = batch[2] # image ids
 
-    feature = model(X)
-    
+    feature = model(X.to(config['device']))
+    if len(T.size())==2: 
+        T_list = [ np.where(t==1)[0] for t in T] 
+        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+        feature = feature[T_list[:,0]]
+        T = torch.tensor(T_list[:,1])
+
     n = len(feature)
     total_loss =0.0
     bin_loss =0.0
@@ -95,6 +101,7 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     # init boosting_weights for each label pair
     boosting_weights = Variable(torch.ones(n*n).to(config['device']),requires_grad = False)
     # Pairwise labels
+    T = T.to(config['device'])
     a = torch.cat(n*[torch.unsqueeze(T, 0)])
     b = torch.transpose(a, 0, 1)
     pairs = torch.flatten(a==b)*1.0
@@ -153,17 +160,12 @@ def main():
     sub_loggers = ['Train', 'Val','Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
    
-    # reserve GPU memory for faiss if faiss-gpu used
-    faiss_reserver = lib.faissext.MemoryReserver()
-
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-    faiss_reserver.lock(config['backend'])
 
     model = lib.model.make(config)
     _ = model.to(config['device'])
@@ -173,32 +175,33 @@ def main():
     criterion_dict['binominal'],to_optim = lib.loss.select(config,to_optim,'binominal')
     criterion_dict['adversarial'],to_optim = lib.loss.select(config,to_optim,'adversarial')
     optimizer = torch.optim.Adam(to_optim)
-
-    #model.embedding.weights
-    start_epoch = 0
-    best_epoch = -1
-    best_recall = 0
+    if config['scheduler']=='exp':
+        scheduler    = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config['gamma'])
+    elif config['scheduler']=='step':
+        scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config['tau'], gamma=config['gamma'])
+    elif config['scheduler']=='none':
+        print('No scheduling used!')
+    else:
+        raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     # create init and eval dataloaders; init used for creating clustered DLs
-    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train')
+    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train',is_multihot= True)
 
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)  
-    #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)  
+    dl_eval_train  = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)  
 
-    faiss_reserver.release()
     print("Evaluating initial model...")
-    metrics[-1] = {'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')}
-    best_recall = metrics[-1]['score']['recall'][0]
+    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
-    for e in range(start_epoch, config['nb_epochs']):
-        is_best = False
-        config['epoch'] = e
-        metrics[e] = {}
+    for e in range(0, config['nb_epochs']):
+        config['epoch'] = e # for wandb
+        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
+        
         time_per_epoch_1 = time.time()
         losses = []
 
@@ -217,34 +220,22 @@ def main():
         LOG.progress_saver['Train'].log('weight_loss', np.mean(losses[:,3]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
-        faiss_reserver.release()
 
         # evaluate
         _ = model.eval()
         tic = time.time()
-        metrics[e].update({
-            'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
-            'loss': {'train': current_loss}
-        })
+        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
         # evaluate the distance among inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_query,LOG,'Val')
+        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
 
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-        faiss_reserver.lock(config['backend'])
+        ### Learning Rate Scheduling Step
+        if config['scheduler'] != 'none':  scheduler.step()
 
-        recall_curr = metrics[e]['score']['recall'][0] # take R@1
-        if recall_curr > best_recall:
-            best_recall = recall_curr
-            best_epoch = e
-            is_best = True
-            print('Best epoch!')
-
-        model.current_epoch = e
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
-    print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
 
 
 if __name__ == '__main__':

@@ -81,18 +81,25 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):
-    if len(batch) ==5:
+    if len(batch) ==4:
         X = batch[0] # images
         T = batch[1] # class labels
         I = batch[2] # image ids
         X_aux = batch[3] # augumented images
-        T_aux = batch[4] # psudo labels
     else:
         X = batch[0] # images
         T = batch[1]# class labels
         I = batch[2] # image ids
-    
+
     fvecs = model(X.to(config['device']))
+    if len(T.size())==2: 
+        T_list = [ np.where(t==1)[0] for t in T] 
+        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+        fvecs = fvecs[T_list[:,0]]
+        T = T_list[:,1]
+        if len(batch) ==4:
+            X_aux = X_aux[T_list[:,0]]
+    
     sub_dim = config['sz_embedding'] // len(config['diva_features'])
     fvecs = fvecs.split(sub_dim, dim =1)
     # l2 normalize feature
@@ -174,17 +181,12 @@ def main():
     sub_loggers = ['Train', 'Val', 'Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
    
-    # reserve GPU memory for faiss if faiss-gpu used
-    faiss_reserver = lib.faissext.MemoryReserver()
-
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-    faiss_reserver.lock(config['backend'])
 
     # get model
     model = lib.model.make(config)
@@ -198,19 +200,14 @@ def main():
     #     selfsim_model = lib.multifeature_resnet50.Network(config)
     #     _  = selfsim_model.to(config['device'])
 
-    
-    start_epoch = 0
-    best_epoch = -1
-    best_recall = 0
- 
     # create train dataset
     flag_aux =config['include_aux_augmentations']
-    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
+    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',is_multihot= True,include_aux_augmentations=flag_aux)
     
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)
-    #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)
+    dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)
     
     # define loss function for each feature
     to_optim = get_optim(config, model)
@@ -228,25 +225,20 @@ def main():
         raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     if 'selfsimilarity' in criterion_dict.keys():
-        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train',is_onehot=True)
+        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train',is_multihot=True)
         criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
-    
 
-    faiss_reserver.release()
     print("\nEvaluating initial model...")
-    metrics[-1] = {'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, init_eval= True)}
-    best_recall = metrics[-1]['score']['recall'][0]
+    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, init_eval= True)
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
-    for e in range(start_epoch, config['nb_epochs']):
+    for e in range(0, config['nb_epochs']):
+        config['epoch'] = e # for wandb
         if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
-        is_best = False
-        config['epoch'] = e
-        metrics[e] = {}
+       
         time_per_epoch_1 = time.time()
-
         loss_collect ={}
         _ = model.train()
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
@@ -266,37 +258,24 @@ def main():
             LOG.progress_saver['Train'].log(key +'_loss',np.mean(loss_collect[key]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
-        faiss_reserver.release()
+       
 
         # evaluate
         _ = model.eval()
         tic = time.time()
-        metrics[e].update({
-            'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG),
-            'loss': {'train': current_loss}
-        })
+        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG)
         # evaluate the distance inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_query,LOG,'Val')
+        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
 
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-        faiss_reserver.lock(config['backend'])
 
-        recall_curr = metrics[e]['score']['recall'][0] # take R@1
-        if recall_curr > best_recall:
-            best_recall = recall_curr
-            best_epoch = e
-            is_best = True
-            print('Best epoch!')
-
-        model.current_epoch = e
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
            
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
-    print("Best recall@1 = {} at epoch {}.".format(best_recall, best_epoch))
 
 
 if __name__ == '__main__':
