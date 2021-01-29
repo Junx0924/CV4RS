@@ -40,7 +40,7 @@ class BaseDataset(torch.utils.data.Dataset):
     We use the train set for training, the val set for
     query and the test set for retrieval
     """
-    def __init__(self, image_dict, image_list,hdf_file, transform = None, is_training = False, include_aux_augmentations= False):
+    def __init__(self, image_dict, image_list,hdf_file, conversion,transform = None, is_training = False, include_aux_augmentations= False):
         torch.utils.data.Dataset.__init__(self)
         self.transform = transform
         self.is_training = is_training
@@ -48,7 +48,8 @@ class BaseDataset(torch.utils.data.Dataset):
         self.image_list = image_list
         self.hdf_file = hdf_file
         self.include_aux_augmentations = include_aux_augmentations
-
+        self.conversion = conversion
+        
         self.im_paths, self.I, self.ys = [], [], []
         for item in self.image_list:
             self.im_paths.append(item[0])
@@ -85,10 +86,10 @@ class BaseDataset(torch.utils.data.Dataset):
                 imrot_class = idx%4
                 angle = np.array([0,90,180,270])[imrot_class]
                 im_b = hypia.functionals.rotate(img, angle,reshape=False)
-                return im_b,imrot_class
-            im_b,imrot_class= rotation(input, index)
+                return im_b
+            im_b = rotation(input, index)
             im_b = self.process_image(im_b,mirror=False)
-            return (im_a, label, index, im_b, imrot_class)
+            return (im_a, label, index, im_b)
         else:
             return (im_a, label, index)
 

@@ -14,9 +14,7 @@ class Fast_moco(torch.nn.Module):
         self.n_key_batches = moco_n_key_batches
         self.lower_cutoff = lower_cutoff
         self.upper_cutoff = upper_cutoff
-        batch_size = config['dataloader']['batch_size']
-        self.reference_labels = torch.zeros(batch_size).to(torch.long).to(config['device'])
-
+        
         self.diva_features = config['diva_features'] 
         self.sz_embedding = config['sz_embedding']
         
@@ -70,6 +68,8 @@ class Fast_moco(torch.nn.Module):
             key_batch: embeddings from augumented images, torch.Tensor(BS x DIM)
         """
         bs  = len(query_batch)
+        batch_size = bs
+        self.reference_labels = torch.zeros(batch_size).to(torch.long).cuda()
 
         l_pos = query_batch.view(bs, 1, -1).bmm(key_batch.view(bs, -1, 1)).squeeze(-1)
         l_neg = query_batch.view(bs, -1).mm(self.memory_queue.T)

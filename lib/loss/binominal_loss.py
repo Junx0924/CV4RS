@@ -19,8 +19,6 @@ class BinomialLoss(nn.Module):
     def forward(self,sim_mat, targets):
         assert len(sim_mat) == len(targets)
         n = sim_mat.size(0)
-        sim_mat = sim_mat
-        targets = targets
         c = 0
         pair_grad=torch.zeros(n,n).cuda() # record grad for each pair
         pair_loss=torch.zeros(n,n).cuda() # record loss for each pair
@@ -41,6 +39,9 @@ class BinomialLoss(nn.Module):
             pos_ind =pos_ind[pos_sort]
             neg_ind =neg_ind[neg_sort]
 
+            if len(pos_ind) <1 or len(neg_ind) < 1:
+                c += 1
+                continue 
             if self.hard_mining:
                 
                 hard_neg_ind = torch.where(neg_pair_ + 0.1 > pos_pair_[0])[0]
