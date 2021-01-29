@@ -25,11 +25,13 @@ def basic_training_parameters(parser):
     parser.add_argument('--backbone-lr', default=1e-5, type=float, help ='learning rate for backbone')
     parser.add_argument('--embedding-wd', default=1e-4, type=float, help='weight decay for embedding layer')
     parser.add_argument('--embedding-lr', default=1e-5, type=float, help='learning rate for embedding layer')
-    parser.add_argument('--backend', default='faiss-gpu',choices=('faiss', 'faiss-gpu'))
+    parser.add_argument('--backend',      default='faiss-gpu',choices=('faiss', 'faiss-gpu'))
     parser.add_argument('--scheduler',         default='step',   type=str,   help='Type of learning rate scheduling. Currently: step & exp.')
     parser.add_argument('--gamma',             default=0.3,      type=float, help='Learning rate reduction after tau epochs.')
     parser.add_argument('--decay',             default=0.0004,   type=float, help='Weight decay for optimizer.')
     parser.add_argument('--tau',               default=[30,55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
+    parser.add_argument('--use_hdf5',   action='store_true',help='Flag. If set, create hdf5 file and read data from hdf5 during training')
+
     return parser
 
 def divid_and_conquer(parser):
@@ -73,6 +75,13 @@ def diva(parser):
     parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
 
     return parser 
+
+def snca(parser):
+    ## for Method Scalable Neighborhood Component Analysis
+    parser.add_argument('--snca_margin', default=0.0, type=float,help='classification margin')
+    parser.add_argument('--snca_temperature', default=0.05, type=float,  help='temperature parameter')
+    parser.add_argument('--snca_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
+    parser.add_argument('--snca_momentum', default=0.9, type=float,  help='momentum')              
 
 def wandb_parameters(parser):
     ### Wandb Log Arguments
@@ -120,6 +129,7 @@ def load_common_config():
     config['decay'] = args.pop('decay')
     config['gamma'] = args.pop('gamma')
     config['tau'] = args.pop('tau')
+    config['use_hdf5'] = args.pop('use_hdf5')
 
     if torch.cuda.is_available():
         config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
