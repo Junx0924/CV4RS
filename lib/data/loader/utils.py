@@ -23,6 +23,7 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
     transform = config['transform_parameters'][ds_name]
     root = config['dataset'][ds_name]['root']
     shuffle= config['dataloader']['shuffle']
+    use_hdf5 = config['use_hdf5']
     
     ds = dataset.select(
         datapath = root,
@@ -30,7 +31,8 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
         transform = transform,
         is_training = type == 'train',
         is_onehot= is_onehot,
-        include_aux_augmentations = include_aux_augmentations, 
+        include_aux_augmentations = include_aux_augmentations,
+        use_hdf5 = use_hdf5
     )
     if type == 'train':
         ds.set_subset(subset_indices)
@@ -46,7 +48,7 @@ def make(config, model, type, subset_indices = None, dset_type = None, is_onehot
     return dl
 
 
-def make_from_clusters(C, subset_indices, model, config, is_onehot = False):
+def make_from_clusters(C, subset_indices, model, config):
     import numpy as np
     from math import ceil
     dataloaders = [[None] for c in range(config['nb_clusters'])]
@@ -56,8 +58,7 @@ def make_from_clusters(C, subset_indices, model, config, is_onehot = False):
             model = model,
             type = 'train',
             subset_indices = subset_indices[C == c],
-            dset_type = 'train',
-            is_onehot= is_onehot)
+            dset_type = 'train')
         dataloaders[c].dataset.id = c
     return dataloaders
 

@@ -152,7 +152,7 @@ def create_csv_split(datapath):
         writer = csv.writer(file)
         writer.writerows(val)  
 
-def Give(datapath,dset_type):
+def Give(datapath,dset_type, use_hdf5):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
     if not Path(csv_dir +'/train.csv').exists():
@@ -167,18 +167,19 @@ def Give(datapath,dset_type):
     test_image_dict ,test_list= read_csv(csv_dir +'/test.csv',datapath)
     
     # store all the images in hdf5 files to further reduce disk I/O
-    train_h5 = datapath +'/train.hdf5'
-    if not Path(train_h5).exists(): 
-        print("Start to create ", train_h5," for MLRSNet")
-        store_hdf(train_h5, train_list)
-    val_h5 = datapath +'/val.hdf5'
-    if not Path(val_h5).exists(): 
-        print("Start to create ", val_h5," for MLRSNet")
-        store_hdf(val_h5, val_list)
-    test_h5 = datapath +'/test.hdf5'
-    if not Path(test_h5).exists(): 
-        print("Start to create ", test_h5," for MLRSNet")
-        store_hdf(test_h5, test_list)
+    if use_hdf5:
+        train_h5 = datapath +'/train.hdf5'
+        if not Path(train_h5).exists(): 
+            print("Start to create ", train_h5," for MLRSNet")
+            store_hdf(train_h5, train_list)
+        val_h5 = datapath +'/val.hdf5'
+        if not Path(val_h5).exists(): 
+            print("Start to create ", val_h5," for MLRSNet")
+            store_hdf(val_h5, val_list)
+        test_h5 = datapath +'/test.hdf5'
+        if not Path(test_h5).exists(): 
+            print("Start to create ", test_h5," for MLRSNet")
+            store_hdf(test_h5, test_list)
 
     dsets = {'train': train_image_dict , 'val': val_image_dict , 'test': test_image_dict}
     return dsets[dset_type]

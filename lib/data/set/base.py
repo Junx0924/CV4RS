@@ -5,8 +5,35 @@ import torch
 import numpy as np
 import h5py
 import hypia
+from skimage.transform import resize
+from osgeo import gdal
+from PIL import Image
 
+def get_BigEarthNet(img_path):
+    patch_name = img_path.split('/')[-1]
+    band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
+    # get band image data
+    tif_img = []
+    for band_name in band_names:
+        tif_path = img_path + '/'+ patch_name+'_'+band_name+'.tif'
+        band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
+        if not band_ds:
+            continue
+        raster_band = band_ds.GetRasterBand(1)
+        band_data = np.array(raster_band.ReadAsArray()) 
+        # interpolate the image to (120,120)
+        temp = resize(band_data,(120,120))
+        tif_img.append(temp)
+    tif_img = np.array(tif_img)
+    return tif_img.reshape(-1)
 
+def get_MLRSNet(img_path):
+    pic = Image.open(img_path)
+    if len(pic.size)==2:
+        pic = pic.convert('RGB')
+    pic = pic.resize((256,256))
+    img_data = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
+    return img_data.reshape(-1)
     
 class BaseDataset(torch.utils.data.Dataset):
     """
@@ -36,10 +63,15 @@ class BaseDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         img_path = self.im_paths[index]
-        patch_name = img_path.split('/')[-1]
-        f = h5py.File(self.hdf_file, 'r')
-        im = np.array(f[patch_name][()], dtype=float)
-        f.close()
+        if self.hdf_file !="":
+            patch_name = img_path.split('/')[-1]
+            f = h5py.File(self.hdf_file, 'r')
+            im = np.array(f[patch_name][()], dtype=float)
+            f.close()
+        elif self.transform['input_shape'][0] ==12:
+            im = get_BigEarthNet(img_path)
+        else:
+            im = get_MLRSNet(img_path)
 
         input = im.reshape(self.transform['input_shape'])
         im_a = self.process_image(input,mirror=True)
@@ -94,6 +126,7 @@ class BaseDataset(torch.utils.data.Dataset):
         """
         img_shape =self.transform['input_shape']
         img_dim = img_shape[1]
+        img_channel = img_shape[0]
         crop = self.transform['sz_crop']
         mean = self.transform['mean']
         std = self.transform['std']
@@ -113,6 +146,12 @@ class BaseDataset(torch.utils.data.Dataset):
             offset = (img_dim - crop) // 2
             img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
 
-        # normalize
-        img = hypia.functionals.normalise(img,mean,std) 
+        # normalize the image to its own mean and std
+        img_mean = np.array([np.mean(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
+        img_std = np.array([np.std(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
+        img = (img -img_mean)/img_std
+        # normalize to the assigned mean and std
+        if isinstance(mean,list): mean = np.array(mean).reshape(-1,1,1)
+        if isinstance(std,list): std = np.array(std).reshape(-1,1,1)
+        img = (img - mean)/std
         return  torch.Tensor(img)

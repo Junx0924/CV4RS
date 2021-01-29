@@ -180,16 +180,12 @@ def main():
     best_recall = 0
 
     # create init and eval dataloaders; init used for creating clustered DLs
-    dataloaders = {}
-    dataloaders['train'] = lib.data.loader.make(config, model,'train', dset_type = 'train')
+    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train')
 
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_onehot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_onehot= True)  
     #dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_onehot = True)
-
-    to_optim = get_optim(config,model)
-    optimizer = torch.optim.Adam(to_optim)
 
     faiss_reserver.release()
     print("Evaluating initial model...")
@@ -206,7 +202,8 @@ def main():
         time_per_epoch_1 = time.time()
         losses = []
 
-        for batch in tqdm(dataloaders['train'],desc = 'Train epoch {}.'.format(e)):
+        _ = model.train()
+        for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
             total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
             losses.append([total_loss, bin_loss, adv_loss, weight_loss])
 
@@ -223,6 +220,7 @@ def main():
         faiss_reserver.release()
 
         # evaluate
+        _ = model.eval()
         tic = time.time()
         metrics[e].update({
             'score': lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val'),
