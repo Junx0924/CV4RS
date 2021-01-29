@@ -85,7 +85,6 @@ def Give(datapath,dset_type, use_hdf5):
             if not Path(hdf_path).exists():
                 print("Start to create ", hdf_path," for BigEarthNet")
                 store_hdf(hdf_path,file_list)
-                
     else:
         # check the json file of image_dict exist or not
         json_dir =[ item.split('.')[0] +'.json' for item in csv_list]
@@ -104,7 +103,7 @@ def Give(datapath,dset_type, use_hdf5):
         with open(json_file, 'r') as json_f:
             data_list.append(json.load(json_f))
     
-    # get the common keys from train/va/test image dict
+    # get the common keys from train/val/test image dict
     keys= [ data.keys() for data in data_list[:3]]
     keys = [ [k for k in i] for i in keys]
     keys = list(set.intersection(*map(set, keys)))
@@ -119,4 +118,4 @@ def Give(datapath,dset_type, use_hdf5):
             new_dict_list[i][new_keys[key]] = [datapath + '/' + patch_name for patch_name in data_list[i][key]]
     
     dsets = {'train': train_image_dict , 'val': val_image_dict , 'test': test_image_dict}
-    return dsets[dset_type]
+    return dsets[dset_type],new_conversion
