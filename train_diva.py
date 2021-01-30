@@ -165,10 +165,8 @@ def get_criterion(config, to_optim):
     return criterion_dict,to_optim
 
 def get_optim(config, model):
-    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-    #                **config['opt']['backbone'] }]
-    to_optim = [{'params': model.parameters_dict['backbone'],
-                    **config['opt']['backbone']}]
+    to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+                   **config['opt']['backbone'] }]
     to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
     return to_optim
 
@@ -189,16 +187,11 @@ def main():
     torch.cuda.manual_seed_all(seed)
 
     # get model
-    model = lib.model.make(config)
+    model = lib.multifeature_resnet50.Network(config)
     _  = model.to(config['device'])
     if 'selfsimilarity' in config['diva_features']:
-        selfsim_model = lib.model.make(config)
+        selfsim_model = lib.multifeature_resnet50.Network(config)
         _  = selfsim_model.to(config['device'])
-    # model = lib.multifeature_resnet50.Network(config)
-    # _  = model.to(config['device'])
-    # if 'selfsimilarity' in config['diva_features']:
-    #     selfsim_model = lib.multifeature_resnet50.Network(config)
-    #     _  = selfsim_model.to(config['device'])
 
     # create train dataset
     flag_aux =config['include_aux_augmentations']

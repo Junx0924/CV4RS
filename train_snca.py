@@ -60,7 +60,7 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
     T = batch[1].to(config['device']) # image labels, onehot
     I = batch[2].to(config['device']) # image index
 
-    assert isinstance(T[0],list) ==True
+    assert len(T.size()) ==2
     total_loss = 0.0
     X_var = torch.autograd.Variable(X)
     T_var = torch.autograd.Variable(T)
@@ -85,10 +85,8 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
 
 
 def get_optim(config, model):
-    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-    #                **config['opt']['backbone'] }]
-    to_optim = [{'params': model.parameters_dict['backbone'],
-                    **config['opt']['backbone']}]
+    to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+                   **config['opt']['backbone'] }]
     to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
     return to_optim
 
@@ -108,8 +106,8 @@ def main():
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    model = lib.model.make(config)
-    _ = model.to(config['device'])
+    model = lib.multifeature_resnet50.Network(config)
+    _  = model.to(config['device'])
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train', is_multihot=True)

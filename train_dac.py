@@ -83,10 +83,8 @@ def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
 
 
 def get_optim(config, model):
-    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-    #                **config['opt']['backbone'] }]
-    to_optim = [{'params': model.parameters_dict['backbone'],
-                    **config['opt']['backbone']}]
+    to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+                   **config['opt']['backbone'] }]
     to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
     return to_optim
 
@@ -111,9 +109,8 @@ def main():
 
     faiss_reserver.lock(config['backend'])
 
-    
-    model = lib.model.make(config)
-    _ = model.to(config['device'])
+    model = lib.multifeature_resnet50.Network(config)
+    _  = model.to(config['device'])
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}

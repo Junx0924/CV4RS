@@ -144,10 +144,8 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
 
 
 def get_optim(config, model):
-    # to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
-    #                **config['opt']['backbone'] }]
-    to_optim = [{'params': model.parameters_dict['backbone'],
-                    **config['opt']['backbone']}]
+    to_optim = [{'params': filter(lambda p: p.requires_grad, model.parameters_dict['backbone']),
+                   **config['opt']['backbone'] }]
     to_optim += [{'params': model.parameters_dict['embedding'],**config['opt']['embedding']}]
     return to_optim
 
@@ -167,8 +165,8 @@ def main():
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    model = lib.model.make(config)
-    _ = model.to(config['device'])
+    model = lib.multifeature_resnet50.Network(config)
+    _  = model.to(config['device'])
 
     to_optim = get_optim(config, model)
     criterion_dict ={} 
