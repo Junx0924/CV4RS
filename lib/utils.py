@@ -221,7 +221,7 @@ def DistanceMeasure(model,config,dataloader,LOG, log_key):
     LOG:
     log_key:
     """
-    print("Start to evaluate the distance ratios between intra-class and inter-class")
+    print("Start to evaluate the distance ratios between intra and inter class")
     image_dict = dataloader.dataset.image_dict
     X, _,_ = predict_batchwise(model,dataloader,config['device'])
     if 'evaluation_weight' in config.keys():
@@ -230,21 +230,17 @@ def DistanceMeasure(model,config,dataloader,LOG, log_key):
     common_X , intra_dist =[],[]
     for label in image_dict.keys():
         inds = [ item[-1] for item in image_dict[label]]
-        dists = similarity.pairwise_distance(X[inds])
-        dists = np.sum(dists)/(len(dists)**2-len(dists))
         x   = normalize(np.mean(X[inds],axis=0).reshape(1,-1)).reshape(-1)
-        intra_dist.append(dists)
+        dist = np.mean([ np.linalg.norm(x-xi) for xi in X[inds]])
+        intra_dist.append(dist)
         common_X.append(x)
     
-    # mean intra-class distance
-    mean_intra_dist = np.mean(intra_dist)
+    #Compute mean inter-class distances by the l2 distance among common_X
+    inter_dist = similarity.pairwise_distance(np.array(common_X))
+    inter_intra_ratio = inter_dist/np.array(intra_dist).reshape(-1,1)
+    inter_intra_ratio = np.sum(inter_intra_ratio)/(len(inter_intra_ratio)**2-len(inter_intra_ratio))
 
-    #Compute mean inter-class distances by common_X
-    mean_inter_dist = similarity.pairwise_distance(np.array(common_X))
-    mean_inter_dist = np.sum(mean_inter_dist)/(len(mean_inter_dist)**2-len(mean_inter_dist))
-
-    LOG.progress_saver[log_key].log('inter',mean_inter_dist,group='l2_dist')
-    LOG.progress_saver[log_key].log('intra',mean_intra_dist,group='l2_dist')
+    LOG.progress_saver[log_key].log('intra_inter_l2_ratio',1.0/inter_intra_ratio)
 
 def GradientMeasure(model,LOG,log_key):
     # record the gradient of the weight of each layer in the model
