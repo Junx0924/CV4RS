@@ -47,6 +47,8 @@ class Network(nn.Module):
         if config["dataset_selected"] =="BigEarthNet":
             input_channels = 12
             self.conv1 = increase_channels(model.conv1, input_channels)
+        else:
+            self.conv1 = model.conv1
 
         self.features = torch.nn.Sequential(
             self.conv1, model.bn1, model.relu, model.maxpool,
