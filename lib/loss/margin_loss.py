@@ -46,6 +46,11 @@ class MarginLoss(torch.nn.Module):
         self.beta_lr = beta_lr 
 
     def forward(self, feature, labels):
+        """
+        Args:
+            feature: embeddings, tensor, shape(batchsize, embed_dim)
+            labels: category labels, tensor, shape (batchsize,1)
+        """
         anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
         anchors = feature[anchor_idx] 
         positives = feature[pos_idx]
