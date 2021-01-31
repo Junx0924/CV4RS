@@ -74,6 +74,7 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     I = batch[2] # image ids
 
     feature = model(X.to(config['device']))
+    
     if len(T.size())==2: 
         T_list = [ np.where(t==1)[0] for t in T] 
         T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
@@ -99,7 +100,7 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
         sim_mats.append(temp_mat)
     
     # init boosting_weights for each label pair
-    boosting_weights = Variable(torch.ones(n*n).to(config['device']),requires_grad = False)
+    boosting_weights = torch.ones(n*n).to(config['device'])
     # Pairwise labels
     T = T.to(config['device'])
     a = torch.cat(n*[torch.unsqueeze(T, 0)])
@@ -125,13 +126,9 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
         adv_loss, adv_weight_loss = criterion_dict['adversarial'](normed_fvecs)
         weight_loss += adv_weight_loss
 
-        embedding_weights = model.embedding.weight.data
-        for i in range(len(sub_dim)):
-            start = int(sum(sub_dim[:i]))
-            stop = int(start + sub_dim[i])
-            W =  embedding_weights[start:stop,:]
-            emb_weight_loss = torch.mean((torch.sum(W * W, axis=1) - 1)**2)
-            weight_loss += emb_weight_loss 
+        for item in model.last_linear.values():
+            W = item.weight.data
+            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2)
     
     total_loss = bin_loss + (adv_loss + weight_loss) * config['lambda_div']
     opt.zero_grad()
