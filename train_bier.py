@@ -200,7 +200,6 @@ def main():
         time_per_epoch_1 = time.time()
         losses = []
 
-        _ = model.train()
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
             total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
             losses.append([total_loss, bin_loss, adv_loss, weight_loss])
@@ -217,13 +216,14 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        _ = model.eval()
-        tic = time.time()
-        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
-        # evaluate the distance among inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
-
-        LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+        if e%10 == 0:
+            _ = model.eval()
+            tic = time.time()
+            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
+            # evaluate the distance among inter and intra class
+            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            _ = model.train()
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
         ### Learning Rate Scheduling Step

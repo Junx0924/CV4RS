@@ -171,7 +171,6 @@ def main():
         max_len_dataloaders = max([len(dl) for dl in dataloaders['train']])
         num_batches_approx = max_len_dataloaders * len(dataloaders['train'])
         
-        _ = model.train()
         for batch, dset in tqdm(mdl,total = num_batches_approx,disable = num_batches_approx < 100,desc = 'Train epoch {}.'.format(e)):
             loss = train_batch(model, criterion, optimizer, config, batch, dset.id, e)
             losses_per_epoch.append(loss)
@@ -185,11 +184,14 @@ def main():
         faiss_reserver.release()
 
         # evaluate
-        _ = model.eval()
-        tic = time.time()
-        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
-        # evaluate the distance among inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+        if e%10 ==0:
+            _ = model.eval()
+            tic = time.time()
+            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
+            # evaluate the distance among inter and intra class
+            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            _ = model.train()
+
         LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))

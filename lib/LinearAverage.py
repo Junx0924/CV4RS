@@ -3,6 +3,7 @@ from torch.autograd import Function
 from torch import nn
 import math
 
+# build the memory bank for Scalable Neighborhood Component Analysis
 class LinearAverageOp(Function):
     @staticmethod
     def forward(self, embed, indexes, memory, params):

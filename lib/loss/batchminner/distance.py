@@ -1,6 +1,6 @@
 import numpy as np, torch
 
-
+# implemented according to paper: https://openaccess.thecvf.com/content_ICCV_2017/papers/Wu_Sampling_Matters_in_ICCV_2017_paper.pdf
 class Distance():
     def __init__(self, lower_cutoff =0.5,upper_cutoff =1.4):
         self.lower_cutoff =  lower_cutoff
