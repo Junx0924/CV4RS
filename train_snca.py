@@ -57,31 +57,35 @@ class JSONEncoder(json.JSONEncoder):
 def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=None, log_key =''):
     
     X = batch[0].to(config['device']) # images
-    T = batch[1].to(config['device']) # image labels, onehot
-    I = batch[2].to(config['device']) # image index
+    T = batch[1]# image labels,multi-hot
+    I = batch[2].to(config['device'])# image index
 
     assert len(T.size()) ==2
-    total_loss = 0.0
-    X_var = torch.autograd.Variable(X)
-    T_var = torch.autograd.Variable(T)
-    I_var = torch.autograd.Variable(I)
-    #I_var = torch.autograd.Variable(I)
-    feature = model(X_var)
+    loss = {}
+    feature = model(X)
     # caculate the similarity between feature and the memory bank
-    output = lemniscate(feature, I_var)
+    output = lemniscate(feature, I)
     # from the index_var to get the label similarity mat
     # caculate loss by aligning the similarity mat from features and labels
-    nca_loss = criterion_dict['nca'](output, I_var)
-    bce_loss = criterion_dict['bce'](feature,T_var)
+    loss['nca'] = criterion_dict['nca'](output, I)
+    #loss['bce'] = criterion_dict['bce'](feature,T.to(config['device']))
 
-    total_loss = nca_loss + bce_loss
+    if len(T.size())==2: 
+        T_list = [ np.where(t==1)[0] for t in T] 
+        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+        feature = feature[T_list[:,0]]
+        T = torch.tensor(T_list[:,1])
+    T = T.to(config['device'])
+    loss['margin'] = criterion_dict['margin'](feature, T)
+
+    loss['total'] = loss['nca']  + loss['margin']
     optimizer.zero_grad()
-    total_loss.backward()
+    loss['total'].backward()
     # log the gradient of each layer
     #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
     optimizer.step()
-    return total_loss.item(), nca_loss.item(),bce_loss.item()
+    return loss
 
 
 def get_optim(config, model):
@@ -119,7 +123,8 @@ def main():
     to_optim = get_optim(config, model)
     criterion_dict ={}
     criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', onehot_labels =torch.Tensor(dl_train.dataset.ys))
-    criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
+    #criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
+    criterion_dict['margin'], to_optim = lib.loss.select(config,to_optim,'margin','semihard')
 
     optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
 
@@ -142,34 +147,31 @@ def main():
             lemniscate.params[1] = 0.9
 
         time_per_epoch_1 = time.time()
-        losses = []
+        losses ={}
+        losses ={key:[] for key in criterion_dict.keys()}
+        losses ['total']=[]
 
-        _ = model.train()
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(epoch)):
-            total_loss, nca_loss, bce_loss= train_batch(model, lemniscate,criterion_dict, optimizer, config, batch)
-            losses.append([total_loss, nca_loss, bce_loss])
+            loss= train_batch(model, lemniscate,criterion_dict, optimizer, config, batch)
+            [losses[key].append(loss[key].item()) for key in losses.keys()]
 
         time_per_epoch_2 = time.time()
-        losses = np.array(losses)
-        current_loss = np.mean(losses[:,0])
-        LOG.progress_saver['Train'].log('epochs', epoch)
-        LOG.progress_saver['Train'].log('total_loss', current_loss)
-        LOG.progress_saver['Train'].log('nca_loss', np.mean(losses[:,1]))
-        LOG.progress_saver['Train'].log('bce_loss', np.mean(losses[:,2]))
+        current_loss = np.mean(losses['total'])
+        for key in losses.keys():
+            LOG.progress_saver['Train'].log(key+'_loss', np.mean(losses[key]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(epoch,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        _ = model.eval()
-        tic = time.time()
-        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
-          
-        # evaluate the distance among inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
-        LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+        if epoch % 10 ==0:
+            _ = model.eval()
+            tic = time.time()
+            # evaluate the distance among inter and intra class
+            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
+            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
         LOG.update(all=True)
-        print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-      
     t2 = time.time()
     print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
 
