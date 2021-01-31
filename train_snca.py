@@ -65,20 +65,20 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
     feature = model(X)
     # caculate the similarity between feature and the memory bank
     output = lemniscate(feature, I)
-    # from the index_var to get the label similarity mat
+    # from the index to get the label similarity mat
     # caculate loss by aligning the similarity mat from features and labels
     loss['nca'] = criterion_dict['nca'](output, I)
-    #loss['bce'] = criterion_dict['bce'](feature,T.to(config['device']))
+    loss['bce'] = criterion_dict['bce'](feature,T.to(config['device']))
 
-    if len(T.size())==2: 
-        T_list = [ np.where(t==1)[0] for t in T] 
-        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-        feature = feature[T_list[:,0]]
-        T = torch.tensor(T_list[:,1])
-    T = T.to(config['device'])
-    loss['margin'] = criterion_dict['margin'](feature, T)
+    # if len(T.size())==2: 
+    #     T_list = [ np.where(t==1)[0] for t in T] 
+    #     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    #     feature = feature[T_list[:,0]]
+    #     T = torch.tensor(T_list[:,1])
+    # T = T.to(config['device'])
+    # loss['margin'] = criterion_dict['margin'](feature, T)
 
-    loss['total'] = loss['nca']  + loss['margin']
+    loss['total'] = loss['nca']  + loss['bce']
     optimizer.zero_grad()
     loss['total'].backward()
     # log the gradient of each layer
@@ -123,8 +123,8 @@ def main():
     to_optim = get_optim(config, model)
     criterion_dict ={}
     criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', onehot_labels =torch.Tensor(dl_train.dataset.ys))
-    #criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
-    criterion_dict['margin'], to_optim = lib.loss.select(config,to_optim,'margin','semihard')
+    criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
+    #criterion_dict['margin'], to_optim = lib.loss.select(config,to_optim,'margin','semihard')
 
     optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
 

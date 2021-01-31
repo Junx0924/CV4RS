@@ -30,7 +30,8 @@ class ClassBalancedSampler(torch.utils.data.sampler.Sampler):
             for _ in range(self.batch_size//self.samples_per_class):
                 class_key = random.choice(list(self.image_dict.keys()))
                 index_pool = [item[-1] for item in self.image_dict[class_key]]
-                subset.extend(np.random.choice(index_pool, self.samples_per_class, replace=False))
+                replace = True if len(index_pool) <self.samples_per_class else False
+                subset.extend(np.random.choice(index_pool, self.samples_per_class, replace=replace))
             yield subset
 
     def __len__(self):
