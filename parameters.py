@@ -145,7 +145,7 @@ def load_common_config():
         config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
         import wandb
         os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-        #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
         _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
         wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
         wandb.config.update(config)
