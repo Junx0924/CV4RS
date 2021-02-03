@@ -130,7 +130,7 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
         losses[key] = temp_loss.item()
         weight = config['criterion'][key]['weight']
         total_loss += weight*temp_loss
-    losses['total'] = total_loss.item()
+    losses['Train'] = total_loss.item()
         
     optimizer.zero_grad()
     total_loss.backward()
@@ -200,7 +200,6 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)
-    dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)
     
     # define loss function for each feature
     to_optim = get_optim(config, model)
@@ -220,9 +219,6 @@ def main():
     if 'selfsimilarity' in criterion_dict.keys():
         dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train',is_multihot=True)
         criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
-
-    print("\nEvaluating initial model...")
-    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, init_eval= True)
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -251,16 +247,19 @@ def main():
             LOG.progress_saver['Train'].log(key +'_loss',np.mean(loss_collect[key]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
-       
 
         # evaluate
-        _ = model.eval()
-        tic = time.time()
-        lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG)
-        # evaluate the distance inter and intra class
-        lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
-
-        LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+        if e%10 ==0:
+            _ = model.eval()
+            tic = time.time()
+            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            if checkpoint: 
+                # check retrieval performance
+                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
+            # evaluate the distance inter and intra class
+            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
 

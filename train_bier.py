@@ -5,13 +5,14 @@ import os
 import matplotlib
 import numpy as np
 import torch
-import torch.nn.functional as F
+
 import time
 import json
 import random
 from tqdm import tqdm
 import argparse
 import itertools
+import torch.nn.functional as F
 
 import warnings
 import parameters as par
@@ -19,7 +20,7 @@ from utilities import misc
 from utilities import logger
 import lib
 from lib.clustering import make_clustered_dataloaders
-from torch.autograd import Variable
+
 
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
 os.putenv("OMP_NUM_THREADS", "8")
@@ -43,11 +44,6 @@ def load_bier_config(config, args):
         config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':config['lambda_weight']}
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
-    config['hard_mining'] = args.pop('bier_hard_mining')
-    config['alpha'] = args.pop('bier_alpha')
-    config['beta'] = args.pop('bier_beta')
-    config['margin'] = args.pop('bier_margin')
-    
     return config
 
 
@@ -68,7 +64,6 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
-    
     X = batch[0] # images
     T = batch[1] # class labels
     I = batch[2] # image ids
@@ -80,57 +75,39 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
         T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
         feature = feature[T_list[:,0]]
         T = torch.tensor(T_list[:,1])
+    T = T.to(config['device'])
 
-    n = len(feature)
-    total_loss =0.0
-    bin_loss =0.0
     # l2 normalize feature
     normed_fvecs = {}
     sub_dim = config['sub_embed_sizes']
     for i in range(len(sub_dim)):
         start = int(sum(sub_dim[:i]))
         stop = int(start + sub_dim[i])
-        fvecs = F.normalize(feature[:, start:stop],p =2,dim =1)
-        normed_fvecs[str(sub_dim[i])] = fvecs
-    
-    # create similarity matrix for each sublearner
-    sim_mats =[torch.zeros(n,n).to(config['device'])]
-    for fvecs in normed_fvecs.values():
-        temp_mat = torch.matmul(fvecs, fvecs.t())
-        sim_mats.append(temp_mat)
-    
-    # init boosting_weights for each label pair
-    boosting_weights = torch.ones(n*n).to(config['device'])
-    # Pairwise labels
-    T = T.to(config['device'])
-    a = torch.cat(n*[torch.unsqueeze(T, 0)])
-    b = torch.transpose(a, 0, 1)
-    pairs = torch.flatten(a==b)*1.0
-    W = torch.flatten(1.0 - torch.eye(n)).to(config['device'])
-    # initial weight for each label pair (not include itself)
-    W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
+        fvec = F.normalize(feature[:, start:stop],p =2,dim =1)
+        normed_fvecs[str(sub_dim[i])]= fvec
 
-    # apply Online gradient boosting algorithm
-    for i in range(1,len(sim_mats)):
-        nu = 2.0/(i + 1.0 )
-        sim_mat = (1.0-nu)*sim_mats[i-1] + nu*sim_mats[i]
-        criterion = criterion_dict['binominal']
-        temp_loss, temp_grad = criterion(sim_mat,T)
-        bin_loss  = bin_loss + torch.sum(temp_loss*boosting_weights*W)/len(sub_dim)
-        # update boosting_weights by the negative loss gradient of previous learner
-        boosting_weights = -1.0* temp_grad
-
-    adv_loss = 0.0
+    total_loss =0.0
+    bin_loss = criterion_dict['binominal'](normed_fvecs,T)
+    
+    adv_loss, weight_loss = 0.0, 0.0
     if config['lambda_div'] > 0.0:
-        weight_loss =0.0
-        adv_loss, adv_weight_loss = criterion_dict['adversarial'](normed_fvecs)
-        weight_loss += adv_weight_loss
+        adv_loss = criterion_dict['adversarial'](normed_fvecs)
+        for regressor in criterion_dict['adversarial'].regressors.values():
+            for i in range(len(regressor)):
+                # relu layer has no weights and bias
+                if i !=1:
+                    W_hat = regressor[i].weight
+                    B_hat = regressor[i].bias
+                    weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
+        weight_loss = weight_loss / len(criterion_dict['adversarial'].regressors)
 
         for item in model.last_linear.values():
-            W = item.weight.data
-            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2)
+            W = item.weight
+            B = item.bias
+            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
+        weight_loss = weight_loss / len(model.last_linear)
     
-    total_loss = bin_loss + (adv_loss + weight_loss) * config['lambda_div']
+    total_loss = bin_loss + (adv_loss + config['lambda_weight']* weight_loss) * config['lambda_div']
     opt.zero_grad()
     total_loss.backward()
     # log the gradient of each layer
@@ -185,10 +162,6 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)  
-    dl_eval_train  = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)  
-
-    print("Evaluating initial model...")
-    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -219,9 +192,12 @@ def main():
         if e%10 == 0:
             _ = model.eval()
             tic = time.time()
-            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
+            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            if checkpoint: 
+                # check retrieval performance
+                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
             # evaluate the distance among inter and intra class
-            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            # lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
             _ = model.train()
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)

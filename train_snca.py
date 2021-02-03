@@ -78,9 +78,9 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
     # T = T.to(config['device'])
     # loss['margin'] = criterion_dict['margin'](feature, T)
 
-    loss['total'] = loss['nca']  + loss['bce']
+    loss['Train'] = loss['nca']  + loss['bce']
     optimizer.zero_grad()
-    loss['total'].backward()
+    loss['Train'].backward()
     # log the gradient of each layer
     #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
@@ -131,10 +131,6 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)  
-    dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)  
-
-    print("Evaluating initial model...")
-    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -149,14 +145,14 @@ def main():
         time_per_epoch_1 = time.time()
         losses ={}
         losses ={key:[] for key in criterion_dict.keys()}
-        losses ['total']=[]
+        losses ['Train']=[]
 
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(epoch)):
             loss= train_batch(model, lemniscate,criterion_dict, optimizer, config, batch)
             [losses[key].append(loss[key].item()) for key in losses.keys()]
 
         time_per_epoch_2 = time.time()
-        current_loss = np.mean(losses['total'])
+        current_loss = np.mean(losses['Train'])
         for key in losses.keys():
             LOG.progress_saver['Train'].log(key+'_loss', np.mean(losses[key]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
@@ -166,9 +162,11 @@ def main():
         if epoch % 10 ==0:
             _ = model.eval()
             tic = time.time()
-            # evaluate the distance among inter and intra class
-            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
-            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            if checkpoint: 
+                # check retrieval performance
+                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')  
+            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
         LOG.update(all=True)

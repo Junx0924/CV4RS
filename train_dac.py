@@ -119,7 +119,6 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)
-    dl_eval_train = lib.data.loader.make(config, model,'eval', dset_type = 'train',is_multihot= True)
 
     
     to_optim = get_optim(config, model)
@@ -137,8 +136,6 @@ def main():
         raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     faiss_reserver.release()
-    print("Evaluating initial model...")
-    lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, True, config['backend'], LOG, 'Val')
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
 
@@ -187,16 +184,17 @@ def main():
         if e%10 ==0:
             _ = model.eval()
             tic = time.time()
-            lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')
+            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            if checkpoint: 
+                # check retrieval performance
+                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
             # evaluate the distance among inter and intra class
-            lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
-
-        LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
         LOG.update(all=True)
         print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
         faiss_reserver.lock(config['backend'])
-
         model.current_epoch = e
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
