@@ -146,6 +146,7 @@ class BaseDataset(torch.utils.data.Dataset):
             img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
 
         # normalize the image to its own mean and std channel wise
+        if img_channel ==3: img = img/255
         img_mean = np.array([np.mean(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
         img_std = np.array([np.std(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
         img = (img - img_mean)/(img_std + 0.00000001)
