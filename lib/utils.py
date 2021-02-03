@@ -9,7 +9,6 @@ import torch
 from tqdm import tqdm
 from sklearn.preprocessing import scale,normalize
 import matplotlib.pyplot as plt
-import seaborn as sns
 import PIL
 import os
 from osgeo import gdal
