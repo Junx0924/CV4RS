@@ -8,10 +8,13 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from sklearn.preprocessing import scale,normalize
-import matplotlib.pyplot as plt, numpy as np, torch
+import matplotlib.pyplot as plt
+import seaborn as sns
 import PIL
 import os
 from osgeo import gdal
+from sklearn.manifold import TSNE
+import time
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
     # list with N lists, where N = |{image, label, index}|
@@ -55,13 +58,13 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val',init_eval =False):
-    K = [1, 2, 4, 8]
+def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val'):
+    K =  4 
     # calculate embeddings with model and get targets
     X_query, T_query, I_query = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
     X_gallery, T_gallery, I_gallery = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
 
-    if 'evaluation_weight' in config.keys() and not init_eval:
+    if 'evaluation_weight' in config.keys():
         X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
 
@@ -69,32 +72,20 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     nb_classes = dl_query.dataset.nb_classes()
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
-    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k=max(K),gpu_id= torch.cuda.current_device())
+    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= K,gpu_id= torch.cuda.current_device())
     T_query_pred   = T_gallery[k_closest_points]
 
-    flag_checkpoint = False
-    history_recall1 = 0
-    if "recall" not in LOG.progress_saver[log_key].groups.keys():
-        flag_checkpoint = True
-    else: 
-        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
+    wmap = evaluation.retrieval.select('wmap',T_query, T_query_pred, K)
+    LOG.progress_saver[log_key].log("retrieve_wmap@"+str(K),wmap)
+    print("retrieval: wmap@{} : {:.2f}".format(K, wmap))
 
-    scores = {}
-    recall = []
-    for k in K:
-        r_at_k = evaluation.calc_recall_at_k(T_query, T_query_pred, k)
-        recall.append(r_at_k)
-        LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
-        print("eval data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
-        if k==1 and r_at_k > history_recall1:
-            flag_checkpoint = True
-    scores['recall'] = recall
+    map = evaluation.retrieval.select('map',T_query, T_query_pred, K)
+    LOG.progress_saver[log_key].log("retrieve_map@"+str(K),map)
+    print("retrieval: map@{} : {:.3f}".format(K, 100*map))
 
-    ### save checkpoint #####
-    if  flag_checkpoint:
-        print("Best epoch! save to checkpoint")
-        savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
-        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
+    hl = evaluation.retrieval.select('hamming',T_query, T_query_pred, K)
+    LOG.progress_saver[log_key].log("retrieve_hamming@"+str(K),hl)
+    print("retrieval: hamming loss@{} : {:.3f}".format(K, hl))
 
     ### recover n_closest images
     n_img_samples = 10
@@ -107,21 +98,16 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     pred_img_paths = np.array([[dl_gallery.dataset.im_paths[i] for i in ii] for ii in nns])
     sample_paths = [dl_query.dataset.im_paths[i] for i in sample_idxs]
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-
-    # pred_labels = np.array([[dl_gallery.dataset.ys[i] for i in ii] for ii in nns])
-    # sample_lables = dl_query.dataset.ys[sample_idxs]
-    # image_labels = np.concatenate([np.array(sample_lables),pred_labels],axis=1)
-
     save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
     plot_images(image_paths,save_path)
-    return scores
+  
 
-def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',init_eval= False):
+def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',with_f1 = True):
     nb_classes = dl.dataset.nb_classes()
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
-    X, T, _ = predict_batchwise(model, dl, use_penultimate, desc='Extraction Eval Features')
-    if 'evaluation_weight' in config.keys() and not init_eval:
+    X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
+    if 'evaluation_weight' in config.keys():
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= torch.cuda.current_device())
@@ -138,19 +124,36 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
     scores = {}
     recall = []
     for k in K:
-        r_at_k = evaluation.calc_recall_at_k(T, T_pred, k)
+        r_at_k = evaluation.classification.select('recall',T, T_pred, k)
         recall.append(r_at_k)
-        print("eval data: recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        print("classification: recall@{} : {:.3f}".format(k, 100 * r_at_k))
         LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
         if k==1 and r_at_k > history_recall1:
-            print("Best epoch! save to checkpoint")
             flag_checkpoint = True
     scores['recall'] = recall
 
+    if with_f1:
+        f1_k =1
+        f1 = evaluation.classification.select('f1',T, T_pred, k=f1_k)
+        print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
+        LOG.progress_saver[log_key].log("f1",f1)
+
     ### save checkpoint #####
     if  flag_checkpoint:
+        print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
+        # apply tsne to the embeddings
+        time_start = time.time()
+        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        tsne_results = tsne.fit_transform(X)
+        print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
+        # Fixing random state for reproducibility
+        np.random.seed(19680801)
+        plt.figure(figsize=(16,10))
+        plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
+        save_path = LOG.config['checkfolder']+'/tsne.png'
+        plt.savefig(save_path, format='png')
 
     #recover n_closest images
     n_img_samples = 10
@@ -162,14 +165,9 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
     pred_img_paths = np.array([[dl.dataset.im_paths[i] for i in ii] for ii in nns[:,1:]])
     sample_paths = [dl.dataset.im_paths[i] for i in sample_idxs]
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-
-    # pred_labels = np.array([[dl.dataset.ys[i] for i in ii] for ii in nns[:,1:]])
-    # sample_lables = dl.dataset.ys[sample_idxs]
-    # image_labels = np.concatenate([np.array(sample_lables).reshape(-1,1,nb_classes),pred_labels],axis=1)
-
     save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
     plot_images(image_paths,save_path)
-    return scores
+    return flag_checkpoint
 
 def plot_images(image_paths,save_path):
     """
@@ -215,7 +213,7 @@ def DistanceMeasure(model,config,dataloader,LOG, log_key):
     """
     log the change of distance ratios
     between intra-class distances and inter-class distances.
-    model: embedding lists
+    model: 
     config: 
     dataloader:
     LOG:
