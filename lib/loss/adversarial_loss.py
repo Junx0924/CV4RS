@@ -1,16 +1,16 @@
 import torch, torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from torch.autograd import Variable
 
 """================================================================================================="""
 class Adversarial(torch.nn.Module):
-    def __init__(self,hidden_adversarial_size,direction_dict,decorrnet_lr=0.00001, need_weight_loss = False):
+    def __init__(self,hidden_adversarial_size,direction_dict,decorrnet_lr=0.00001):
         super(Adversarial,self).__init__()
        
         self.directions = direction_dict # {direction:{dim: str ,weight: float}}
         self.proj_dim   = hidden_adversarial_size
         self.lr   =  decorrnet_lr
-        self.need_weight_loss = need_weight_loss
         #Projection network
         self.regressors = nn.ModuleDict()
         for key in self.directions.keys():
@@ -36,23 +36,7 @@ class Adversarial(torch.nn.Module):
             weight = self.directions[key]['weight']
             regressor = self.regressors[key]
             sim_loss += -1.*weight*torch.mean(torch.mean((target_data*torch.nn.functional.normalize(regressor(source_data),dim=-1))**2,dim=-1))
-        
-        # get the regressor weights and bias
-        if self.need_weight_loss:
-            weight_loss = 0.0
-            for regressor in self.regressors.values():
-                for i in range(len(regressor)):
-                    # relu layer has no weights and bias
-                    if i !=1:
-                        W_hat = regressor[i].weight.data
-                        B_hat = regressor[i].bias.data
-                        weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
-            weight_loss = weight_loss / len(self.regressors)
-            # return similarity loss
-            # return the weight and bias of regressor to penalize large weights and bias
-            return sim_loss, weight_loss
-        else:
-            return sim_loss
+        return sim_loss
 
 
 

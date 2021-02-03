@@ -5,77 +5,66 @@ from torch import nn
 from torch.autograd import Variable
 import numpy as np
 
-
 class BinomialLoss(nn.Module):
-    def __init__(self, alpha=40, beta=2.0, margin=0.5, hard_mining=True,  **kwargs):
+    def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,**kwargs):
+        """
+        C: parameter for binomial deviance.
+        alpha: parameter for binomial deviance.
+        beta: margin for binomial deviance.
+        """
         super(BinomialLoss, self).__init__()
-        self.margin = margin
+        self.C = 25
         self.alpha = alpha
         self.beta = beta
-        self.hard_mining = hard_mining
+        self.eta_style = eta_style
+        self.initial_acts =0.0 if eta_style == True else 0.5
+        self.shrinkage = 1.0 if eta_style == True else 0.06
     
-    # sim_mat:similarity matrix of embeddings, shape (batchsize, batchsize)
-    # targets: labels, shape(batchsize,)
-    def forward(self,sim_mat, targets):
-        assert len(sim_mat) == len(targets)
-        n = sim_mat.size(0)
-        c = 0
-        pair_grad=torch.zeros(n,n).cuda() # record grad for each pair
-        pair_loss=torch.zeros(n,n).cuda() # record loss for each pair
-        for i in range(n):
-            pos_ind = torch.where(targets==targets[i])[0]
-            # remove itself
-            pos_pair_ = sim_mat[i][pos_ind]
-            ind_select = torch.where(pos_pair_<1)[0]
-            pos_ind = pos_ind[ind_select]
-            pos_pair_ = sim_mat[i][pos_ind]
+    def forward(self,normed_fvecs, T):
+        """
+        normed_fvecs: multi-feature dict
+        T: labels, tensor, shape( batchsize, )
+        """
+        n = len(T)
+        # init boosting_weights for each label pair
+        boosting_weights = torch.ones(n*n).cuda()
+        # Pairwise labels
+        a = torch.cat(n*[torch.unsqueeze(T, 0)])
+        b = torch.transpose(a, 0, 1)
+        pairs = torch.flatten(a==b)*1.0
+        m = 1.0 * pairs + (-self.C * (1.0 - pairs))
+        W = torch.flatten(1.0 - torch.eye(n)).cuda()
+        # initial weight for each label pair (not include itself)
+        W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
+        
+        loss =0.0
+        acts = self.initial_acts
+        Ds =[]
+        i = 0.0
+        for fvec in normed_fvecs.values():
+            Ds.append(torch.matmul(fvec, fvec.t()))
+            D = torch.flatten(Ds[-1])
+            my_act = self.alpha* (D - self.beta)* m
+            my_loss = torch.log(1.0 + torch.exp(-1.0*my_act))
+            tmp = torch.sum(my_loss* boosting_weights * W)/ len(normed_fvecs)
+            loss +=tmp
+            if self.eta_style:
+                nu = 2.0/( 1.0 + 1.0 + i)
+                if self.shrinkage != 1.0:
+                    acts = (1.0 - nu)* acts + nu * self.shrinkage * D
+                    inputs = self.alpha * (acts - self.beta) * m
+                    booster_loss = torch.sum(torch.log( 1.0 + torch.exp(-1.0*inputs)))
+                    boosting_weights = -1*torch.autograd.grad(booster_loss, inputs,create_graph=True)[0].detach()
+                else:
+                    acts = (1.0- nu)* acts + nu * self.shrinkage * my_act
+                    booster_loss = torch.sum(torch.log( 1.0 + torch.exp(-1.0*acts)))
+                    boosting_weights = -1*torch.autograd.grad(booster_loss, acts,create_graph=True)[0].detach()
+            else:
+                # simpler variant of the boosting algorithm
+                acts += self.shrinkage * ( D - self.beta) * self.alpha * m
+                booster_loss = torch.sum(torch.log( 1.0 + torch.exp(-1.0*acts)))
+                cls_weight = 1.0* pairs + (1.0 - pairs) * 2.0
+                boosting_weights = -1* cls_weight* torch.autograd.grad(booster_loss, acts,create_graph=True)[0].detach()
+            i +=1
 
-            neg_ind = torch.where(targets!=targets[i])[0]
-            neg_pair_ = sim_mat[i][neg_ind]
-
-            # sort ascending, get the index
-            pos_pair_,pos_sort = torch.sort(pos_pair_)
-            neg_pair_,neg_sort = torch.sort(neg_pair_)
-            pos_ind =pos_ind[pos_sort]
-            neg_ind =neg_ind[neg_sort]
-
-            if len(pos_ind) <1 or len(neg_ind) < 1:
-                c += 1
-                continue 
-            if self.hard_mining:
-                
-                hard_neg_ind = torch.where(neg_pair_ + 0.1 > pos_pair_[0])[0]
-                neg_ind = neg_ind[hard_neg_ind]
-
-                hard_pos_ind = torch.where(pos_pair_ - 0.1 <  neg_pair_[-1])[0]
-                pos_ind = pos_ind[hard_pos_ind]
-                
-                if len(neg_ind) < 1 or len(pos_ind) < 1:
-                    c += 1
-                    continue 
-                
-                pos_pair = Variable(sim_mat[i][pos_ind], requires_grad = True)
-                neg_pair = Variable(sim_mat[i][neg_ind], requires_grad = True)
-                pos_loss = 2.0/self.beta * torch.log(1 + torch.exp(-self.beta*(pos_pair - self.margin)))
-                neg_loss = 2.0/self.alpha * torch.log(1 + torch.exp(self.alpha*(neg_pair - self.margin)))
-
-            else:  
-                pos_pair = Variable(sim_mat[i][pos_ind], requires_grad = True)
-                neg_pair = Variable(sim_mat[i][neg_ind], requires_grad = True) 
-
-                pos_loss = torch.log(1 + torch.exp(-self.beta*(pos_pair - self.margin)))
-                neg_loss = torch.log(1 + torch.exp(self.alpha*(neg_pair - self.margin)))
-            # get the gradient of pos_loss and neg_loss respect to input similarity
-            pos_grad = torch.autograd.grad(torch.mean(pos_loss),pos_pair,retain_graph=True)[0]
-            neg_grad = torch.autograd.grad(torch.mean(neg_loss),neg_pair,retain_graph=True)[0]
-
-            if len(neg_pair) == 0:
-                c += 1
-                continue
-            
-            pair_loss[i][pos_ind] = pos_loss
-            pair_loss[i][neg_ind] = neg_loss
-            pair_grad[i][pos_ind] = pos_grad
-            pair_grad[i][neg_ind] = neg_grad
-            
-        return pair_loss.flatten(),pair_grad.flatten()
+        return loss

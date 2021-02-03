@@ -21,11 +21,9 @@ def select(config,to_optim,loss_name="",minner_name= "",onehot_labels = None):
         criterion = Fast_moco(config) 
     elif  'adversarial' in loss_name : 
         criterion = Adversarial(config['hidden_adversarial_size'],config['decorrelation']) 
-        if config['project'] =='bier':
-            criterion =Adversarial(config['hidden_adversarial_size'],config['decorrelation'],need_weight_loss= True) 
         to_optim    += [{'params':criterion.parameters(), 'lr':criterion.lr}]
     elif 'binominal' in loss_name : 
-        criterion = BinomialLoss(config['alpha'],config['beta'], config['margin'])
+        criterion = BinomialLoss()
     elif 'nca' in loss_name:
         criterion = NCACrossEntropy(onehot_labels,config['margin'] / config['temperature'])
     elif 'bce' in loss_name:
