@@ -43,12 +43,6 @@ def divid_and_conquer(parser):
 
 def bier(parser):
     ## for Method Boosting Independent Embeddings (BIER)
-    ## Binomial Deviance Loss
-    parser.add_argument('--bier_alpha', type=float, default=25, help ='Weighting on negative similarities.')
-    parser.add_argument('--bier_beta', type=float, default=2.0, help ='Weighting on positive similarities.')
-    parser.add_argument('--bier_margin', type=float, default=0.5, help ='Distance margin for both positive and negative similarities')
-    parser.add_argument('--bier_hard_mining', action='store_true')
-
     parser.add_argument('--bier_lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
     parser.add_argument('--bier_lambda_div', type=float, default=5e-5, help ='regularization parameter')
     parser.add_argument('--bier_sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')

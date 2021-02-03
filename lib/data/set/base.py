@@ -129,8 +129,6 @@ class BaseDataset(torch.utils.data.Dataset):
         img_dim = img_shape[1]
         img_channel = img_shape[0]
         crop = self.transform['sz_crop']
-        mean = self.transform['mean']
-        std = self.transform['std']
         if  self.is_training:
             # random_image_crop
             if img_dim == crop: tl =[0,0]
@@ -147,12 +145,8 @@ class BaseDataset(torch.utils.data.Dataset):
             offset = (img_dim - crop) // 2
             img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
 
-        # normalize the image to its own mean and std
+        # normalize the image to its own mean and std channel wise
         img_mean = np.array([np.mean(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
         img_std = np.array([np.std(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
-        img = (img -img_mean)/img_std
-        # normalize to the assigned mean and std
-        if isinstance(mean,list): mean = np.array(mean).reshape(-1,1,1)
-        if isinstance(std,list): std = np.array(std).reshape(-1,1,1)
-        img = (img - mean)/std
+        img = (img - img_mean)/(img_std + 0.00000001)
         return  torch.Tensor(img)
