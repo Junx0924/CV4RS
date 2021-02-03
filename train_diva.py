@@ -241,7 +241,7 @@ def main():
                 loss_collect[key].append(losses[key])
 
         time_per_epoch_2 = time.time()
-        current_loss = np.mean(loss_collect['total'])
+        current_loss = np.mean(loss_collect['Train'])
         LOG.progress_saver['Train'].log('epochs', e)
         for key in loss_collect.keys():
             LOG.progress_saver['Train'].log(key +'_loss',np.mean(loss_collect[key]))
