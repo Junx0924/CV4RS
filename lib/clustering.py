@@ -5,6 +5,7 @@ import torch
 import logging
 import numpy as np
 import sklearn.cluster
+import sklearn.metrics.cluster
 from . import evaluation
 from . import faissext
 from . import data
@@ -81,7 +82,7 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
         C_prev = C_prev[I_prev_correct]
 
         print('Reassigning clusters...')
-        nmi =  evaluation.calc_normalized_mutual_information(C[I],C_prev[I_prev])
+        nmi =  sklearn.metrics.cluster.normalized_mutual_info_score(C[I],C_prev[I_prev])
         print("Calculating NMI for consecutive cluster assignments:{}".format(nmi))
         LOG.progress_saver['Train'].log('nmi',nmi,'reclustering')
 
