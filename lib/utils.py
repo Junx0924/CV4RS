@@ -143,16 +143,16 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
         # apply tsne to the embeddings
-        time_start = time.time()
-        tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        tsne_results = tsne.fit_transform(X)
-        print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
-        # Fixing random state for reproducibility
-        np.random.seed(19680801)
-        plt.figure(figsize=(16,10))
-        plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
-        save_path = LOG.config['checkfolder']+'/tsne.png'
-        plt.savefig(save_path, format='png')
+        # time_start = time.time()
+        # tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+        # tsne_results = tsne.fit_transform(X)
+        # print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
+        # # Fixing random state for reproducibility
+        # np.random.seed(19680801)
+        # plt.figure(figsize=(16,10))
+        # plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
+        # save_path = LOG.config['checkfolder']+'/tsne.png'
+        # plt.savefig(save_path, format='png')
 
     #recover n_closest images
     n_img_samples = 10
