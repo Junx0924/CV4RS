@@ -1,7 +1,6 @@
 from __future__ import print_function
 from __future__ import division
 
-import logging
 import torch
 import numpy as np
 import random
@@ -14,23 +13,22 @@ class ClassBalancedSampler(torch.utils.data.sampler.Sampler):
     50 indices, which point to 2 samples from 50/2=25 randomly picked classes.
     """
 
-    def __init__(self, image_dict, image_list,batch_size=50, num_samples_per_class=2):
+    def __init__(self, image_dict, image_list,num_samples_per_class=2):
         self.image_dict         = image_dict
         self.image_list         = image_list
-
-        self.batch_size         = batch_size
         self.samples_per_class  = num_samples_per_class
+
+        num_class = len(image_dict)
+        batch_size         = num_samples_per_class * num_class
         self.sampler_length     = len(image_list)//batch_size
-        assert self.batch_size%self.samples_per_class==0, '#Samples per class must divide batchsize!'
 
     def __iter__(self):
         for _ in range(self.sampler_length):
             subset = []
-            ### Random Subset from Random classes
-            for _ in range(self.batch_size//self.samples_per_class):
-                class_key = random.choice(list(self.image_dict.keys()))
+            ### Random Subset from each classes
+            for class_key in self.image_dict.keys():
                 index_pool = [item[-1] for item in self.image_dict[class_key]]
-                replace = True if len(index_pool) <self.samples_per_class else False
+                replace = True if len(index_pool) < self.samples_per_class else False
                 subset.extend(np.random.choice(index_pool, self.samples_per_class, replace=replace))
             yield subset
 

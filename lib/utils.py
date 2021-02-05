@@ -247,3 +247,17 @@ def GradientMeasure(model,LOG,log_key):
             grad_l2, grad_max  = np.mean(np.sqrt(np.mean(np.square(grads)))), np.mean(np.max(np.abs(grads)))
             LOG.progress_saver[log_key].log(name+'_l2',grad_l2)
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
+
+def classBalancedSamper(T,num_samples_per_class):
+    T_list = [ np.where(t==1)[0] for t in T] 
+    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    classes = np.unique(T_list[:,1])
+    image_dict = {str(c):[] for c in classes}
+    [image_dict[str(c)].append(ind) for ind,c in T_list]
+    new_T_list =[]
+    for c in image_dict.keys():
+        replace = True if len(image_dict[c])< num_samples_per_class else False
+        inds = np.random.choice(image_dict[c],num_samples_per_class,replace=replace)
+        new_T_list.append([inds[0],int(c)])
+        new_T_list.append([inds[1],int(c)])
+    return np.array(new_T_list)
