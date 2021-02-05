@@ -6,6 +6,7 @@ def get_label(multihot):
     labels = np.where(multihot ==1)[0]
     return list(labels)
 
+# implement according to paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
 # weighted mean average precision
 # the number of labels shared between ground truth and predicted
 def wmap(y_true,y_pred):
