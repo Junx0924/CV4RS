@@ -9,6 +9,10 @@ from skimage.transform import resize
 from osgeo import gdal
 from PIL import Image
 
+def get_category_labels(multihot):
+    labels = np.where(multihot ==1)[0]
+    return list(labels)
+
 def get_BigEarthNet(img_path):
     patch_name = img_path.split('/')[-1]
     band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
@@ -112,9 +116,11 @@ class BaseDataset(torch.utils.data.Dataset):
                 self.ys.append(key)
                 self.I.append(ind)
                 self.im_paths.append(img_path)
-                if key not in self.image_dict.keys():
-                    self.image_dict[key]=[]
-                self.image_dict[key].append([img_path,ind])
+                labels = get_category_labels(key)
+                for label in labels:
+                    if label not in self.image_dict.keys():
+                        self.image_dict[label]=[]
+                    self.image_dict[label].append([img_path,ind])
 
     def process_image(self, img, mirror=True):
         """

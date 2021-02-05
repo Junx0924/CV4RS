@@ -85,22 +85,18 @@ def Give(datapath,dset_type, use_hdf5):
             if not Path(hdf_path).exists():
                 print("Start to create ", hdf_path," for BigEarthNet")
                 store_hdf(hdf_path,file_list)
-    else:
-        # check the json file of image_dict exist or not
-        json_dir =[ item.split('.')[0] +'.json' for item in csv_list]
-        for json_file, file_list in zip(json_dir, file_lists):
-            json_path = datapath + json_file 
-            if not Path(json_path).exists():
-                image_dict = get_label(file_list)
-                with open(json_file, 'w') as json_f:
-                    json.dump(image_dict, json_f,separators=(",", ":"),allow_nan=False,indent=4)
-                    print("\ncreate ",json_file)
-
-    # read image dict from json file
+    
+    # load image_dict from json files
     data_list =[]
-    for item in  csv_list:
-        json_file = datapath + item.split('.')[0] +'.json'
-        with open(json_file, 'r') as json_f:
+    json_dir =[ item.split('.')[0] +'.json' for item in csv_list]
+    for json_file, file_list in zip(json_dir, file_lists):
+        json_path = datapath + json_file 
+        if not Path(json_path).exists():
+            image_dict = get_label(file_list)
+            with open(json_file, 'w') as json_f:
+                json.dump(image_dict, json_f,separators=(",", ":"),allow_nan=False,indent=4)
+                print("\ncreate ",json_file)
+        with open(json_path, 'r') as json_f:
             data_list.append(json.load(json_f))
     
     # get the common keys from train/val/test image dict
