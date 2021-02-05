@@ -10,38 +10,38 @@ import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 
-def make(config, model, type, subset_indices = None, dset_type = None, is_multihot = False,include_aux_augmentations = False):
+def make(config, model, type, subset_indices = None, dset_type = None,include_aux_augmentations = False):
     """
     subset_indices: indices for selecting subset of dataset, for creating
         clustered dataloaders.
     type: 'init', 'eval' or 'train'.
     """
     ds_name = config['dataset_selected']
-    batch_size = config['dataloader']["batch_size"]
-    num_samples_per_class = config['num_samples_per_class']
-    num_workers = config['dataloader']["num_workers"]
-    transform = config['transform_parameters'][ds_name]
-    root = config['dataset'][ds_name]['root']
-    shuffle= config['dataloader']['shuffle']
-    use_hdf5 = config['use_hdf5']
-    
     ds = dataset.select(
-        datapath = root,
+        datapath = config['dataset'][ds_name]['root'],
         dset_type = dset_type, # dset_type: train, query, gallery
-        transform = transform,
+        transform = config['transform_parameters'][ds_name],
         is_training = type == 'train',
-        is_multihot= is_multihot,
         include_aux_augmentations = include_aux_augmentations,
-        use_hdf5 = use_hdf5
+        use_hdf5 = config['use_hdf5']
     )
     if type == 'train':
-        ds.set_subset(subset_indices)
-        train_data_sampler= ClassBalancedSampler(ds.image_dict,ds.image_list, batch_size = batch_size,num_samples_per_class = num_samples_per_class)
-        dl = torch.utils.data.DataLoader(
-            ds,
-            num_workers= num_workers,
-            batch_sampler= train_data_sampler,
-            )
+        if config['project']=='snca':
+            dl = torch.utils.data.DataLoader(
+                ds,
+                num_workers= config['dataloader']["num_workers"],
+                shuffle= True,
+                pin_memory= True,
+                batch_size= config['dataloader']['batch_size']
+                )
+        else:
+            ds.set_subset(subset_indices)
+            train_data_sampler= ClassBalancedSampler(ds.image_dict,ds.image_list, config['num_samples_per_class'])
+            dl = torch.utils.data.DataLoader(
+                ds,
+                num_workers= config['dataloader']["num_workers"],
+                batch_sampler= train_data_sampler
+                )
     else:
         # else init or eval loader (shuffle = false)
         dl = torch.utils.data.DataLoader(ds, **config['dataloader'])
