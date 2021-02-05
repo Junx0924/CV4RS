@@ -35,6 +35,10 @@ def load_dac_config(config, args):
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     
+    dataset_name= config['dataset_selected']
+    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
+    config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -55,18 +59,17 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
-    X = batch[0].to(config['device']) # images
+    X = batch[0] # images
     T = batch[1] # class labels
     I = batch[2] # image ids
 
-    M = model(X)
-    if len(T.size())==2: 
-        T_list = [ np.where(t==1)[0] for t in T] 
-        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-        M = M[T_list[:,0]]
-        T = torch.tensor(T_list[:,1])
-
+    M = model(X.to(config['device']))
+    T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
+    new_I = T_list[:,0]
+    M = M[new_I]
+    T = torch.tensor(T_list[:,1])
     T = T.to(config['device'])
+
     if epoch >= config['finetune_epoch'] * 8 / 19:
         M_sub= M
         pass
@@ -114,11 +117,11 @@ def main():
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
-    dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train',is_multihot= True)
+    dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
     
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
 
     
     to_optim = get_optim(config, model)
@@ -181,7 +184,7 @@ def main():
         faiss_reserver.release()
 
         # evaluate
-        if e%10 ==0:
+        if e% config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
             checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 

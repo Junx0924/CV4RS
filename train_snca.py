@@ -69,15 +69,6 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
     # caculate loss by aligning the similarity mat from features and labels
     loss['nca'] = criterion_dict['nca'](output, I)
     loss['bce'] = criterion_dict['bce'](feature,T.to(config['device']))
-
-    # if len(T.size())==2: 
-    #     T_list = [ np.where(t==1)[0] for t in T] 
-    #     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    #     feature = feature[T_list[:,0]]
-    #     T = torch.tensor(T_list[:,1])
-    # T = T.to(config['device'])
-    # loss['margin'] = criterion_dict['margin'](feature, T)
-
     loss['Train'] = loss['nca']  + loss['bce']
     optimizer.zero_grad()
     loss['Train'].backward()
@@ -114,7 +105,7 @@ def main():
     _  = model.to(config['device'])
 
     # create init and eval dataloaders; init used for creating clustered DLs
-    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train', is_multihot=True)
+    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train')
 
     # define lemniscate and loss function (criterion)
     N = len(dl_train.dataset)
@@ -129,8 +120,8 @@ def main():
     optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
 
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)  
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -159,7 +150,7 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(epoch,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if epoch % 10 ==0:
+        if epoch % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
             checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 

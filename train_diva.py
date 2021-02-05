@@ -61,6 +61,11 @@ def load_diva_config(config,args):
         assert len(config['diva_features']) == len(config['evaluation_weight'])
 
     config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
+
+    dataset_name= config['dataset_selected']
+    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
+    config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -78,8 +83,6 @@ class JSONEncoder(json.JSONEncoder):
             return repr(x)
         return json.JSONEncoder.default(self, x)
 
-
-
 def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):
     if len(batch) ==4:
         X = batch[0] # images
@@ -92,13 +95,12 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
         I = batch[2] # image ids
 
     fvecs = model(X.to(config['device']))
-    if len(T.size())==2: 
-        T_list = [ np.where(t==1)[0] for t in T] 
-        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-        fvecs = fvecs[T_list[:,0]]
-        T = T_list[:,1]
-        if len(batch) ==4:
-            X_aux = X_aux[T_list[:,0]]
+    T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
+    new_I = T_list[:,0]
+    T = T_list[:,1]
+    fvecs = fvecs[new_I]
+    if len(batch) ==4:
+        X_aux = X_aux[new_I]
     
     sub_dim = config['sz_embedding'] // len(config['diva_features'])
     fvecs = fvecs.split(sub_dim, dim =1)
@@ -195,11 +197,11 @@ def main():
 
     # create train dataset
     flag_aux =config['include_aux_augmentations']
-    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',is_multihot= True,include_aux_augmentations=flag_aux)
+    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
     
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
     
     # define loss function for each feature
     to_optim = get_optim(config, model)
@@ -217,7 +219,7 @@ def main():
         raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     if 'selfsimilarity' in criterion_dict.keys():
-        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train',is_multihot=True)
+        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train')
         criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
 
     print("Training for {} epochs.".format(config['nb_epochs']))
@@ -249,7 +251,7 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if e%10 ==0:
+        if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
             checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 

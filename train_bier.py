@@ -44,6 +44,11 @@ def load_bier_config(config, args):
         config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':config['lambda_weight']}
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
+
+    dataset_name= config['dataset_selected']
+    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
+    config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -69,13 +74,10 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     I = batch[2] # image ids
 
     feature = model(X.to(config['device']))
-    
-    if len(T.size())==2: 
-        T_list = [ np.where(t==1)[0] for t in T] 
-        T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-        feature = feature[T_list[:,0]]
-        T = torch.tensor(T_list[:,1])
-    T = T.to(config['device'])
+    T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
+    new_I = T_list[:,0]
+    feature = feature[new_I]
+    T = torch.tensor(T_list[:,1]).to(config['device'])
 
     # l2 normalize feature
     normed_fvecs = {}
@@ -157,11 +159,11 @@ def main():
         raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     # create init and eval dataloaders; init used for creating clustered DLs
-    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train',is_multihot= True)
+    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train')
 
     # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query',is_multihot= True)
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery',is_multihot= True)  
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
 
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -189,7 +191,7 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if e%10 == 0:
+        if e % config['eval_epoch'] == 0:
             _ = model.eval()
             tic = time.time()
             checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
