@@ -17,7 +17,6 @@ def basic_training_parameters(parser):
     parser.add_argument('--frozen',   action='store_true',help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthNet frozen the backbone except the first layer')
     parser.add_argument('--cuda-device', default = 0, type = int)
     parser.add_argument('--num-workers', default=4, type=int)
-    parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
     parser.add_argument('--nb-epochs', default=120, type = int)
     parser.add_argument('--sz_embedding', default=512, type=int, help='the dimension of final embedding')
@@ -31,10 +30,14 @@ def basic_training_parameters(parser):
     parser.add_argument('--decay',             default=0.0004,   type=float, help='Weight decay for optimizer.')
     parser.add_argument('--tau',               default=[30,55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
     parser.add_argument('--use_hdf5',   action='store_true',help='Flag. If set, create hdf5 file and read data from hdf5 during training')
+    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--num_samples_per_class',type=int, default=2)
+    parser.add_argument('--savename', default="", type = str)
+    parser.add_argument('--eval_epoch',type=int, default=10)
 
     return parser
 
-def divid_and_conquer(parser):
+def divide_and_conquer(parser):
     ### for Method Divide and conquer
     parser.add_argument('--dac_mod_epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
     parser.add_argument('--dac_nb_clusters', default=4, type = int, help='the number of learners')
@@ -67,7 +70,6 @@ def diva(parser):
     ### Adversarial loss for decorrelating features
     parser.add_argument('--diva_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
     parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
-
     return parser 
 
 def snca(parser):
@@ -93,7 +95,7 @@ def load_common_config():
     parser = setup_parameters(parser)
     parser = wandb_parameters(parser)
     parser = diva(parser)
-    parser = divid_and_conquer(parser)
+    parser = divide_and_conquer(parser)
     parser = bier(parser)
     parser = snca(parser)
     args = vars(parser.parse_args())
@@ -106,8 +108,8 @@ def load_common_config():
     #### Update config.json from INPUT ARGUMENTS ###########
     config['sz_embedding'] = args.pop('sz_embedding')
     config['pj_base_path'] = pj_base_path
-    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
     config['dataloader']['batch_size'] = args.pop('batch_size')
+    config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file']
     config['dataloader']['num_workers'] = args.pop('num_workers')
     config['opt']['backbone']['lr'] = args.pop('backbone_lr')
     config['opt']['backbone']['weight_decay'] = args.pop('backbone_wd')
@@ -115,17 +117,20 @@ def load_common_config():
     config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
     dataset_name =  args.pop('dataset_name')
     config['dataset_selected'] = dataset_name
+    config['dataset_selected'] = dataset_name
     config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
     config['random_seed'] = args.pop('random_seed')
     config['log_online'] = args.pop('log_online')
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
-    config['log']['save_name'] = dataset_name +'_s{}'.format(config['random_seed'])
+    savename = args.pop('savename')
+    config['log']['save_name'] = savename if savename !="" else dataset_name +'_s{}'.format(config['random_seed'])
     config['scheduler'] = args.pop('scheduler')
     config['decay'] = args.pop('decay')
     config['gamma'] = args.pop('gamma')
     config['tau'] = args.pop('tau')
     config['use_hdf5'] = args.pop('use_hdf5')
+    config['eval_epoch'] = args.pop('eval_epoch')
 
     if torch.cuda.is_available():
         config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -136,7 +141,7 @@ def load_common_config():
         config['wandb']['project'] =args.pop('project')
         config['wandb']['group'] =args.pop('group')
         # update save_name
-        config['log']['save_name'] =  config['wandb']['group']+'_s{}'.format(config['random_seed'])
+        config['log']['save_name'] = savename if savename !="" else config['wandb']['group']+'_s{}'.format(config['random_seed'])
         import wandb
         os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
         os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC

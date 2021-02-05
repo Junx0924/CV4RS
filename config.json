@@ -7,7 +7,6 @@
     "sz_embedding": 512,
     "backend": "faiss-gpu",
     "nb_epochs": 120,
-    "num_samples_per_class": 2,
     "dataset_selected": "BigEarthNet",
     "pretrained_weights_file": "pretrained_weights/resnet50-19c8e357.pth",
     "dataset": {
