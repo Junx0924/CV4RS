@@ -122,7 +122,8 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-
+    print("evaluate initial model")
+    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
     
     to_optim = get_optim(config, model)
     criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
@@ -194,9 +195,9 @@ def main():
             # evaluate the distance among inter and intra class
             #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             _ = model.train()
         LOG.update(all=True)
-        print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
         faiss_reserver.lock(config['backend'])
         model.current_epoch = e
         ### Learning Rate Scheduling Step

@@ -101,12 +101,12 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     plot_images(image_paths,save_path)
   
 
-def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',with_f1 = True):
+def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',with_f1 = True,is_init=False):
     nb_classes = dl.dataset.nb_classes()
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
-    if 'evaluation_weight' in config.keys():
+    if 'evaluation_weight' in config.keys() and not is_init:
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= torch.cuda.current_device())
@@ -114,28 +114,24 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
 
     flag_checkpoint = False
     history_recall1 = 0
-    if "recall" not in LOG.progress_saver[log_key].groups.keys():
-        flag_checkpoint = True
-    else: 
+    if "recall" in LOG.progress_saver[log_key].groups.keys():
         history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
     # calculate recall @ 1, 2, 4, 8
-    scores = {}
-    recall = []
     for k in K:
         r_at_k = evaluation.classification.select('recall',T, T_pred, k)
-        recall.append(r_at_k)
         print("classification: recall@{} : {:.3f}".format(k, 100 * r_at_k))
-        LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
-        if k==1 and r_at_k > history_recall1:
-            flag_checkpoint = True
-    scores['recall'] = recall
+        if not is_init:
+            LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
+            if k==1 and r_at_k > history_recall1:
+                flag_checkpoint = True
 
     if with_f1:
         f1_k =1
         f1 = evaluation.classification.select('f1',T, T_pred, k=f1_k)
         print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
-        LOG.progress_saver[log_key].log("f1",f1)
+        if not is_init:
+            LOG.progress_saver[log_key].log("f1",f1)
 
     ### save checkpoint #####
     if  flag_checkpoint:
@@ -155,17 +151,18 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
         # plt.savefig(save_path, format='png')
 
     #recover n_closest images
-    n_img_samples = 10
-    n_closest = 4
-    sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
-    nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
-                                                 k=n_closest+1,
-                                                 gpu_id= torch.cuda.current_device())
-    pred_img_paths = np.array([[dl.dataset.im_paths[i] for i in ii] for ii in nns[:,1:]])
-    sample_paths = [dl.dataset.im_paths[i] for i in sample_idxs]
-    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-    save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
-    plot_images(image_paths,save_path)
+    if not is_init:
+        n_img_samples = 10
+        n_closest = 4
+        sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
+        nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
+                                                    k=n_closest+1,
+                                                    gpu_id= torch.cuda.current_device())
+        pred_img_paths = np.array([[dl.dataset.im_paths[i] for i in ii] for ii in nns[:,1:]])
+        sample_paths = [dl.dataset.im_paths[i] for i in sample_idxs]
+        image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
+        save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
+        plot_images(image_paths,save_path)
     return flag_checkpoint
 
 def plot_images(image_paths,save_path):

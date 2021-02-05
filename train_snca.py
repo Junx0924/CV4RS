@@ -122,7 +122,10 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
-
+    print("evaluate initial model")
+    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
+    
+    
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
@@ -158,6 +161,7 @@ def main():
                 # check retrieval performance
                 lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')  
             #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
         LOG.update(all=True)
