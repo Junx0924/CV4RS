@@ -227,7 +227,7 @@ def main():
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
-    for e in range(, config['nb_epochs']):
+    for e in range(0, config['nb_epochs']):
         config['epoch'] = e # for wandb
         if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
        
