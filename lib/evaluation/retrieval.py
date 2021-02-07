@@ -3,13 +3,21 @@ import itertools
 from scipy.spatial import distance
 
 def get_label(multihot):
+    """
+    Get category labels from multihot label
+    """
     labels = np.where(multihot ==1)[0]
     return list(labels)
 
-# implement according to paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
-# weighted mean average precision
-# the number of labels shared between ground truth and predicted
 def wmap(y_true,y_pred):
+    """
+    Get weighted mean average precision.
+    It is the number of labels shared between ground truth and predicted.
+    Implement according to paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
+        Args:
+          y_true: list of category labels
+          y_pred: list of category labels  
+    """
     s =0
     k = len(y_pred)
     deta =  [ 1 if len(set(y_true).intersection(yy))>0 else 0 for yy in y_pred]
@@ -20,9 +28,13 @@ def wmap(y_true,y_pred):
     return s
 
 
-
-# mean average precision
 def map(y_true,y_pred):
+    """
+    Get mean average precision
+        Args:
+          y_true: list of category labels
+          y_pred: list of category labels  
+    """
     s =0
     k = len(y_pred)
     relevant = [sum([1 for yy in y_pred[:r] if len(set(y_true).intersection(yy))>0]) for r in range(1,k+1)]
@@ -32,6 +44,15 @@ def map(y_true,y_pred):
     return s
 
 def select(metric,y_true, y_pred, k=8):
+    """
+    Get the retrieval performance
+    metric choose from {'map', 'wamp','hamming'}
+        Args:
+            y_true: list [n_samples x multihot]
+            y_pred: list [n_samples x [k x multihot]]
+        return:
+            float
+    """
     s = 0
     # label is multi-hot encoding
     assert len(y_true[0])>1

@@ -3,7 +3,6 @@ from torch.autograd import Function
 from torch import nn
 import math
 
-# build the memory bank for Scalable Neighborhood Component Analysis
 class LinearAverageOp(Function):
     @staticmethod
     def forward(self, embed, indexes, memory, params):
@@ -55,11 +54,12 @@ class LinearAverage(nn.Module):
 
     def __init__(self, embed_dim, N, T=0.05, momentum=0.5):
         """
-        Args:
-            embed_dim: embedding dim
-            N: the length of dataset
-            T: temperature
-            momentum: momentum for non-parametric updates
+        Build the memory bank for Scalable Neighborhood Component Analysis
+            Args:
+                embed_dim: embedding dim
+                N: the length of dataset
+                T: temperature
+                momentum: momentum for non-parametric updates
         """
         super(LinearAverage, self).__init__()
         stdv = 1 / math.sqrt(embed_dim)

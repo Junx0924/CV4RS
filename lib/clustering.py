@@ -13,6 +13,17 @@ from . import utils
 
 
 def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids=None, backend='faiss'):
+    """
+    Get the clusted labels of the dataset
+        Args:
+            model: resnet50
+            data_loader: torch data loader
+            use_penultimate: if false, use the embedding layer to get embeddings
+        Return:
+            C: new cluster labels
+            T_all: labels of original embeddings
+            I_all: index of original embeddings
+    """
     is_dry_run = (nb_clusters == 1)
     device = torch.device("cuda:0") if gpu_ids ==0 else torch.device("cpu") 
     if not is_dry_run:
@@ -50,7 +61,9 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids
 
 
 def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, I_prev = None, C_prev = None, LOG = None, initial_C_T_I=None):
-
+    """
+    Get different dataloaders for different clusters
+    """
     def correct_indices(I):
         return torch.sort(torch.LongTensor(I))[1]
 

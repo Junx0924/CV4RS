@@ -5,34 +5,38 @@ import torch, torch.nn as nn
 import  torchvision
 
 """============================================================="""
-def increase_channels(m, num_channels=None, copy_weights=0):
+def increase_channels(conv, num_channels=None, copy_weights=0):
     """
-    takes as input a Conv2d layer and returns the Conv2d layer with `num_channels` input channels
+    Takes as input a Conv2d layer and returns the Conv2d layer with `num_channels` input channels
     and all the previous weights copied into the new layer.
+    Args:
+      conv: nn.Conv2d module
+      num_channels: the new number of input channel
+      copy_weights: Copying the weights of the `copy_weights` channel of the old layer to the extra channels of the new layer
     """
     # number of input channels the new module should have
-    new_in_channels = num_channels if num_channels is not None else m.in_channels + 1
+    new_in_channels = num_channels if num_channels is not None else conv.in_channels + 1
     
-    bias = False if m.bias is None else True
+    bias = False if conv.bias is None else True
     
     # Creating new Conv2d layer
-    new_m = nn.Conv2d(in_channels=new_in_channels, 
-                        out_channels=m.out_channels, 
-                        kernel_size=m.kernel_size, 
-                        stride=m.stride, 
-                        padding=m.padding,
+    new_conv = nn.Conv2d(in_channels=new_in_channels, 
+                        out_channels=conv.out_channels, 
+                        kernel_size=conv.kernel_size, 
+                        stride=conv.stride, 
+                        padding=conv.padding,
                         bias=bias)
     
     # Copying the weights from the old to the new layer
-    new_m.weight[:, :m.in_channels, :, :] = m.weight.clone()
+    new_conv.weight[:, :conv.in_channels, :, :] = conv.weight.clone()
     
     #Copying the weights of the `copy_weights` channel of the old layer to the extra channels of the new layer
-    for i in range(new_in_channels - m.in_channels):
-        channel = m.in_channels + i
-        new_m.weight[:, channel:channel+1, :, :] = m.weight[:, copy_weights:copy_weights+1, : :].clone()
-    new_m.weight = nn.Parameter(new_m.weight)
+    for i in range(new_in_channels - conv.in_channels):
+        channel =conv.in_channels + i
+        new_conv.weight[:, channel:channel+1, :, :] = conv.weight[:, copy_weights:copy_weights+1, : :].clone()
+    new_conv.weight = nn.Parameter(new_conv.weight)
 
-    return new_m
+    return new_conv
 
 class Network(nn.Module):
     def __init__(self, config):

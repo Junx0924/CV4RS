@@ -49,6 +49,12 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
 
 
 def make_from_clusters(C, subset_indices, model, config):
+    """
+    Get different dataloaders for different clusters
+        Args:
+            C: cluster labels
+            subset_indices: original data indexs for each cluster
+    """
     import numpy as np
     from math import ceil
     dataloaders = [[None] for c in range(config['nb_clusters'])]

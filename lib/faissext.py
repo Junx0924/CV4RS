@@ -167,19 +167,18 @@ def find_nearest_neighbors(x, queries=None, k=5, gpu_id=None):
     Find k nearest neighbors for each of the n examples.
     Distances are computed using Squared Euclidean distance metric.
 
-    Arguments:
+    Args:
     ----------
-    queries
-    x (ndarray): N examples to search within. [N x d].
-    gpu_id (int): use CPU if None else use GPU with the specified id.
-    queries (ndarray): find nearest neigbor for each query example. [M x d] matrix
-        If None than find k nearest neighbors for each row of x
-        (excluding self exampels).
-    k (int): number of nearest neighbors to find.
+        x (ndarray): N examples to search within. [N x d].
+        queries (ndarray): find nearest neigbor for each query example. [M x d] matrix
+            If None than find k nearest neighbors for each row of x
+            (excluding self exampels).
+        k (int): number of nearest neighbors to find.
+        gpu_id (int): use CPU if None else use GPU with the specified id.
 
     Return
-    I (ndarray): Indices of the nearest neighnpors. [M x k]
-    distances (ndarray): Distances to the nearest neighbors. [M x k]
+        I (ndarray): Indices of the nearest neighnpors. [M x k]
+        distances (ndarray): Distances to the nearest neighbors. [M x k]
 
     """
     if gpu_id is not None and not isinstance(gpu_id, int):

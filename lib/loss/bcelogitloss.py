@@ -4,6 +4,11 @@ import torch.nn.functional as F
 
 class BCELogitLoss(nn.Module):
     def __init__(self, embed_dim,num_labels, bce_lr = 0.00001,weight=0):
+        """
+        Args:
+            embed_dim:  the size of embedding
+            num_labels: the number of classes
+        """
         super(BCELogitLoss, self).__init__()
         self.num_labels = num_labels
         #self.pos_weight = weight*torch.ones([num_labels]) 
@@ -13,8 +18,8 @@ class BCELogitLoss(nn.Module):
     def forward(self, feature, label):
         """
         Args:
-            feature: tensor, shape (batchsize, embed_dim)
-            label: tensor, shape (batchsize, num_labels), like [1,0,1,0,1,1,1]
+            feature: tensor, shape [batchsize x embed_dim]
+            label: tensor, shape [batchsize x multihot], like [1,0,1,0,1,1,1]
         """
         input = self.regressor(feature)
         #loss = F.binary_cross_entropy_with_logits(input=input, target=label, weight=self.pos_weight)

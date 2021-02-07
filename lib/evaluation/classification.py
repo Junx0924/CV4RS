@@ -2,14 +2,29 @@ import numpy as np
 import itertools
 
 def get_label(multihot):
+    """
+    Get category labels from multihot label
+    """
     labels = np.where(multihot ==1)[0]
     return list(labels)
 
 def recall(y_true, y_pred):
+    """
+    Get recall
+        Args:
+          y_true: list of category labels
+          y_pred: list of category labels  
+    """
     i = set(y_true).intersection(y_pred)
     return len(i) / len(y_true)
 
 def precision(y_true, y_pred):
+    """
+    Get precision
+        Args:
+          y_true: list of category labels
+          y_pred: list of category labels  
+    """
     i = set(y_true).intersection(y_pred)
     len1 = len(y_pred)
     if len1 == 0:
@@ -18,6 +33,12 @@ def precision(y_true, y_pred):
         return len(i) / len1
 
 def f1(y_true, y_pred):
+    """
+    Get f1
+        Args:
+          y_true: list of category labels
+          y_pred: list of category labels  
+    """
     p = precision(y_true, y_pred)
     r = recall(y_true, y_pred)
     if p + r == 0:
@@ -26,6 +47,15 @@ def f1(y_true, y_pred):
         return 2 * (p * r) / (p + r)
 
 def select(metric,y_true, y_pred, k=1):
+    """
+    Get the classification performance
+    metric choose from {'recall', 'precision','f1'}
+        Args:
+            y_true: list [n_samples x multihot]
+            y_pred: list [n_samples x [k x multihot]]
+        return:
+            float
+    """
     s = 0
     # label is multi-hot encoding
     assert len(y_true[0])>1

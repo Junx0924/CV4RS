@@ -25,13 +25,14 @@ _backends_ = [TORCH_SKLEARN_BACKEND, FAISS_BACKEND, FAISS_GPU_BACKEND]
 
 
 def pairwise_distance(a, squared=False):
-    """Computes the pairwise distance matrix with numerical stability.
+    """
+    Computes the pairwise distance matrix with numerical stability.
     output[i, j] = || feature[i, :] - feature[j, :] ||_2
     Args:
-    feature: 2-D Tensor of size [number of data, feature dimension].
-    squared: Boolean, whether or not to square the pairwise distances.
+        feature: 2-D Tensor of size [number of data, feature dimension].
+        squared: Boolean, whether or not to square the pairwise distances.
     Returns:
-    pairwise_distances: 2-D Tensor of size [number of data, number of data].
+        pairwise_distances: 2-D Tensor of size [number of data, number of data].
     """
     a = torch.as_tensor(np.atleast_2d(a))
     pairwise_distances_squared = torch.add(
@@ -75,8 +76,12 @@ def pairwise_distance(a, squared=False):
 
 def assign_by_euclidian_at_k(X, T, k, gpu_id=None, backend=_DEFAULT_BACKEND_):
     """
-    X : [nb_samples x nb_features], e.g. 100 x 64 (embeddings)
-    k : for each sample, assign target labels of k nearest points
+    Args:
+        X : [nb_samples x nb_features], e.g. 100 x 64 (embeddings)
+        T: [nb_samples], category labels, e.g. [1,2,4,5,6...]
+        k : for each sample, assign target labels of k nearest points
+    Returns:
+        [nb_samples x k ] category labels
     """
     if backend == TORCH_SKLEARN_BACKEND:
         distances = sklearn.metrics.pairwise.pairwise_distances(X)

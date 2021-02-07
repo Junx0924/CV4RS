@@ -16,6 +16,16 @@ from sklearn.manifold import TSNE
 import time
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
+    """
+    Get the embeddings of the dataloader from model
+        Args:
+            model: pretrained resnet50
+            dataloader: torch dataloader
+            device: torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            use_penultimate: use the embedding layer if it is false
+        return:
+            numpy array of embeddings, labels, indexs 
+    """
     # list with N lists, where N = |{image, label, index}|
     model_is_training = model.training
     model.eval()
@@ -49,7 +59,17 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
         return result
 
 def get_weighted_embed(X,weights,sub_dim):
+    """
+    Get weighted embeddigns
+        Args:
+            X: numpy array, embeddings
+            weights: list of weight of each sub embeddings, like [0.1, 1, 1]
+            sub_dim: list of size of sub embeddings, like [96,160,256]
+        return:
+            weighted embeddings
+    """
     assert len(weights) == len(sub_dim)
+    assert X.shape[1] == sum(sub_dim)
     for i in range(len(sub_dim)):
         start = int(sum(sub_dim[:i]))
         stop = int(start + sub_dim[i])
@@ -57,7 +77,16 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val'):
+def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val'):
+    """
+    Evaluate the retrieval performance (wmap, map, hamming loss)
+        Args:
+            model: pretrained resnet50
+            dl_query: query dataloader
+            dl_gallery: gallery dataloader
+            use_penultimate: use the embedding layer if it is false
+            backend: default faiss-gpu 
+    """
     K =  4 
     # calculate embeddings with model and get targets
     X_query, T_query, I_query = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
@@ -89,19 +118,19 @@ def evaluate_query_gallery(model,  config, dl_query, dl_gallery, use_penultimate
     ### recover n_closest images
     n_img_samples = 10
     n_closest = 4
-    sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
-    nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
-                                                 k=n_closest,
-                                                 gpu_id= torch.cuda.current_device()
-        )
-    pred_img_paths = np.array([[dl_gallery.dataset.im_paths[i] for i in ii] for ii in nns])
-    sample_paths = [dl_query.dataset.im_paths[i] for i in sample_idxs]
-    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
-    plot_images(image_paths,save_path)
-  
+    recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
+    
 
 def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',with_f1 = True,is_init=False):
+    """
+    Evaluate the classification performance (recall @1,2,4,8, f1)
+        Args:
+            model: pretrained resnet50
+            dl: dataloader
+            use_penultimate: use the embedding layer if it is false
+            backend: default faiss-gpu 
+    """
     nb_classes = dl.dataset.nb_classes()
     K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
@@ -125,52 +154,32 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
             LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
             if k==1 and r_at_k > history_recall1:
                 flag_checkpoint = True
-
+    ### calculate f1
     if with_f1:
         f1_k =1
         f1 = evaluation.classification.select('f1',T, T_pred, k=f1_k)
         print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
         if not is_init:
             LOG.progress_saver[log_key].log("f1",f1)
-
     ### save checkpoint #####
     if  flag_checkpoint:
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-        # apply tsne to the embeddings
-        # time_start = time.time()
-        # tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-        # tsne_results = tsne.fit_transform(X)
-        # print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
-        # # Fixing random state for reproducibility
-        # np.random.seed(19680801)
-        # plt.figure(figsize=(16,10))
-        # plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
-        # save_path = LOG.config['checkfolder']+'/tsne.png'
-        # plt.savefig(save_path, format='png')
-
     #recover n_closest images
     if not is_init:
         n_img_samples = 10
         n_closest = 4
-        sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
-        nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
-                                                    k=n_closest+1,
-                                                    gpu_id= torch.cuda.current_device())
-        pred_img_paths = np.array([[dl.dataset.im_paths[i] for i in ii] for ii in nns[:,1:]])
-        sample_paths = [dl.dataset.im_paths[i] for i in sample_idxs]
-        image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-        save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
-        plot_images(image_paths,save_path)
+        save_path = LOG.config['checkfolder']+'/query_sample_recoveries.png'
+        recover_standard(X,dl.dataset.im_paths, save_path,n_img_samples, n_closest)
     return flag_checkpoint
 
 def plot_images(image_paths,save_path):
     """
-    Plot images with its label data
-    Args:
-        image_paths
-        save_path
+    Plot images and save them
+        Args:
+            image_paths: numpy array
+            save_path
     """
     width = image_paths.shape[1]
     f,axes = plt.subplots(image_paths.shape[0],image_paths.shape[1])
@@ -207,13 +216,11 @@ def plot_images(image_paths,save_path):
 
 def DistanceMeasure(model,config,dataloader,LOG, log_key):
     """
-    log the change of distance ratios
-    between intra-class distances and inter-class distances.
-    model: 
-    config: 
-    dataloader:
-    LOG:
-    log_key:
+    log the distance ratios between intra-class and inter-class.
+        Args:
+            model: pretrained resnet50
+            config  
+            dataloader 
     """
     print("Start to evaluate the distance ratios between intra and inter class")
     image_dict = dataloader.dataset.image_dict
@@ -245,7 +252,13 @@ def GradientMeasure(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_l2',grad_l2)
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
-def classBalancedSamper(T,num_samples_per_class):
+def classBalancedSamper(T,num_samples_per_class=2):
+    """
+    Get a list of category labels with its original index from multi-hot labels
+        Args:
+            T: multi-hot labels, eg.numpy array[n_samples x 60]
+            num_samples_per_class 
+    """
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
     classes = np.unique(T_list[:,1])
@@ -258,3 +271,59 @@ def classBalancedSamper(T,num_samples_per_class):
         new_T_list.append([inds[0],int(c)])
         new_T_list.append([inds[1],int(c)])
     return np.array(new_T_list)
+
+
+def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
+    """
+    Recover the n closest similar images for sampled images
+        Args:
+            X: embeddings
+            img_paths: the original image paths of embeddings
+    """
+    sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
+    nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
+                                                k=n_closest+1,
+                                                gpu_id= torch.cuda.current_device())
+    pred_img_paths = np.array([[img_paths[i] for i in ii] for ii in nns[:,1:]])
+    sample_paths = [img_paths[i] for i in sample_idxs]
+    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
+    plot_images(image_paths,save_path)
+
+
+def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4):
+    """
+    Recover the n closest similar gallery images for sampled query images
+        Args:
+            X_query: query embeddings
+            X_gallery: gallery embeddings
+            query_img_paths: the original image paths of query embeddings
+            gallery_img_path: the original image paths of gallery embeddings
+    """
+    assert X_gallery.shape[1] == X_gallery.shape[1]
+    sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
+    nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
+                                                 k=n_closest,
+                                                 gpu_id= torch.cuda.current_device()
+        )
+    pred_img_paths = np.array([[gallery_img_path[i] for i in ii] for ii in nns])
+    sample_paths = [query_img_paths[i] for i in sample_idxs]
+    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
+    plot_images(image_paths,save_path)
+
+
+def apply_tsne(X,save_path,n_components=2):
+    """
+    Get the tsne plot of embeddings
+        Args:
+            X: embeddings
+    """
+    # apply tsne to the embeddings
+    time_start = time.time()
+    tsne = TSNE(n_components=n_components, verbose=1, perplexity=40, n_iter=300)
+    tsne_results = tsne.fit_transform(X)
+    print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
+    # Fixing random state for reproducibility
+    np.random.seed(19680801)
+    plt.figure(figsize=(16,10))
+    plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
+    plt.savefig(save_path, format='png')

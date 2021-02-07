@@ -8,9 +8,12 @@ import numpy as np
 class BinomialLoss(nn.Module):
     def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,**kwargs):
         """
-        C: parameter for binomial deviance.
-        alpha: parameter for binomial deviance.
-        beta: margin for binomial deviance.
+        Boosted bionminal loss
+        Implement according to paper: https://arxiv.org/abs/1801.04815
+        Args:
+            C: parameter for binomial deviance.
+            alpha: parameter for binomial deviance.
+            beta: margin for binomial deviance.
         """
         super(BinomialLoss, self).__init__()
         self.C = 25
@@ -22,8 +25,9 @@ class BinomialLoss(nn.Module):
     
     def forward(self,normed_fvecs, T):
         """
-        normed_fvecs: multi-feature dict
-        T: labels, tensor, shape( batchsize, )
+        Args:
+            normed_fvecs: multi-feature dictionary, each value contains sub embeddings [batchsize x sub embedding size]
+            T: tensor, category labels, shape(batchsize, )
         """
         n = len(T)
         # init boosting_weights for each label pair

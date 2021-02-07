@@ -6,7 +6,7 @@ import math
 
 eps = 1e-8
 
-# implement acording to paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
+# refer to the paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
 class NCACrossEntropy(nn.Module): 
     ''' \sum_{j=C} log(p_{ij})
         Store all the labels of the dataset.
@@ -16,7 +16,7 @@ class NCACrossEntropy(nn.Module):
         """
         Args:
             labels: all the labels for training dataset
-                    tensor shape (N, num_classes), multi-hot encoding like [1,0,1,0]
+                    tensor shape [len(training dataset), num_classes], multi-hot encoding like [1,0,1,0]
             margin: classification margin
         """
         super(NCACrossEntropy, self).__init__()
@@ -31,7 +31,8 @@ class NCACrossEntropy(nn.Module):
     def forward(self, embed_sim, indexes):
         """
         Args:
-            embed_sim : tensor,shape(batchsize,N) ,the similarity mat between the mini-batch embeddings and the memory bank
+            embed_sim : tensor,shape [batchsize x len(training dataset)]
+                        the similarity mat between the mini-batch embeddings and the memory bank
             indexes: indexes for the mini-batch
         return:
             loss
