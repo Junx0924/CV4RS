@@ -3,18 +3,17 @@ from __future__ import print_function
 from __future__ import division
 
 import random
-
 import torch
 import numpy as np
 import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
-
 def make(config, model, type, subset_indices = None, dset_type = None,include_aux_augmentations = False):
     """
-    subset_indices: indices for selecting subset of dataset, for creating
-        clustered dataloaders.
-    type: 'init', 'eval' or 'train'.
+    Args:
+        subset_indices: indices for selecting subset of dataset,
+                        for creating clustered dataloaders.
+        type: 'init', 'eval' or 'train'.
     """
     ds_name = config['dataset_selected']
     ds = dataset.select(
@@ -50,6 +49,7 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
 
 def make_from_clusters(C, subset_indices, model, config):
     """
+    For project divide_and_conquer
     Get different dataloaders for different clusters
         Args:
             C: cluster labels
@@ -60,7 +60,7 @@ def make_from_clusters(C, subset_indices, model, config):
     dataloaders = [[None] for c in range(config['nb_clusters'])]
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(
-            config = config,
+            config = config, 
             model = model,
             type = 'train',
             subset_indices = subset_indices[C == c],
@@ -70,7 +70,11 @@ def make_from_clusters(C, subset_indices, model, config):
 
 
 def merge(dls_non_iter):
-
+    """
+    For project divide_and_conquer
+    Merge a list of torch dataloaders to feed in tqmd
+    dls_non_iter: a list of torch dataloaders
+    """
     nb_batches_per_dl = [len(dl) for dl in dls_non_iter]
     nb_batches = max(nb_batches_per_dl)
     I = range(len(dls_non_iter))

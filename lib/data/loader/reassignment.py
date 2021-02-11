@@ -5,6 +5,17 @@ import numpy as np
 
 
 def reassign_clusters(C_prev, C_curr, I_prev, I_curr):
+    """
+    For project divide_and_conquer
+    Args:
+        C_prev: pervious cluster labels
+        C_curr: current cluster labels
+        I_prev: previous index of embeddings in each cluster
+        I_curr: current index of embeddings in each cluster
+    Return:
+        C_reassigned: reassigned cluster labels
+        costs
+    """
     nb_clusters = max(C_prev).item() + 1 # cluster ids start from 0
     assert set(
         i.item() for i in np.unique(I_prev)

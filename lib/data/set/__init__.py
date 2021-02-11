@@ -8,6 +8,17 @@ from tqdm import tqdm
 import h5py
 
 def select(datapath,dset_type,transform,is_training = False,include_aux_augmentations=False, use_hdf5 = False):
+    """
+    Get the database for different type of purposes (train/val/test)
+    Args:
+        datapath: eg. /scratch/CV4RS/Dataset/MLRSNet
+        dset_type: choose from {train/val/test}
+        transform: dictonary, keys: sz_crop, input_shape
+        is_training: if set true, apply random flip and crop for training, else apply center crop
+        include_aux_augmentations: if set true, apply rotation to get augumented image data
+    Return:
+        torch.utils.data.Dataset
+    """
     types = {"train":"train","query":"val","gallery":"test"}
     dset_type = types[dset_type]
 

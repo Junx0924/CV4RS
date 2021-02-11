@@ -12,10 +12,13 @@ import os
 import itertools
 
 
- # normalize the image to its own mean and std channel wise
 def normalize(img):
     """
-    img: np array (channel, width, height)
+    Get channel-wise normalized image data
+    Args:
+        img: np array (channel, width, height)
+    Return:
+        img: np array, channel-wise normalized
     """
     img_channel = img.shape[0]
     if img_channel==3: 
@@ -27,6 +30,13 @@ def normalize(img):
     return img
 
 def get_BigEarthNet(img_path):
+    """
+    Get image data from BigEarthNet dataset
+    Args: 
+        img_path
+    Return: 
+        img_data: flatten np array
+    """
     patch_name = img_path.split('/')[-1]
     band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
     # get band image data
@@ -45,6 +55,13 @@ def get_BigEarthNet(img_path):
     return tif_img.reshape(-1)
 
 def get_MLRSNet(img_path):
+    """
+    Get image data from MLRSNet dataset
+    Args: 
+        img_path
+    Return: 
+        img_data: flatten np array
+    """
     pic = Image.open(img_path)
     if len(pic.size)==2:
         pic = pic.convert('RGB')
@@ -57,11 +74,13 @@ class BaseDataset(torch.utils.data.Dataset):
     We use the train set for training, the val set for
     query and the test set for retrieval
     Args:
-        image_list: contains file_path and multi-hot label
+        image_list: contains file_paths and multi-hot labels
         dataset_name: choose from {"MLRSNet", "BigEarthNet}
-        hdf_file
+        hdf_file: the path of hdf_file, if set use_hdf true, it will be automatically generated
         conversion: dictionary, {'label': label_name}
         transform: dictonary, keys: sz_crop, input_shape
+        is_training: if set true, apply random flip and crop for training, else apply center crop
+        include_aux_augmentations: if set true, apply rotation to get augumented image data
     """
     def __init__(self, image_list, dataset_name, hdf_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
         torch.utils.data.Dataset.__init__(self)

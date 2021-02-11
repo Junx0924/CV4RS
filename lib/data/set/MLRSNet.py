@@ -9,6 +9,15 @@ from PIL import Image
  
 
 def split(image_dict,split_ratio):
+    """
+    Args:
+        image_dict: dictionary, {'class_label': [image_index1, image_index2, image_index3....]}
+        split_ratio: eg.0.8, split the image_dict into two image_dicts, 
+        the number of samples per class in image_dict1 is 80% of that of the original image dict
+    Return:
+        train_image_dict: image_dict1 mentioned in the example
+        flag: a dict records the state of each image index
+    """
     train_image_dict  = {} 
     other_image_dict  = {} 
     keys = sorted(list(image_dict.keys()))
@@ -37,7 +46,6 @@ def split(image_dict,split_ratio):
             else:
                 if len(other_image_dict[key])< (sample_num - int(sample_num*split_ratio)):
                     other_image_dict[key].append(ind)
-            
     return train_image_dict,flag
 
 
@@ -55,25 +63,14 @@ def read_csv(csv_filename,datapath):
         for row in csv_reader: 
             file_list.append([datapath + str(row[0]),np.array(row[1:],dtype=int)])
     return file_list
-
-
-def get_data(img_path):
-    """
-    return: 
-        patch_name
-        img_data: flatten np array
-    """
-    patch_name = img_path.split('/')[-1]
-    pic = Image.open(img_path)
-    if len(pic.size)==2:
-        pic = pic.convert('RGB')
-    pic = pic.resize((256,256))
-    img_data = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
-    img_data = img_data.reshape(-1)
-    return patch_name,img_data
  
 
 def create_csv_split(datapath):
+    """
+    Split the dataset to train/val/test with ratio 50%/10%/40%
+    Keep this ratio among classes
+    Write the results to csv files 
+    """
     category = {}
     category_path = datapath + '/Categories_names.xlsx'
     book = xlrd.open_workbook(category_path)
@@ -142,6 +139,13 @@ def create_csv_split(datapath):
         writer.writerows(val)  
 
 def Give(datapath,dset_type):
+    """
+    Args:
+        datapath: eg. /scratch/CV4RS/Dataset/MLRSNet
+        dset_type: choose from train/val/test
+    Return:
+        image_list: contains [image_path, multi-hot label]
+    """
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
     if not os.path.exists(csv_dir +'/train.csv'):

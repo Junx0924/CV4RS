@@ -7,27 +7,13 @@ from osgeo import gdal
 import itertools
 
 
-def get_data(img_path):
-    patch_name = img_path.split('/')[-1]
-    band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
-    # get band image data
-    tif_img = []
-    for band_name in band_names:
-        tif_path = img_path + '/'+ patch_name+'_'+band_name+'.tif'
-        band_ds = gdal.Open(tif_path,  gdal.GA_ReadOnly)
-        if not band_ds:
-            continue
-        raster_band = band_ds.GetRasterBand(1)
-        band_data = np.array(raster_band.ReadAsArray()) 
-        # interpolate the image to (120,120)
-        temp = resize(band_data,(120,120))
-        tif_img.append(temp)
-    tif_img = np.array(tif_img)
-    return patch_name, tif_img
-
 def get_label(img_path,label_indices):
     """
-    return category labels for single img_path
+    Args:
+        img_path
+        label_indices: dictionary, {'label_name': 'label_indice'}
+    Return:
+       category labels for single image
     """
     patch_name = img_path.split('/')[-1]
     patch_json_path = img_path + '/' + patch_name +  '_labels_metadata.json'
@@ -40,6 +26,13 @@ def get_label(img_path,label_indices):
     return category_labels
 
 def Give(datapath,dset_type):
+    """
+    Args:
+        datapath: eg. /scratch/CV4RS/Dataset/MLRSNet
+        dset_type: choose from train/val/test
+    Return:
+        image_list: contains [image_path, multi-hot label]
+    """
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
     # read label names
     with open(csv_dir + '/label_indices.json', 'rb') as f:
