@@ -44,11 +44,7 @@ def load_bier_config(config, args):
         config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':config['lambda_weight']}
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
-
-    dataset_name= config['dataset_selected']
-    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -91,7 +87,7 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     total_loss =0.0
     bin_loss = criterion_dict['binominal'](normed_fvecs,T)
     
-    adv_loss, weight_loss = 0.0, 0.0
+    adv_loss, adv_weight_loss = 0.0, 0.0
     if config['lambda_div'] > 0.0:
         adv_loss = criterion_dict['adversarial'](normed_fvecs)
         for regressor in criterion_dict['adversarial'].regressors.values():
@@ -100,23 +96,22 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
                 if i !=1:
                     W_hat = regressor[i].weight
                     B_hat = regressor[i].bias
-                    weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
-        weight_loss = weight_loss / len(criterion_dict['adversarial'].regressors)
+                    adv_weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
+        adv_weight_loss = adv_weight_loss / len(criterion_dict['adversarial'].regressors)
 
-        for item in model.last_linear.values():
-            W = item.weight
-            B = item.bias
-            weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
-        weight_loss = weight_loss / len(model.last_linear)
+        # for item in model.last_linear.values():
+        #     W = item.weight
+        #     B = item.bias
+        #     embed_weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
+        # embed_weight_loss = embed_weight_loss / len(model.last_linear)
     
-    total_loss = bin_loss + (adv_loss + config['lambda_weight']* weight_loss) * config['lambda_div']
+    total_loss = bin_loss + (adv_loss + config['lambda_weight']* adv_weight_loss) * config['lambda_div']
     opt.zero_grad()
     total_loss.backward()
-    # log the gradient of each layer
-    #lib.utils.GradientMeasure(model,LOG,log_key)
+    
     ### Update network weights!
     opt.step()
-    return total_loss.item(),bin_loss.item(),adv_loss.item(), weight_loss.item()
+    return total_loss.item(),bin_loss.item(),adv_loss.item(), adv_weight_loss.item()
 
 
 def get_optim(config, model):
@@ -160,6 +155,11 @@ def main():
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train')
+    # update num_classes
+    ds_name = config['dataset_selected']
+    num_classes= dl_train.dataset.nb_classes()
+    config['dataset'][ds_name]["classes"] = num_classes
+    config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
@@ -188,7 +188,7 @@ def main():
         LOG.progress_saver['Train'].log('Train_loss', current_loss)
         LOG.progress_saver['Train'].log('bin_loss', np.mean(losses[:,1]))
         LOG.progress_saver['Train'].log('adv_loss', np.mean(losses[:,2]))
-        LOG.progress_saver['Train'].log('weight_loss', np.mean(losses[:,3]))
+        LOG.progress_saver['Train'].log('adv_weight_loss', np.mean(losses[:,3]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
@@ -196,12 +196,7 @@ def main():
         if e % config['eval_epoch'] == 0:
             _ = model.eval()
             tic = time.time()
-            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
-            if checkpoint: 
-                # check retrieval performance
-                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
-            # evaluate the distance among inter and intra class
-            # lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
@@ -209,8 +204,23 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
 
-    t2 = time.time()
-    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ''
+    full_training_time = time.time()-t1
+    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
+    # load checkpoint file
+    # check retrieval performance
+    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+    model.load_state_dict(checkpoint['state_dict'])
+    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
+    for key in retrieve_score: 
+        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
+    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
+        summary_file.write(summary_text)
+    # apply tsne to embeddings from query dataset
+    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
+    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')   
 
 
 if __name__ == '__main__':

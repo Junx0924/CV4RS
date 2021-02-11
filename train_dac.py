@@ -34,11 +34,7 @@ def load_dac_config(config, args):
         config['sub_embed_sizes'] = [config['sz_embedding']//config['nb_clusters']]*config['nb_clusters']
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
-    
-    dataset_name= config['dataset_selected']
-    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -122,6 +118,11 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+    # update num_classes
+    ds_name = config['dataset_selected']
+    num_classes= dl_query.dataset.nb_classes()
+    config['dataset'][ds_name]["classes"] = num_classes
+
     print("evaluate initial model")
     lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
     
@@ -188,12 +189,7 @@ def main():
         if e% config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
-            if checkpoint: 
-                # check retrieval performance
-                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
-            # evaluate the distance among inter and intra class
-            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             _ = model.train()
@@ -203,8 +199,24 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
         
-    t2 = time.time()
-    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ''
+    full_training_time = time.time()- t1
+    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
+    # load checkpoint file
+    # check retrieval performance
+    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+    model.load_state_dict(checkpoint['state_dict'])
+    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
+    for key in retrieve_score: 
+        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
+    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
+        summary_file.write(summary_text)
+    # apply tsne to embeddings from query dataset
+    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
+    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')     
+
 
 if __name__ == '__main__':
     main()

@@ -61,11 +61,7 @@ def load_diva_config(config,args):
         assert len(config['diva_features']) == len(config['evaluation_weight'])
 
     config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
-
-    dataset_name= config['dataset_selected']
-    num_classes = int(config['transform_parameters'][dataset_name]["classes"])
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    config['dataloader']["batch_size"] = config['num_samples_per_class']* num_classes
     return config
 
 
@@ -198,11 +194,16 @@ def main():
     # create train dataset
     flag_aux =config['include_aux_augmentations']
     dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
+    # update num_classes
+    ds_name = config['dataset_selected']
+    num_classes= dl_train.dataset.nb_classes()
+    config['dataset'][ds_name]["classes"] = num_classes
+    config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
     
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    print("evaluate initial model") 
+    print("Evaluate initial model") 
     lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
     
     # define loss function for each feature
@@ -256,23 +257,31 @@ def main():
         if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
-            if checkpoint: 
-                # check retrieval performance
-                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val') 
-            # evaluate the distance inter and intra class
-            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
-            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
+            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
         LOG.update(all=True)
 
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
-           
-    t2 = time.time()
-    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
 
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ''
+    full_training_time = time.time()-t1
+    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
+    # load checkpoint file
+    # check retrieval performance
+    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+    model.load_state_dict(checkpoint['state_dict'])
+    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
+    for key in retrieve_score: 
+        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
+    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
+        summary_file.write(summary_text)
+    # apply tsne to embeddings from query dataset
+    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
+    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')     
 
 if __name__ == '__main__':
     main()

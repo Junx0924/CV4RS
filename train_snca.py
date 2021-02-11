@@ -106,7 +106,11 @@ def main():
 
     # create init and eval dataloaders; init used for creating clustered DLs
     dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train')
-
+    # update num_classes
+    ds_name = config['dataset_selected']
+    num_classes= dl_train.dataset.nb_classes()
+    config['dataset'][ds_name]["classes"] = num_classes
+    
     # define lemniscate and loss function (criterion)
     N = len(dl_train.dataset)
     lemniscate = LinearAverage(config['sz_embedding'], N, config['temperature'], config['memory_momentum']).cuda()
@@ -156,17 +160,29 @@ def main():
         if epoch % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            checkpoint = lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
-            if checkpoint: 
-                # check retrieval performance
-                lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], LOG, 'Val')  
-            #lib.utils.DistanceMeasure(model,config,dl_eval_train,LOG,'Val')
+            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
         LOG.update(all=True)
-    t2 = time.time()
-    print( "Total training time (minutes): {:.2f}.".format((t2 - t1) / 60))
+    
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ''
+    full_training_time = time.time()-t1
+    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
+    # load checkpoint file
+    # check retrieval performance
+    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+    model.load_state_dict(checkpoint['state_dict'])
+    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
+    for key in retrieve_score: 
+        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
+    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
+        summary_file.write(summary_text)
+    # apply tsne to embeddings from query dataset
+    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
+    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')   
 
 
 if __name__ == '__main__':
