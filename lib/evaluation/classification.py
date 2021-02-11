@@ -54,7 +54,8 @@ def select(metric,y_true, y_pred, k=1):
             y_true: list [n_samples x multihot]
             y_pred: list [n_samples x [k x multihot]]
         return:
-            float
+            s: the averaged score for selected metric
+            scores: a list recording the score of selected metric for each sample
     """
     s = 0
     # label is multi-hot encoding
@@ -63,18 +64,23 @@ def select(metric,y_true, y_pred, k=1):
     
     y_true = [get_label(t) for t in y_true]
     y_pred = [[get_label(t) for t in y[:k]] for y in y_pred]
+    # record the predicted score for each sample
+    scores =[]
     if metric=='recall':
         for t,y in zip(y_true,y_pred):
             y = np.unique(list(itertools.chain.from_iterable(y)))
-            s += recall(t,y)
+            scores.append(recall(t,y))
+            s += scores[-1]
     elif metric =='precision':
         for t,y in zip(y_true,y_pred):
             y = np.unique(list(itertools.chain.from_iterable(y)))
-            s += precision(t,y)
+            scores.append(precision(t,y))
+            s += scores[-1]
     elif metric =='f1':
         for t,y in zip(y_true,y_pred):
             y = np.unique(list(itertools.chain.from_iterable(y)))
-            s += f1(t,y)
+            scores.append(f1(t,y))
+            s += scores[-1]
     else:
         raise Exception('metric {} not available!'.format(metric))
-    return s / len(y_true)
+    return s / len(y_true), scores

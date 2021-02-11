@@ -60,6 +60,7 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
     else:
         return result
 
+
 def get_weighted_embed(X,weights,sub_dim):
     """
     Get weighted embeddigns
@@ -131,6 +132,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     # recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
     return score
 
+
 def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_key = 'Val',with_f1 = True,is_init=False):
     """
     Evaluate the classification performance (recall @1,2,4,8, f1)
@@ -158,9 +160,12 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_k
     score={}
     # calculate recall @ 1, 2, 4, 8
     for k in K:
-        r_at_k = evaluation.classification.select('recall',T, T_pred, k)
+        r_at_k, score_per_sample = evaluation.classification.select('recall',T, T_pred, k)
         score['recall@'+str(k)] = r_at_k
         print("classification: recall@{} : {:.3f}".format(k, 100 * r_at_k))
+        # split the scores of recall@1 into bins, check the frequency for each score interval
+        if k==1:
+            check_recall_histogram(score_per_sample,save_path= LOG.config['checkfolder']+'/recall_historam.png',bins=10)
         if not is_init:
             LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
             if k==1 and r_at_k > history_recall1:
@@ -168,7 +173,7 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_k
     ### calculate f1
     if with_f1:
         f1_k =1
-        f1 = evaluation.classification.select('f1',T, T_pred, k=f1_k)
+        f1,_ = evaluation.classification.select('f1',T, T_pred, k=f1_k)
         score['f1@'+str(f1_k)] = f1
         print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
         if not is_init:
@@ -180,7 +185,7 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_k
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
 
         print("Get the inter and intra class distance for different classes")
-        DistanceMeasure(X, T, config,LOG,log_key)
+        check_distance_ratio(X, T, config,LOG,log_key)
 
         n_img_samples = 10
         n_closest = 4
@@ -189,7 +194,46 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_k
         recover_standard(X,dl.dataset.im_paths, save_path,n_img_samples, n_closest)
     return score
 
-def plot_images(image_paths,save_path):
+
+def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
+    """
+    Recover the n closest similar images for sampled images
+        Args:
+            X: embeddings
+            img_paths: the original image paths of embeddings
+    """
+    sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
+    nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
+                                                k=n_closest+1,
+                                                gpu_id= torch.cuda.current_device())
+    pred_img_paths = np.array([[img_paths[i] for i in ii] for ii in nns[:,1:]])
+    sample_paths = [img_paths[i] for i in sample_idxs]
+    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
+    plot_recovered_images(image_paths,save_path)
+
+
+def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4):
+    """
+    Recover the n closest similar gallery images for sampled query images
+        Args:
+            X_query: query embeddings
+            X_gallery: gallery embeddings
+            query_img_paths: the original image paths of query embeddings
+            gallery_img_path: the original image paths of gallery embeddings
+    """
+    assert X_gallery.shape[1] == X_gallery.shape[1]
+    sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
+    nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
+                                                 k=n_closest,
+                                                 gpu_id= torch.cuda.current_device()
+        )
+    pred_img_paths = np.array([[gallery_img_path[i] for i in ii] for ii in nns])
+    sample_paths = [query_img_paths[i] for i in sample_idxs]
+    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
+    plot_recovered_images(image_paths,save_path)
+
+
+def plot_recovered_images(image_paths,save_path):
     """
     Plot images and save them
         Args:
@@ -230,7 +274,31 @@ def plot_images(image_paths,save_path):
     plt.close()
 
 
-def DistanceMeasure(X, T,config, LOG, log_key):
+
+def classBalancedSamper(T,num_samples_per_class=2):
+    """
+    Get a list of category labels with its original index from multi-hot labels
+        Args:
+            T: multi-hot labels, eg.numpy array[n_samples x 60]
+            num_samples_per_class: default 2
+        Return:
+            list of category labels
+    """
+    T_list = [ np.where(t==1)[0] for t in T] 
+    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    classes = np.unique(T_list[:,1])
+    image_dict = {str(c):[] for c in classes}
+    [image_dict[str(c)].append(ind) for ind,c in T_list]
+    new_T_list =[]
+    for c in image_dict.keys():
+        replace = True if len(image_dict[c])< num_samples_per_class else False
+        inds = np.random.choice(image_dict[c],num_samples_per_class,replace=replace)
+        new_T_list.append([inds[0],int(c)])
+        new_T_list.append([inds[1],int(c)])
+    return np.array(new_T_list)
+
+
+def check_distance_ratio(X, T,config, LOG, log_key):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
@@ -268,9 +336,14 @@ def DistanceMeasure(X, T,config, LOG, log_key):
         LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
         LOG.progress_saver[log_key].log('intraStd@'+str(label),std_intra, group ='intraStd')
         LOG.progress_saver[log_key].log('interStd@'+str(label),std_inter, group ='interStd')
+  
 
-    
-def GradientMeasure(model,LOG,log_key):
+def check_gradient(model,LOG,log_key):
+    """
+    Check the gradient of each layer in the model
+    The gradient is supposed to bigger at the embedding layer
+    gradually descrease to the first conv layer
+    """
     # record the gradient of the weight of each layer in the model
     for name, param in model.named_parameters():
         if param.requires_grad == True and 'weight' in name and param.grad is not None:
@@ -280,66 +353,7 @@ def GradientMeasure(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
 
-def classBalancedSamper(T,num_samples_per_class=2):
-    """
-    Get a list of category labels with its original index from multi-hot labels
-        Args:
-            T: multi-hot labels, eg.numpy array[n_samples x 60]
-            num_samples_per_class: default 2
-    """
-    T_list = [ np.where(t==1)[0] for t in T] 
-    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    classes = np.unique(T_list[:,1])
-    image_dict = {str(c):[] for c in classes}
-    [image_dict[str(c)].append(ind) for ind,c in T_list]
-    new_T_list =[]
-    for c in image_dict.keys():
-        replace = True if len(image_dict[c])< num_samples_per_class else False
-        inds = np.random.choice(image_dict[c],num_samples_per_class,replace=replace)
-        new_T_list.append([inds[0],int(c)])
-        new_T_list.append([inds[1],int(c)])
-    return np.array(new_T_list)
-
-
-def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
-    """
-    Recover the n closest similar images for sampled images
-        Args:
-            X: embeddings
-            img_paths: the original image paths of embeddings
-    """
-    sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
-    nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
-                                                k=n_closest+1,
-                                                gpu_id= torch.cuda.current_device())
-    pred_img_paths = np.array([[img_paths[i] for i in ii] for ii in nns[:,1:]])
-    sample_paths = [img_paths[i] for i in sample_idxs]
-    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-    plot_images(image_paths,save_path)
-
-
-def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4):
-    """
-    Recover the n closest similar gallery images for sampled query images
-        Args:
-            X_query: query embeddings
-            X_gallery: gallery embeddings
-            query_img_paths: the original image paths of query embeddings
-            gallery_img_path: the original image paths of gallery embeddings
-    """
-    assert X_gallery.shape[1] == X_gallery.shape[1]
-    sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
-    nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
-                                                 k=n_closest,
-                                                 gpu_id= torch.cuda.current_device()
-        )
-    pred_img_paths = np.array([[gallery_img_path[i] for i in ii] for ii in nns])
-    sample_paths = [query_img_paths[i] for i in sample_idxs]
-    image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-    plot_images(image_paths,save_path)
-
-
-def apply_tsne(X,T,conversion,save_path,n_components=2):
+def check_tsne_plot(X,T,conversion,save_path,n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
@@ -371,3 +385,43 @@ def apply_tsne(X,T,conversion,save_path,n_components=2):
         plt.scatter(c_tsne_result[:,0], c_tsne_result[:,1], c=colors[i], alpha=0.5,label=conversion[str(c)])
     plt.legend(loc="upper right")
     plt.savefig(save_path, format='png')
+
+
+def check_image_label(dataset):
+    """
+    Generally check if the datasets have similar distribution
+     Check Avg. num labels per image
+     Check Avg. num of labels shared per image
+     Args:
+        dataset: torch.dataset
+    """
+    txt =""
+    avg_labels_per_image = np.mean(np.sum(dataset.ys,axis= 1))
+    #print("Avg. num labels per image = ", avg_labels_per_image)
+    txt +="Avg. num labels per image = "+ str(avg_labels_per_image) +'\n'
+
+    for label in dataset.image_dict.keys():
+        tot_shared_labels =0
+        for image in dataset.image_dict[label]:
+            tot_shared_labels += len(dataset.image_dict[label])-1
+        avg_shared_labels = tot_shared_labels/ float(len(dataset.image_dict[label]))
+        #print("On average, images with label ", label, " also have ", avg_shared_labels, " other labels.")
+        txt + = "On average, images with label "+ str(label) +" also have "+ str(avg_shared_labels) +" other labels.\n"
+    return txt
+
+
+def check_recall_histogram(score_per_sample,save_path,bins=10):
+    """
+    Split the scores of recall@1 into bins, check the frequency for each score interval
+    Args:
+        score_per_sample: np array, flatten, length: total sample number
+    """
+    plt.xlabel("recall@1")
+    plt.ylabel("Number of samples")
+    plt.hist(score_per_sample, bins=bins, range=[0, 1], edgecolor='w')
+    plt.title("historam_recall@1")
+    plt.savefig(save_path, format='png')
+    
+    
+
+    
