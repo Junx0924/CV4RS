@@ -23,9 +23,12 @@ class NCACrossEntropy(nn.Module):
         self.register_buffer('labels_sim', torch.FloatTensor(labels.size(0),labels.size(0)))
 
         num_classes = labels.size(1)
+        # make multi-hot labels like [1, -1,1,-1...]
+        temp  = -1.0* torch.ones(labels.shape)
+        labels = 2.0*labels + temp
         labels_sim = torch.mm(labels,labels.t())
         # scale the similarity to [0,1]
-        self.labels_sim = labels_sim/num_classes
+        self.labels_sim = 0.5 + labels_sim/(2.0*num_classes)
         self.margin = margin
 
     def forward(self, embed_sim, indexes):

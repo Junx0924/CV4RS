@@ -18,7 +18,7 @@ def basic_training_parameters(parser):
     parser.add_argument('--cuda-device', default = 0, type = int)
     parser.add_argument('--num-workers', default=4, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
-    parser.add_argument('--nb-epochs', default=120, type = int)
+    parser.add_argument('--nb_epochs', default=120, type = int)
     parser.add_argument('--sz_embedding', default=512, type=int, help='the dimension of final embedding')
     parser.add_argument('--backbone-wd', default=1e-4, type=float, help='weight decay for backbone')
     parser.add_argument('--backbone-lr', default=1e-5, type=float, help ='learning rate for backbone')
@@ -106,6 +106,7 @@ def load_common_config():
     with open(config_name, 'r') as f: config = json.load(f)
    
     #### Update config.json from INPUT ARGUMENTS ###########
+    config['nb_epochs'] = args.pop('nb_epochs')
     config['sz_embedding'] = args.pop('sz_embedding')
     config['pj_base_path'] = pj_base_path
     config['dataloader']['batch_size'] = args.pop('batch_size')

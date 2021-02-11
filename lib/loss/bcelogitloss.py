@@ -23,5 +23,5 @@ class BCELogitLoss(nn.Module):
         """
         input = self.regressor(feature)
         #loss = F.binary_cross_entropy_with_logits(input=input, target=label, weight=self.pos_weight)
-        loss = F.binary_cross_entropy_with_logits(input=input, target=label)
+        loss = F.binary_cross_entropy_with_logits(input=input, target=label.float())
         return loss

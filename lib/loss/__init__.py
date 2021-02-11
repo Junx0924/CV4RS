@@ -13,7 +13,7 @@ from .batchminner.distance import Distance
 def select(config,to_optim,loss_name="",minner_name= "",onehot_labels = None):
     batch_minner = select_batchminner(minner_name)
     ds_name = config['dataset_selected']
-    num_classes = int(config['transform_parameters'][ds_name]["classes"])
+    num_classes = int(config['dataset'][ds_name]["classes"])
     if 'margin' in loss_name:
         criterion = MarginLoss(num_classes,batchminner = batch_minner)
         to_optim    += [{'params':criterion.parameters(), 'lr':criterion.beta_lr}]
