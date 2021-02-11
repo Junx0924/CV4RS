@@ -1,12 +1,10 @@
 import numpy as np
-from pathlib import Path
 import json
 import csv
 import os
 import multiprocessing
 from skimage.transform import resize
 from osgeo import gdal
-import h5py
 
 def get_data(img_path):
     patch_name = img_path.split('/')[-1]
@@ -43,24 +41,7 @@ def get_label(file_list,label_indices):
             image_dict[key].append(patch_name)
     return image_dict
 
-
-# hdf_file: hdf5 file record the images
-# file_list: record the image paths
-def store_hdf(hdf_file, file_list):
-    image_dict ={}
-    with h5py.File(hdf_file, "w") as f:
-        f = h5py.File(hdf_file,'w')
-        pool = multiprocessing.Pool(8)
-        results = pool.imap(get_data, (img_path for img_path in file_list))
-        for idx,(patch_name,img_data) in enumerate(results):
-            if len(img_data) == 12 :
-                f.create_dataset(patch_name, data=img_data.reshape(-1),compression='gzip',compression_opts=9)
-            if (idx+1) % (len(file_list)//5)==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
-        pool.close()
-        pool.join()
-
-
-def Give(datapath,dset_type, use_hdf5):
+def Give(datapath,dset_type):
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
     
     # read label names
@@ -76,26 +57,17 @@ def Give(datapath,dset_type, use_hdf5):
             patch_path =[ datapath + '/' + row[:-1] for row in csv_file]
         file_lists.append(patch_path)
 
-    if use_hdf5:
-        # create hdf5 file
-        # store all the images in hdf5 files to further reduce disk I/O
-        hdf_dir = ['/train.hdf5','/val.hdf5','/test.hdf5']
-        for hdf_file, file_list in zip(hdf_dir, file_lists):
-            hdf_path = datapath + hdf_file
-            if not Path(hdf_path).exists():
-                print("Start to create ", hdf_path," for BigEarthNet")
-                store_hdf(hdf_path,file_list)
-    
+
     # load image_dict from json files
     data_list =[]
     json_dir =[ item.split('.')[0] +'.json' for item in csv_list]
     for json_file, file_list in zip(json_dir, file_lists):
         json_path = datapath + json_file 
-        if not Path(json_path).exists():
+        if not os.path.exists(json_path):
             image_dict = get_label(file_list)
             with open(json_file, 'w') as json_f:
                 json.dump(image_dict, json_f,separators=(",", ":"),allow_nan=False,indent=4)
-                print("\ncreate ",json_file)
+                print("\nCreate ",json_file)
         with open(json_path, 'r') as json_f:
             data_list.append(json.load(json_f))
     

@@ -1,14 +1,11 @@
 import numpy as np
-from pathlib import Path
 import csv
 import random
 import xlrd
 import itertools
 import json
 import os
-import h5py
 from PIL import Image
-import multiprocessing
  
 
 def split(image_dict,split_ratio):
@@ -67,17 +64,6 @@ def get_data(img_path):
     img_data = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
     return patch_name,img_data.reshape(-1)
  
-# hdf_file: hdf5 file record the images
-# file_list: record the image paths
-def store_hdf(hdf_file, file_list):
-    with h5py.File(hdf_file, "w") as f:
-        pool = multiprocessing.Pool(8)
-        result = pool.imap(get_data, (img_path for img_path in file_list))
-        for idx,(patch_name, img_data) in enumerate(result):
-            f.create_dataset(patch_name, data=img_data, dtype='i',compression='gzip',compression_opts=9)
-            if (idx+1) % (len(file_list)//5)==0: print("processed {0:.0f}%".format((idx+1)/len(file_list)*100))
-        pool.close()
-        pool.join()
 
 def create_csv_split(datapath):
     category = {}
@@ -95,9 +81,9 @@ def create_csv_split(datapath):
     image_list =[] # image path
     image_labels =[]
         
-    for entry in Path(label_folder).iterdir():
-        if entry.suffix ==".csv" :
-            with open(label_folder + entry.name) as csv_file:
+    for entry in os.listdir(label_folder):
+        if entry.split['.'][-1] =="csv" :
+            with open(label_folder + entry) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 label_names =next(csv_reader,None)[1:]
                 if len(label_names)==60:
@@ -109,7 +95,7 @@ def create_csv_split(datapath):
                         temp = np.array(row[1:])
                         image_labels.append(temp[sort_ind])
                 else:
-                    print(entry.name)
+                    print(entry)
 
     label_names = np.sort(label_names)
     # to record the label names and its id
@@ -147,10 +133,10 @@ def create_csv_split(datapath):
         writer = csv.writer(file)
         writer.writerows(val)  
 
-def Give(datapath,dset_type, use_hdf5):
+def Give(datapath,dset_type):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
-    if not Path(csv_dir +'/train.csv').exists():
+    if not os.path.exists(csv_dir +'/train.csv'):
         create_csv_split(datapath)
     
     with open(csv_dir +'/category.json') as json_file:
@@ -161,20 +147,6 @@ def Give(datapath,dset_type, use_hdf5):
     val_image_dict,val_list = read_csv(csv_dir +'/val.csv',datapath)
     test_image_dict ,test_list= read_csv(csv_dir +'/test.csv',datapath)
     
-    # store all the images in hdf5 files to further reduce disk I/O
-    if use_hdf5:
-        train_h5 = datapath +'/train.hdf5'
-        if not Path(train_h5).exists(): 
-            print("Start to create ", train_h5," for MLRSNet")
-            store_hdf(train_h5, train_list)
-        val_h5 = datapath +'/val.hdf5'
-        if not Path(val_h5).exists(): 
-            print("Start to create ", val_h5," for MLRSNet")
-            store_hdf(val_h5, val_list)
-        test_h5 = datapath +'/test.hdf5'
-        if not Path(test_h5).exists(): 
-            print("Start to create ", test_h5," for MLRSNet")
-            store_hdf(test_h5, test_list)
 
     dsets = {'train': train_image_dict , 'val': val_image_dict , 'test': test_image_dict}
     return dsets[dset_type],conversion

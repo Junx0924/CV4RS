@@ -8,10 +8,23 @@ import hypia
 from skimage.transform import resize
 from osgeo import gdal
 from PIL import Image
+import os
+import itertools
 
-def get_category_labels(multihot):
-    labels = np.where(multihot ==1)[0]
-    return list(labels)
+
+ # normalize the image to its own mean and std channel wise
+def normalize(img):
+    """
+    img: np array (channel, width, height)
+    """
+    img_channel = img.shape[0]
+    if img_channel==3: 
+        img = img/255
+    # calculate per-channel means and standard deviations
+    img_mean = np.array([np.mean(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
+    img_std = np.array([np.std(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
+    img = (img - img_mean)/(img_std + 0.00000001)
+    return img
 
 def get_BigEarthNet(img_path):
     patch_name = img_path.split('/')[-1]
@@ -43,22 +56,43 @@ class BaseDataset(torch.utils.data.Dataset):
     """
     We use the train set for training, the val set for
     query and the test set for retrieval
+    Args:
+        image_list: contains file_path and multi-hot label
+        dataset_name: choose from {"MLRSNet", "BigEarthNet}
+        hdf_file
+        conversion: dictionary, {'label': label_name}
+        transform: dictonary, keys: sz_crop, input_shape
     """
-    def __init__(self, image_dict, image_list,hdf_file, conversion,transform = None, is_training = False, include_aux_augmentations= False):
+    def __init__(self, image_list, dataset_name, hdf_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
         torch.utils.data.Dataset.__init__(self)
+        self.dataset_name = dataset_name
         self.transform = transform
         self.is_training = is_training
-        self.image_dict = image_dict
-        self.image_list = image_list
         self.hdf_file = hdf_file
         self.include_aux_augmentations = include_aux_augmentations
         self.conversion = conversion
-        
         self.im_paths, self.I, self.ys = [], [], []
-        for item in self.image_list:
+        for i,item in enumerate(image_list):
             self.im_paths.append(item[0])
-            self.I.append(item[1]) # counter
-            self.ys.append(item[2]) # label
+            self.I.append(i) # counter
+            self.ys.append(item[1]) # muti hot label
+        
+        # in case of incomplete data
+        # get rid of class which has only 1 sample
+        # num_samples = np.sum(self.ys,axis=0)
+        # class_ind = np.where(num_samples==1)[0]
+        # if len(class_ind)>0:  
+        #     self.ys[:,class_ind]= 0
+        #     del_inds= np.unique(np.where(self.ys==0)[0])
+        #     keep_inds = list(set(self.I) - set(del_inds))
+        #     self.ys = self.ys[keep_inds]
+        #     self.im_paths =self.im_paths[keep_inds]
+        #     self.I = np.arange(len(self.ys))
+
+        category_labels = [np.where(label ==1)[0] for label in self.ys]
+        unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
+        self.image_dict ={str(key):[] for key in unique_labels}
+        [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in enumerate(category_labels)]
 
     def __len__(self):
         return len(self.im_paths)
@@ -67,93 +101,74 @@ class BaseDataset(torch.utils.data.Dataset):
         return len([key for key in self.image_dict.keys()])
 
     def __getitem__(self, index):
+        label = torch.tensor(self.ys[index], dtype=int)
         img_path = self.im_paths[index]
-        if self.hdf_file !="":
+        if os.path.exists(self.hdf_file):
             patch_name = img_path.split('/')[-1]
             f = h5py.File(self.hdf_file, 'r')
             im = np.array(f[patch_name][()], dtype=float)
             f.close()
-        elif self.transform['input_shape'][0] ==12:
-            im = get_BigEarthNet(img_path)
         else:
-            im = get_MLRSNet(img_path)
+            if self.dataset_name =='BigEarthNet':
+                im = get_BigEarthNet(img_path)
+            else:
+                im = get_MLRSNet(img_path)
 
-        input = im.reshape(self.transform['input_shape'])
-        im_a = self.process_image(input,mirror=True)
-        label = self.ys[index]
-        if isinstance(label,list):
-            label = torch.tensor(label, dtype=int)
-        
-        if self.include_aux_augmentations and self.is_training:
-            def rotation(img,idx):
-                # apply rotation
-                imrot_class = idx%4
-                angle = np.array([0,90,180,270])[imrot_class]
-                im_b = hypia.functionals.rotate(img, angle,reshape=False)
-                return im_b
-            im_b = rotation(input, index)
-            im_b = self.process_image(im_b,mirror=False)
-            return (im_a, label, index, im_b)
+        if self.transform ==None:
+            return (im, label,index)
         else:
-            return (im_a, label, index)
+            im_a = self.process_image(im)
+            if self.include_aux_augmentations:
+                # apply rotation to augument images
+                angle =  np.random.choice([0,90,180,270],size=1)
+                im_b = hypia.functionals.rotate(im.reshape(self.transform['input_shape']), angle[0],reshape=False)
+                im_b = self.process_image(im_b)
+                return im_a, label, index, im_b
+            else:
+                return im_a, label, index
 
     def get_label(self, index):
         return self.ys[index]
 
     def set_subset(self, subset_indices):
         if subset_indices is not None:
-            temp_list = [self.image_list[int(i)] for i in subset_indices]
-            self.image_list = []
-            self.ys =[]
-            self.I = []
-            self.im_paths = []
-            self.image_dict ={}
+            self.ys =[self.ys[i] for i in subset_indices]
+            self.I = [i for i in range(len(subset_indices))]
+            self.im_paths = [self.im_paths[i] for i in subset_indices]
+            # update image_dict
+            category_labels = [np.where(label ==1)[0] for label in self.ys]
+            unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
+            self.image_dict ={str(key):[] for key in unique_labels}
+            [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in enumerate(category_labels)]
 
-            for ind in range(len(temp_list)):
-                key = temp_list[ind][-1]
-                img_path = temp_list[ind][0]
-                self.image_list.append([img_path,ind,key])
-                self.ys.append(key)
-                self.I.append(ind)
-                self.im_paths.append(img_path)
-                labels = get_category_labels(key)
-                for label in labels:
-                    if label not in self.image_dict.keys():
-                        self.image_dict[label]=[]
-                    self.image_dict[label].append([img_path,ind])
-
-    def process_image(self, img, mirror=True):
+    def process_image(self, img):
         """
-        Preprocessing code. For training this function randomly crop images and
+        Preprocessing images. For training this function randomly crop images and
         flips the image randomly.
         For testing we use the center crop of the image.
 
         Args:
-        img: np.array (1 dim)
+        img: np.array
         """
         img_shape =self.transform['input_shape']
+        img = img.reshape(img_shape)
         img_dim = img_shape[1]
         img_channel = img_shape[0]
         crop = self.transform['sz_crop']
-        if  self.is_training:
+        if self.is_training:
             # random_image_crop
             if img_dim == crop: tl =[0,0]
             else: tl = np.random.choice(range(img_dim-crop),2)
             img = hypia.functionals.crop(img, tl, crop, crop,channel_pos='first')
-            if mirror:
-                choice = np.random.choice([1,2],1)
-                if choice ==1 :
-                    img = hypia.functionals.hflip(img,channel_pos='first')
-                else:
-                    img = hypia.functionals.vflip(img,channel_pos='first')
-
+            # apply random flip
+            choice = np.random.choice([1,2],1)
+            if choice ==1 :
+                img = hypia.functionals.hflip(img,channel_pos='first')
+            else:
+                img = hypia.functionals.vflip(img,channel_pos='first')
         else:
             offset = (img_dim - crop) // 2
             img = hypia.functionals.crop(img, [offset,offset], crop, crop,channel_pos='first')
 
-        # normalize the image to its own mean and std channel wise
-        if img_channel ==3: img = img/255
-        img_mean = np.array([np.mean(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
-        img_std = np.array([np.std(np.reshape(img[i,:,:],-1)) for i in range(img_channel)]).reshape(-1,1,1)
-        img = (img - img_mean)/(img_std + 0.00000001)
-        return  torch.Tensor(img)
+        img = normalize(img)
+        return  torch.Tensor(img) 
