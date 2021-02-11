@@ -14,6 +14,8 @@ import os
 from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
+import random
+
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
     """
@@ -77,7 +79,7 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, LOG, log_key = 'Val'):
+def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, LOG=None, log_key = 'Val'):
     """
     Evaluate the retrieval performance (wmap, map, hamming loss)
         Args:
@@ -103,26 +105,33 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= K,gpu_id= torch.cuda.current_device())
     T_query_pred   = T_gallery[k_closest_points]
 
+    score ={}
     wmap = evaluation.retrieval.select('wmap',T_query, T_query_pred, K)
-    LOG.progress_saver[log_key].log("retrieve_wmap@"+str(K),wmap)
+    score['wmap@'+str(K)] = wmap
+    if LOG !=None:
+        LOG.progress_saver[log_key].log("retrieve_wmap@"+str(K),wmap)
     print("retrieval: wmap@{} : {:.2f}".format(K, wmap))
 
     map = evaluation.retrieval.select('map',T_query, T_query_pred, K)
-    LOG.progress_saver[log_key].log("retrieve_map@"+str(K),map)
+    score['map@'+str(K)] = map
+    if LOG !=None:
+        LOG.progress_saver[log_key].log("retrieve_map@"+str(K),map)
     print("retrieval: map@{} : {:.3f}".format(K, 100*map))
 
     hl = evaluation.retrieval.select('hamming',T_query, T_query_pred, K)
-    LOG.progress_saver[log_key].log("retrieve_hamming@"+str(K),hl)
+    score['hamming@'+str(K)] = hl
+    if LOG !=None:
+        LOG.progress_saver[log_key].log("retrieve_hamming@"+str(K),hl)
     print("retrieval: hamming loss@{} : {:.3f}".format(K, hl))
 
     ### recover n_closest images
-    n_img_samples = 10
-    n_closest = 4
-    save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
-    recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
-    
+    # n_img_samples = 10
+    # n_closest = 4
+    # save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
+    # recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
+    return score
 
-def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 'Val',with_f1 = True,is_init=False):
+def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_key = 'Val',with_f1 = True,is_init=False):
     """
     Evaluate the classification performance (recall @1,2,4,8, f1)
         Args:
@@ -146,9 +155,11 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
     if "recall" in LOG.progress_saver[log_key].groups.keys():
         history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
+    score={}
     # calculate recall @ 1, 2, 4, 8
     for k in K:
         r_at_k = evaluation.classification.select('recall',T, T_pred, k)
+        score['recall@'+str(k)] = r_at_k
         print("classification: recall@{} : {:.3f}".format(k, 100 * r_at_k))
         if not is_init:
             LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
@@ -158,21 +169,25 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG, log_key = 
     if with_f1:
         f1_k =1
         f1 = evaluation.classification.select('f1',T, T_pred, k=f1_k)
+        score['f1@'+str(f1_k)] = f1
         print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
         if not is_init:
             LOG.progress_saver[log_key].log("f1",f1)
     ### save checkpoint #####
-    if  flag_checkpoint:
+    if  flag_checkpoint and not is_init:
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-    #recover n_closest images
-    if not is_init:
+
+        print("Get the inter and intra class distance for different classes")
+        DistanceMeasure(X, T, config,LOG,log_key)
+
         n_img_samples = 10
         n_closest = 4
         save_path = LOG.config['checkfolder']+'/query_sample_recoveries.png'
+        print("Recover the {} closest sample images".format(n_closest))
         recover_standard(X,dl.dataset.im_paths, save_path,n_img_samples, n_closest)
-    return flag_checkpoint
+    return score
 
 def plot_images(image_paths,save_path):
     """
@@ -214,35 +229,47 @@ def plot_images(image_paths,save_path):
     f.savefig(save_path)
     plt.close()
 
-def DistanceMeasure(model,config,dataloader,LOG, log_key):
+
+def DistanceMeasure(X, T,config, LOG, log_key):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
-            model: pretrained resnet50
-            config  
-            dataloader 
+            X: embeddings
+            T: multi-hot labels
     """
-    print("Start to evaluate the distance ratios between intra and inter class")
-    image_dict = dataloader.dataset.image_dict
-    X, _,_ = predict_batchwise(model,dataloader,config['device'])
     if 'evaluation_weight' in config.keys():
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
-    # Compute average intra-class l2 distance
-    common_X , intra_dist =[],[]
-    for label in image_dict.keys():
-        inds = [ item[-1] for item in image_dict[label]]
-        x   = normalize(np.mean(X[inds],axis=0).reshape(1,-1)).reshape(-1)
-        dist = np.mean([ np.linalg.norm(x-xi) for xi in X[inds]])
-        intra_dist.append(dist)
-        common_X.append(x)
+    # compute the l2 distance mat of X
+    # the diagonals are zeros
+    dist = similarity.pairwise_distance(X)
+
+    # get the labels for each embedding
+    T_list = [ np.where(t==1)[0] for t in T] 
+    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    classes = np.unique(T_list[:,1])
+    image_dict = {str(c):[] for c in classes}
+    [image_dict[str(c)].append(ind) for ind,c in T_list]
     
-    #Compute mean inter-class distances by the l2 distance among common_X
-    inter_dist = similarity.pairwise_distance(np.array(common_X))
-    inter_intra_ratio = inter_dist/np.array(intra_dist).reshape(-1,1)
-    inter_intra_ratio = np.sum(inter_intra_ratio)/(len(inter_intra_ratio)**2-len(inter_intra_ratio))
+    # Compute average intra and inter l2 distance
+    for label in image_dict.keys():
+        inds = image_dict[label] 
+        if len(inds)<2: continue
+        intra_ind = np.array([[ [i,j] for j in inds if i != j] for i in inds]).reshape(-1,2)
+        dist_intra =  dist[intra_ind[:,0],intra_ind[:,1]]
+        std_intra = np.std(dist_intra) 
+        mean_intra = np.mean(dist_intra)
 
-    LOG.progress_saver[log_key].log('intra_inter_l2_ratio',1.0/inter_intra_ratio)
+        other_inds = list(set(range(len(X))) - set(range(len(X))).intersection(inds))
+        inter_ind = np.array([[[i,j] for j in other_inds] for i in inds]).reshape(-1,2)
+        dist_inter =  dist[inter_ind[:,0],inter_ind[:,1]]
+        std_inter = np.std(dist_inter)
+        mean_inter = np.mean(dist_inter)
+        
+        LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
+        LOG.progress_saver[log_key].log('intraStd@'+str(label),std_intra, group ='intraStd')
+        LOG.progress_saver[log_key].log('interStd@'+str(label),std_inter, group ='interStd')
 
+    
 def GradientMeasure(model,LOG,log_key):
     # record the gradient of the weight of each layer in the model
     for name, param in model.named_parameters():
@@ -252,12 +279,13 @@ def GradientMeasure(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_l2',grad_l2)
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
+
 def classBalancedSamper(T,num_samples_per_class=2):
     """
     Get a list of category labels with its original index from multi-hot labels
         Args:
             T: multi-hot labels, eg.numpy array[n_samples x 60]
-            num_samples_per_class 
+            num_samples_per_class: default 2
     """
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
@@ -311,19 +339,35 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
     plot_images(image_paths,save_path)
 
 
-def apply_tsne(X,save_path,n_components=2):
+def apply_tsne(X,T,conversion,save_path,n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
             X: embeddings
+            T: multi-hot labels
+            conversion: dictionary to convert category label to label name
     """
     # apply tsne to the embeddings
+    print("Apply tsne to embeddings")
     time_start = time.time()
     tsne = TSNE(n_components=n_components, verbose=1, perplexity=40, n_iter=300)
     tsne_results = tsne.fit_transform(X)
     print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
+    
+    # get the labels for each embedding
+    T_list = [ np.where(t==1)[0] for t in T] 
+    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    classes = np.unique(T_list[:,1])
+    image_dict = {str(c):[] for c in classes}
+    [image_dict[str(c)].append(ind) for ind,c in T_list]
+
     # Fixing random state for reproducibility
     np.random.seed(19680801)
+    number_of_colors = len(classes)
+    colors = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(number_of_colors)]
     plt.figure(figsize=(16,10))
-    plt.scatter(tsne_results[:,0], tsne_results[:,1], c=np.random.rand(len(tsne_results)), alpha=0.5)
+    for i,c in enumerate(classes):
+        c_tsne_result = tsne_results[image_dict[str(c)]]
+        plt.scatter(c_tsne_result[:,0], c_tsne_result[:,1], c=colors[i], alpha=0.5,label=conversion[str(c)])
+    plt.legend(loc="upper right")
     plt.savefig(save_path, format='png')
