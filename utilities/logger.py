@@ -2,7 +2,10 @@ import datetime, csv, os, numpy as np
 from matplotlib import pyplot as plt
 import pickle as pkl
 from utilities.misc import gimme_save_string
-
+import random
+import matplotlib
+# change the color style 
+matplotlib.rcParams['axes.prop_cycle']
 """============================================================================================================="""
 ################## WRITE TO CSV FILE #####################
 class CSV_Writer():
@@ -32,26 +35,31 @@ class InfoPlotter():
         self.save_path = save_path
         self.title     = title
         self.figsize   = figsize
-        self.colors    = ['r','g','b','y','m','c','orange','darkgreen','lightblue']
+        np.random.seed(19680801)
+        self.colors  = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(80)]
 
     def make_plot(self, base_title, title_append, sub_plots, sub_plots_data):
         sub_plots = list(sub_plots)
+        assert len(sub_plots) < len(self.colors)
         if 'epochs' not in sub_plots:
             x_data = range(len(sub_plots_data[0]))
         else:
             x_data = range(sub_plots_data[np.where(np.array(sub_plots)=='epochs')[0][0]][-1]+1)
-
-        self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data) if sub_plot not in ['epoch','epochs','time']]
-        self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
-        self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
+        if  '@' in sub_plots[0] and sub_plots[0].split('@')=='recall':
+            self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data)]
+            self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
+            self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
+        else:
+            self.ov_title = base_title + ":"+ title_append
         sub_plots_data = [x for x,y in zip(sub_plots_data, sub_plots)]
         sub_plots      = [x for x in sub_plots]
 
         plt.style.use('ggplot')
         f,ax = plt.subplots(1)
         ax.set_title(self.ov_title, fontsize=22)
+       
         for i,(data, title) in enumerate(zip(sub_plots_data, sub_plots)):
-            ax.plot(x_data, data, '-{}'.format(self.colors[i]), linewidth=1.7, label=base_title+' '+title)
+            ax.plot(x_data, data, c= self.colors[i], linewidth=1.7, label=base_title+' '+title)
         ax.tick_params(axis='both', which='major', labelsize=18)
         ax.tick_params(axis='both', which='minor', labelsize=18)
         ax.legend(loc=2, prop={'size': 16})
@@ -152,13 +160,18 @@ class LOGGER():
 
                 self.csv_writer[sub_logger].log(group, segments, tupled_seg_content)
                 self.graph_writer[sub_logger].make_plot(sub_logger, group, segments, per_seg_contents_all)
-
-                for i,segment in enumerate(segments):
-                    if group == segment:
-                        name = sub_logger+': '+group
-                    else:
-                        name = sub_logger+': '+group+': '+segment
-                    online_content.append((name,per_seg_contents[i]))
+                
+                if group in ["distRatio","intraStd","interStd"]:
+                    name = sub_logger+': mean_'+group
+                    online_content.append((name,np.mean(per_seg_contents)))
+                else:
+                    for i,segment in enumerate(segments):
+                        if group == segment:
+                            name = sub_logger+': '+group
+                        else:
+                            name = sub_logger+': '+group+': '+segment
+                        online_content.append((name,per_seg_contents[i]))
+                        
 
         if self.log_online:
             import wandb
