@@ -13,21 +13,19 @@ class ClassBalancedSampler(torch.utils.data.sampler.Sampler):
     50 indices, which point to 2 samples from 50/2=25 randomly picked classes.
     """
 
-    def __init__(self, image_dict, image_list,num_samples_per_class=2):
+    def __init__(self, num_images, image_dict,num_samples_per_class=2):
         self.image_dict         = image_dict
-        self.image_list         = image_list
         self.samples_per_class  = num_samples_per_class
-
         num_class = len(image_dict)
         batch_size         = num_samples_per_class * num_class
-        self.sampler_length     = len(image_list)//batch_size
+        self.sampler_length     = num_images//batch_size
 
     def __iter__(self):
         for _ in range(self.sampler_length):
             subset = []
             ### Random Subset from each classes
             for class_key in self.image_dict.keys():
-                index_pool = [item[-1] for item in self.image_dict[class_key]]
+                index_pool =  self.image_dict[class_key]
                 replace = True if len(index_pool) < self.samples_per_class else False
                 subset.extend(np.random.choice(index_pool, self.samples_per_class, replace=replace))
             yield subset

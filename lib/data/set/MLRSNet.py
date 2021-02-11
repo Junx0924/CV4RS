@@ -40,29 +40,37 @@ def split(image_dict,split_ratio):
             
     return train_image_dict,flag
 
-# csv_filename: record the image name and its labels
-# datapath: the source of dataset
+
 def read_csv(csv_filename,datapath):
+    """
+    Args:
+        csv_filename: record the image name and its multi-hot labels
+        datapath: the source of dataset
+    Return:
+        file_list: [image_path, multi-hot label]
+    """
     file_list, file_label =[],[]
     with open(csv_filename) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader: 
-            file_list.append(datapath + str(row[0]))
-            file_label.append(row[1:])
-    file_list = np.array(file_list)
-    file_label = np.array(file_label,dtype=int)
-    file_image_dict  = {i:file_list[np.where(file_label[:,i]==1)[0]] for i in range(file_label.shape[1])}
-    return file_image_dict,file_list
+            file_list.append([datapath + str(row[0]),np.array(row[1:],dtype=int)])
+    return file_list
 
 
 def get_data(img_path):
+    """
+    return: 
+        patch_name
+        img_data: flatten np array
+    """
     patch_name = img_path.split('/')[-1]
     pic = Image.open(img_path)
     if len(pic.size)==2:
         pic = pic.convert('RGB')
     pic = pic.resize((256,256))
     img_data = np.array(pic.getdata()).reshape(-1, pic.size[0], pic.size[1])
-    return patch_name,img_data.reshape(-1)
+    img_data = img_data.reshape(-1)
+    return patch_name,img_data
  
 
 def create_csv_split(datapath):
@@ -143,10 +151,9 @@ def Give(datapath,dset_type):
         category = json.load(json_file)
     with open(csv_dir +'/label_name.json') as json_file:
         conversion= json.load(json_file)
-    train_image_dict,train_list = read_csv(csv_dir +'/train.csv',datapath)
-    val_image_dict,val_list = read_csv(csv_dir +'/val.csv',datapath)
-    test_image_dict ,test_list= read_csv(csv_dir +'/test.csv',datapath)
-    
+    train_list = read_csv(csv_dir +'/train.csv',datapath)
+    val_list = read_csv(csv_dir +'/val.csv',datapath)
+    test_list= read_csv(csv_dir +'/test.csv',datapath)
 
-    dsets = {'train': train_image_dict , 'val': val_image_dict , 'test': test_image_dict}
+    dsets = {'train': train_list , 'val': val_list , 'test': test_list}
     return dsets[dset_type],conversion

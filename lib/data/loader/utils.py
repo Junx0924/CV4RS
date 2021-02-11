@@ -36,7 +36,7 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
                 )
         else:
             ds.set_subset(subset_indices)
-            train_data_sampler= ClassBalancedSampler(ds.image_dict,ds.image_list, config['num_samples_per_class'])
+            train_data_sampler= ClassBalancedSampler(len(ds),ds.image_dict, config['num_samples_per_class'])
             dl = torch.utils.data.DataLoader(
                 ds,
                 num_workers= config['dataloader']["num_workers"],

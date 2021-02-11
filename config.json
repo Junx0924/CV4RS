@@ -12,19 +12,11 @@
     "dataset": {
         "BigEarthNet": {
             "root": "/media/robin/Intenso/Dataset/BigEarthNet",
-            "classes": {
-                "train": "range(0,25)",
-                "init": "range(0,25)",
-                "eval": "range(0,25)"
-            }
+            "classes": 25
         },
         "MLRSNet": {
             "root": "/media/robin/Intenso/Dataset/MLRSNet",
-            "classes": {
-                "train": "range(0,60)",
-                "init": "range(0,60)",
-                "eval": "range(0,60)"
-            }
+            "classes": 60
         }
     },
     "dataloader": {
@@ -32,7 +24,7 @@
         "drop_last": false,
         "shuffle": false,
         "pin_memory": true,
-        "batch_size": 50
+        "batch_size": 128
     },
     "opt": {
         "backbone": {
@@ -50,12 +42,10 @@
     },
     "transform_parameters": {
         "BigEarthNet":{
-            "classes":25,
             "sz_crop" : 100,
             "input_shape": [12,120,120]
         },
         "MLRSNet":{
-            "classes":60,
             "sz_crop": 224,
             "input_shape": [3,256,256]
         }
