@@ -17,16 +17,13 @@ class CSV_Writer():
     def log(self, group, segments, content):
         if group not in self.n_written_lines.keys():
             self.n_written_lines[group] = 0
-
         with open(self.save_path+'_'+group+'.csv', "a") as csv_file:
             writer = csv.writer(csv_file, delimiter=",")
             if group not in self.written: writer.writerow(segments)
             for line in content:
                 writer.writerow(line)
                 self.n_written_lines[group] += 1
-
         self.written.append(group)
-
 
 
 ################## PLOT SUMMARY IMAGE #####################
@@ -45,12 +42,11 @@ class InfoPlotter():
             x_data = range(len(sub_plots_data[0]))
         else:
             x_data = range(sub_plots_data[np.where(np.array(sub_plots)=='epochs')[0][0]][-1]+1)
-        if  '@' in sub_plots[0] and sub_plots[0].split('@')=='recall':
-            self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data)]
-            self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
-            self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
-        else:
-            self.ov_title = base_title + ":"+ title_append
+        
+        self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data) if sub_plot not in ['epoch','epochs','time']]
+        self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
+        self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
+       
         sub_plots_data = [x for x,y in zip(sub_plots_data, sub_plots)]
         sub_plots      = [x for x in sub_plots]
 
