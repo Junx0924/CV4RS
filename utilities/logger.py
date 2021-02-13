@@ -43,9 +43,12 @@ class InfoPlotter():
         else:
             x_data = range(sub_plots_data[np.where(np.array(sub_plots)=='epochs')[0][0]][-1]+1)
         
-        self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data) if sub_plot not in ['epoch','epochs','time']]
-        self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
-        self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
+        if  '@' in sub_plots[0] and sub_plots[0].split('@') in ['recall']:
+            self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data)]
+            self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
+            self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
+        else:
+            self.ov_title = base_title + ":"+ title_append
        
         sub_plots_data = [x for x,y in zip(sub_plots_data, sub_plots)]
         sub_plots      = [x for x in sub_plots]
@@ -79,13 +82,14 @@ def set_logging(config):
     while os.path.exists(checkfolder):
         checkfolder = save_path+'/'+ save_name +'_'+str(counter)
         counter += 1
+    config['log']['save_name'] = checkfolder.split('/')[-1]
     os.makedirs(checkfolder)
     with open(checkfolder+'/Parameter_Info.txt','w') as f:
-        f.write(gimme_save_string(config))
+         f.write(gimme_save_string(config))
     with open(checkfolder+"/hypa.pkl","wb") as f:
         pkl.dump(config,f)
     config['checkfolder'] = checkfolder
-
+    
 class Progress_Saver():
     def __init__(self):
         self.groups = {}
@@ -167,7 +171,6 @@ class LOGGER():
                         else:
                             name = sub_logger+': '+group+': '+segment
                         online_content.append((name,per_seg_contents[i]))
-                        
 
         if self.log_online:
             import wandb
