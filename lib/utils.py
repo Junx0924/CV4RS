@@ -15,6 +15,8 @@ from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
 import random
+import itertools
+import csv
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -36,10 +38,10 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
     if desc =='': desc ='Filling memory queue'
     with torch.no_grad():
         # use tqdm when the dataset is large (SOProducts)
-        is_verbose = len(dataloader.dataset) > 0
+        #is_verbose = len(dataloader.dataset) > 0
 
         # extract batches (A becomes list of samples)
-        for batch in tqdm(dataloader, desc= desc, disable=not is_verbose):
+        for batch in tqdm(dataloader, desc= desc):
             img_data, labels, indices = batch
             if not is_dry_run:
                 img_data = img_data.to(device)
@@ -80,22 +82,27 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, LOG=None, log_key = 'Val'):
+def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, 
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], recover_image =False):
     """
-    Evaluate the retrieval performance (wmap, map, hamming loss)
-        Args:
-            model: pretrained resnet50
-            dl_query: query dataloader
-            dl_gallery: gallery dataloader
-            use_penultimate: use the embedding layer if it is false
-            backend: default faiss-gpu 
+    Evaluate the retrieve performance
+    Args:
+        model: pretrained resnet50
+        dl_query: query dataloader
+        dl_gallery: gallery dataloader
+        use_penultimate: use the embedding layer if it is false
+        backend: default faiss-gpu 
+        K: [1,2,4,8]
+        metrics: default ['recall']
+        recover_image: recover sampled image and its retrieved image
+    Return:
+        score: dict of score for different metrics
     """
-    K =  4 
     # calculate embeddings with model and get targets
     X_query, T_query, I_query = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
     X_gallery, T_gallery, I_gallery = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
 
-    if 'evaluation_weight' in config.keys():
+    if 'evaluation_weight' in config.keys() and not is_init:
         X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
 
@@ -103,47 +110,69 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     nb_classes = dl_query.dataset.nb_classes()
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
-    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= K,gpu_id= torch.cuda.current_device())
+    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= torch.cuda.current_device())
     T_query_pred   = T_gallery[k_closest_points]
 
-    score ={}
-    wmap = evaluation.retrieval.select('wmap',T_query, T_query_pred, K)
-    score['wmap@'+str(K)] = wmap
-    if LOG !=None:
-        LOG.progress_saver[log_key].log("retrieve_wmap@"+str(K),wmap)
-    print("retrieval: wmap@{} : {:.2f}".format(K, wmap))
+    flag_checkpoint = False
+    history_recall1 = 0
+    if LOG !=None and "recall" in LOG.progress_saver[log_key].groups.keys():
+        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
-    map = evaluation.retrieval.select('map',T_query, T_query_pred, K)
-    score['map@'+str(K)] = map
-    if LOG !=None:
-        LOG.progress_saver[log_key].log("retrieve_map@"+str(K),map)
-    print("retrieval: map@{} : {:.3f}".format(K, 100*map))
+    scores={}
+    for k in K:
+        y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_query_pred])
+        y_pred[np.where(y_pred>1)]= 1
+        for metric in metrics:
+            s = evaluation.select(metric,T_query,y_pred)
+            print("{}@{} : {:.3f}".format(metric, k, s))
+            scores[metric+ '@'+str(k)] = s
+            if LOG !=None:
+                LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
+            if k==1 and s > history_recall1:
+                flag_checkpoint = True
+    
+    ### save checkpoint #####
+    if  flag_checkpoint and LOG !=None:
+        print("Best epoch! save to checkpoint")
+        savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
+        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
+        print("Get the inter and intra class distance for different classes")
+        check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), LOG, log_key)
 
-    hl = evaluation.retrieval.select('hamming',T_query, T_query_pred, K)
-    score['hamming@'+str(K)] = hl
-    if LOG !=None:
-        LOG.progress_saver[log_key].log("retrieve_hamming@"+str(K),hl)
-    print("retrieval: hamming loss@{} : {:.3f}".format(K, hl))
+    if recover_image:
+        ## recover n_closest images
+        n_img_samples = 10
+        n_closest = 4
+        save_path = config['checkfolder']+'/sample_recoveries.png'
+        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
+        #check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/tsne.png')  
+    
+    if 'Mirco_F1' in metrics:
+        y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
+        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
+        with open(save_path,'w',newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerows(['TP']+list(TP))
+            writer.writerows(['FP']+list(FP))
+            writer.writerows(['TN']+list(TN))
+            writer.writerows(['FN']+list(FN))
+    return scores
 
-    ### recover n_closest images
-    # n_img_samples = 10
-    # n_closest = 4
-    # save_path = LOG.config['checkfolder']+'/sample_recoveries.png'
-    # recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
-    return score
 
-
-def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_key = 'Val',with_f1 = True,is_init=False):
+def evaluate_standard(model, config,dl, use_penultimate, backend,
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], recover_image =False):
     """
-    Evaluate the classification performance (recall @1,2,4,8, f1)
+    Evaluate the retrieve performance
         Args:
             model: pretrained resnet50
             dl: dataloader
             use_penultimate: use the embedding layer if it is false
-            backend: default faiss-gpu 
+            backend: default faiss-gpu
+        Return:
+            scores: dict of recalls, f1 for each sample
     """
     nb_classes = dl.dataset.nb_classes()
-    K = [1, 2, 4, 8]
     # calculate embeddings with model and get targets
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
     if 'evaluation_weight' in config.keys() and not is_init:
@@ -154,45 +183,49 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,LOG=None, log_k
 
     flag_checkpoint = False
     history_recall1 = 0
-    if "recall" in LOG.progress_saver[log_key].groups.keys():
+    if LOG !=None and "recall" in LOG.progress_saver[log_key].groups.keys():
         history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
-    score={}
-    # calculate recall @ 1, 2, 4, 8
+    scores={}
     for k in K:
-        r_at_k, score_per_sample = evaluation.classification.select('recall',T, T_pred, k)
-        score['recall@'+str(k)] = r_at_k
-        print("classification: recall@{} : {:.3f}".format(k, 100 * r_at_k))
-        # split the scores of recall@1 into bins, check the frequency for each score interval
-        if k==1:
-            check_recall_histogram(score_per_sample,save_path= LOG.config['checkfolder']+'/recall_historam.png',bins=10)
-        if not is_init:
-            LOG.progress_saver[log_key].log("recall@"+str(k),r_at_k,group='recall')
-            if k==1 and r_at_k > history_recall1:
+        y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_pred])
+        y_pred[np.where(y_pred>1)]= 1
+        for metric in metrics:
+            s = evaluation.select(metric,T,y_pred)
+            print("{}@{} : {:.3f}".format(metric, k, s))
+            scores[metric+ '@'+str(k)] = s
+            if LOG !=None:
+                LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
+            if k==1 and s > history_recall1:
                 flag_checkpoint = True
-    ### calculate f1
-    if with_f1:
-        f1_k =1
-        f1,_ = evaluation.classification.select('f1',T, T_pred, k=f1_k)
-        score['f1@'+str(f1_k)] = f1
-        print("classification: f1@{} : {:.3f}".format(f1_k, 100 * f1))
-        if not is_init:
-            LOG.progress_saver[log_key].log("f1",f1)
+
     ### save checkpoint #####
-    if  flag_checkpoint and not is_init:
+    if  flag_checkpoint and LOG !=None:
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-
         print("Get the inter and intra class distance for different classes")
-        check_distance_ratio(X, T, config,LOG,log_key)
-
+        check_distance_ratio(X, T,LOG,log_key)
+    
+    if recover_image:
+        ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        save_path = LOG.config['checkfolder']+'/query_sample_recoveries.png'
-        print("Recover the {} closest sample images".format(n_closest))
-        recover_standard(X,dl.dataset.im_paths, save_path,n_img_samples, n_closest)
-    return score
+        save_path = config['checkfolder']+'/sample_recoveries.png'
+        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
+        #check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
+
+    if 'Mirco_F1' in metrics:
+        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
+        with open(save_path,'w',newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerows(['TP']+list(TP))
+            writer.writerows(['FP']+list(FP))
+            writer.writerows(['TN']+list(TN))
+            writer.writerows(['FN']+list(FN))  
+    return scores
 
 
 def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
@@ -298,15 +331,13 @@ def classBalancedSamper(T,num_samples_per_class=2):
     return np.array(new_T_list)
 
 
-def check_distance_ratio(X, T,config, LOG, log_key):
+def check_distance_ratio(X, T, LOG=None, log_key="Val"):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
             X: embeddings
             T: multi-hot labels
     """
-    if 'evaluation_weight' in config.keys():
-        X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     # compute the l2 distance mat of X
     # the diagonals are zeros
     dist = similarity.pairwise_distance(X)
@@ -332,10 +363,10 @@ def check_distance_ratio(X, T,config, LOG, log_key):
         dist_inter =  dist[inter_ind[:,0],inter_ind[:,1]]
         std_inter = np.std(dist_inter)
         mean_inter = np.mean(dist_inter)
-        
-        LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-        LOG.progress_saver[log_key].log('intraStd@'+str(label),std_intra, group ='intraStd')
-        LOG.progress_saver[log_key].log('interStd@'+str(label),std_inter, group ='interStd')
+        if LOG !=None:
+            LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
+            LOG.progress_saver[log_key].log('intraStd@'+str(label),std_intra, group ='intraStd')
+            LOG.progress_saver[log_key].log('interStd@'+str(label),std_inter, group ='interStd')
   
 
 def check_gradient(model,LOG,log_key):
@@ -387,7 +418,7 @@ def check_tsne_plot(X,T,conversion,save_path,n_components=2):
     plt.savefig(save_path, format='png')
 
 
-def check_image_label(dataset):
+def check_image_label(dataset,save_path):
     """
     Generally check if the datasets have similar distribution
      Check Avg. num labels per image
@@ -397,31 +428,58 @@ def check_image_label(dataset):
     """
     txt =""
     avg_labels_per_image = np.mean(np.sum(dataset.ys,axis= 1))
-    #print("Avg. num labels per image = ", avg_labels_per_image)
     txt +="Avg. num labels per image = "+ str(avg_labels_per_image) +'\n'
-
-    for label in dataset.image_dict.keys():
-        tot_shared_labels =0
-        for image in dataset.image_dict[label]:
-            tot_shared_labels += len(dataset.image_dict[label])-1
-        avg_shared_labels = tot_shared_labels/ float(len(dataset.image_dict[label]))
-        #print("On average, images with label ", label, " also have ", avg_shared_labels, " other labels.")
-        txt + = "On average, images with label "+ str(label) +" also have "+ str(avg_shared_labels) +" other labels.\n"
+    images_per_label =[len(dataset.image_dict[label]) for label in dataset.image_dict.keys()]
+    plt.bar(range(len(images_per_label)) ,height=images_per_label)
+    plt.xlabel("labels")
+    plt.ylabel("Number of images")
+    plt.title("Distribution of images among labels")
+    plt.savefig(save_path)
     return txt
 
 
-def check_recall_histogram(score_per_sample,save_path,bins=10):
+def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
     Split the scores of recall@1 into bins, check the frequency for each score interval
     Args:
         score_per_sample: np array, flatten, length: total sample number
+        T: original
     """
+    y_true = [np.where(multi_hot==1)[0] for multi_hot in T]
+    y_pred = [np.where(multi_hot==1)[0] for multi_hot in T_pred]
+    score_per_sample = [evaluation.classification.recall(y_t, y_p) for y_t,y_p in zip(y_true,y_pred)]
+    
+    count,bin_edges = np.histogram(score_per_sample, bins=1.0/bins*np.arange(bins+1))
+    fig = plt.figure()
+    ax = fig.add_axes([0,0,1.5,1.5])
+    langs = [ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))]
+    ax.bar(langs,count/sum(count),edgecolor='w')
     plt.xlabel("recall@1")
-    plt.ylabel("Number of samples")
-    plt.hist(score_per_sample, bins=bins, range=[0, 1], edgecolor='w')
-    plt.title("historam_recall@1")
+    plt.ylabel("Percent of eval data")
+    plt.title("recall@1 histogram of eval data")
     plt.savefig(save_path, format='png')
-    
-    
 
+    
+def eval_final_model(model,config,dl_query,dl_gallery,save_path):
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ""
+    # check the label distribution for train dataset
+    # summary_text += 'Check the label distribution for train dataset\n'
+    # summary_text += check_image_label(dl_train.dataset,save_path= save_path+'/train_image_distribution.png')
+    # check the label distribution for query dataset 
+    summary_text += 'Check the label distribution for query dataset\n'
+    summary_text += check_image_label(dl_query.dataset,save_path= save_path+'/query_image_distribution.png')
+    summary_text += 'Check the label distribution for gallery dataset\n'
+    summary_text += check_image_label(dl_gallery.dataset,save_path= save_path+'/gallery_image_distribution.png')
+
+    # load checkpoint file
+    # check retrieval performance
+    checkpoint = torch.load(save_path+"/checkpoint_recall@1.pth.tar")
+    model.load_state_dict(checkpoint['state_dict'])
+    summary_text += "Evaluate final model\n"
+    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[1],metrics=config['eval_metric'],recover_image=True) 
+    for key in scores.keys(): 
+        summary_text += "{} :{:.3f}\n".format(key, scores[key])
+    with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:
+        summary_file.write(summary_text)
     
