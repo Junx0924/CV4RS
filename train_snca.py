@@ -23,7 +23,8 @@ from lib.clustering import make_clustered_dataloaders
 from torch.autograd import Variable
 
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
-os.putenv("OMP_NUM_THREADS", "8")
+os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
+os.putenv("OMP_NUM_THREADS", "4")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 

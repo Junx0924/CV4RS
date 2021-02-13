@@ -137,7 +137,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
         print("Get the inter and intra class distance for different classes")
-        check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), LOG, log_key)
+        #check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), LOG, log_key)
 
     if recover_image:
         ## recover n_closest images
@@ -153,10 +153,10 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
         with open(save_path,'w',newline='') as csv_file:
             writer = csv.writer(csv_file)
-            writer.writerows(['TP']+list(TP))
-            writer.writerows(['FP']+list(FP))
-            writer.writerows(['TN']+list(TN))
-            writer.writerows(['FN']+list(FN))
+            writer.writerow(['TP']+list([int(i) for i in TP]))
+            writer.writerow(['FP']+list([int(i) for i in FP]))
+            writer.writerow(['TN']+list([int(i) for i in TN]))
+            writer.writerow(['FN']+list([int(i) for i in FN]))
     return scores
 
 
@@ -205,7 +205,7 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
         print("Get the inter and intra class distance for different classes")
-        check_distance_ratio(X, T,LOG,log_key)
+        #check_distance_ratio(X, T,LOG,log_key)
     
     if recover_image:
         ## recover n_closest images
@@ -355,18 +355,14 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
         if len(inds)<2: continue
         intra_ind = np.array([[ [i,j] for j in inds if i != j] for i in inds]).reshape(-1,2)
         dist_intra =  dist[intra_ind[:,0],intra_ind[:,1]]
-        std_intra = np.std(dist_intra) 
         mean_intra = np.mean(dist_intra)
 
         other_inds = list(set(range(len(X))) - set(range(len(X))).intersection(inds))
         inter_ind = np.array([[[i,j] for j in other_inds] for i in inds]).reshape(-1,2)
         dist_inter =  dist[inter_ind[:,0],inter_ind[:,1]]
-        std_inter = np.std(dist_inter)
         mean_inter = np.mean(dist_inter)
         if LOG !=None:
             LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-            LOG.progress_saver[log_key].log('intraStd@'+str(label),std_intra, group ='intraStd')
-            LOG.progress_saver[log_key].log('interStd@'+str(label),std_inter, group ='interStd')
   
 
 def check_gradient(model,LOG,log_key):

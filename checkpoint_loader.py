@@ -6,16 +6,23 @@ from utilities import misc
 from utilities import logger
 import lib
 import argparse
-import json
 import matplotlib.pyplot as plt
+import pickle as pkl
 
-checkpoint_folder=""
+def setup_parameters(parser):
+    parser.add_argument('--checkpoint_folder',  default='../',  type=str,  help='the checkpoint folder produced during training')
+    return parser
+
+parser = argparse.ArgumentParser()
+parser = setup_parameters(parser)
+args = vars(parser.parse_args())
+checkpoint_folder =  args.pop('checkpoint_folder')
+
 ### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 
 # load config
-with open(checkpoint_folder + '/Parameter_Info.json', 'rb') as f:
-    config = json.load(f)
+config = pkl.load(open(checkpoint_folder + '/hypa.pkl','rb'))
 
 # load initial model
 model = lib.multifeature_resnet50.Network(config)
@@ -30,7 +37,7 @@ summary_text += "Evaluate inital model\n"
 scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=True, K=[1],metrics=config['eval_metric'])
 for key in scores.keys(): 
     summary_text += "{} :{:.3f}\n".format(key, scores[key])
-with open(LOG.config['checkfolder']+'/evaluate_inital_model.txt','w') as summary_file:
+with open(checkpoint_folder+'/evaluate_inital_model.txt','w') as summary_file:
     summary_file.write(summary_text)
 
 print("Evaluate final model\n")    

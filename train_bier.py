@@ -204,7 +204,7 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
 
-    full_training_time = time.time()-t1
+    full_training_time = time.time() - t1
     print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
     lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
 
