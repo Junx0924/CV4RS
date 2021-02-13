@@ -10,6 +10,7 @@ def setup_parameters(parser):
     parser.add_argument('--dataset_name',      default='MLRSNet',   type=str,choices=['BigEarthNet', 'MLRSNet'], required = True,  help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
     parser.add_argument('--source_path',  default="../Dataset",   type=str,  required = True, help='Path to training data.')
     parser.add_argument('--save_path',    default="../Training_result", type=str,  required = True, help='Where to save everything.')
+    parser.add_argument('--eval_metric',  default=['F_Measure','hamming_loss','precision','accuracy','recall','subset_accuracy','Mirco_F1','Macro_F1'], nargs='+', type=str,   help='metric for evaluate performance of multi-label learning')
     return parser
 
 def basic_training_parameters(parser):
@@ -34,7 +35,6 @@ def basic_training_parameters(parser):
     parser.add_argument('--num_samples_per_class',type=int, default=2)
     parser.add_argument('--savename', default="", type = str)
     parser.add_argument('--eval_epoch',type=int, default=10)
-
     return parser
 
 def divide_and_conquer(parser):
@@ -132,6 +132,7 @@ def load_common_config():
     config['tau'] = args.pop('tau')
     config['use_hdf5'] = args.pop('use_hdf5')
     config['eval_epoch'] = args.pop('eval_epoch')
+    config['eval_metric'] = args.pop('eval_metric')
 
     if torch.cuda.is_available():
         config['device'] = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

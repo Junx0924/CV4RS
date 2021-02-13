@@ -52,10 +52,7 @@ class JSONEncoder(json.JSONEncoder):
             return repr(x)
         return json.JSONEncoder.default(self, x)
 
-
-
 def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=None, log_key =''):
-    
     X = batch[0].to(config['device']) # images
     T = batch[1]# image labels,multi-hot
     I = batch[2].to(config['device'])# image index
@@ -67,11 +64,14 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=N
     output = lemniscate(feature, I)
     # from the index to get the label similarity mat
     # caculate loss by aligning the similarity mat from features and labels
-    loss['nca'] = criterion_dict['nca'](output, I)
-    loss['bce'] = criterion_dict['bce'](feature,T.to(config['device']))
-    loss['Train'] = loss['nca']  + loss['bce']
+    nca = criterion_dict['nca'](output, I)
+    loss['nca'] = nca.item()
+    bce = criterion_dict['bce'](feature,T.to(config['device']))
+    loss['bce'] = bce.item()
+    total_loss = nca  + bce
+    loss['Train'] = total_loss.item()
     optimizer.zero_grad()
-    loss['Train'].backward()
+    total_loss.backward()
     # log the gradient of each layer
     #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
@@ -93,7 +93,7 @@ def main():
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val','Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-   
+    config['checkfolder'] = LOG.config['checkfolder']
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -126,9 +126,6 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
-    print("evaluate initial model")
-    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
-    
     
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
@@ -141,13 +138,12 @@ def main():
             lemniscate.params[1] = 0.9
 
         time_per_epoch_1 = time.time()
-        losses ={}
         losses ={key:[] for key in criterion_dict.keys()}
         losses ['Train']=[]
 
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(epoch)):
             loss= train_batch(model, lemniscate,criterion_dict, optimizer, config, batch)
-            [losses[key].append(loss[key].item()) for key in losses.keys()]
+            [losses[key].append(loss[key]) for key in losses.keys()]
 
         time_per_epoch_2 = time.time()
         current_loss = np.mean(losses['Train'])
@@ -166,25 +162,10 @@ def main():
             _ = model.train()
         LOG.update(all=True)
     
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ''
     full_training_time = time.time()-t1
-    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
-    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
-    # load checkpoint file
-    # check retrieval performance
-    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
-    model.load_state_dict(checkpoint['state_dict'])
-    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
-    for key in retrieve_score: 
-        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
-    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
-        summary_file.write(summary_text)
-    # apply tsne to embeddings from query dataset
-    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
-    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')   
-
-
+    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2)))
+    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
+    
 if __name__ == '__main__':
     main()
     

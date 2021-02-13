@@ -84,12 +84,13 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
         fvec = F.normalize(feature[:, start:stop],p =2,dim =1)
         normed_fvecs[str(sub_dim[i])]= fvec
 
-    total_loss =0.0
+    loss = {}
     bin_loss = criterion_dict['binominal'](normed_fvecs,T)
-    
-    adv_loss, adv_weight_loss = 0.0, 0.0
+    loss['binominal'] = bin_loss.item()
+    adv_loss, adv_weight_loss,embed_weight_loss = 0.0, 0.0,0.0
     if config['lambda_div'] > 0.0:
         adv_loss = criterion_dict['adversarial'](normed_fvecs)
+        loss['adversarial'] = adv_loss.item()
         for regressor in criterion_dict['adversarial'].regressors.values():
             for i in range(len(regressor)):
                 # relu layer has no weights and bias
@@ -98,20 +99,22 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
                     B_hat = regressor[i].bias
                     adv_weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
         adv_weight_loss = adv_weight_loss / len(criterion_dict['adversarial'].regressors)
-
-        # for item in model.last_linear.values():
-        #     W = item.weight
-        #     B = item.bias
-        #     embed_weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
-        # embed_weight_loss = embed_weight_loss / len(model.last_linear)
+        loss['adv_weight'] = adv_weight_loss.item()
+        for item in model.last_linear.values():
+            W = item.weight
+            B = item.bias
+            embed_weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
+        embed_weight_loss = embed_weight_loss / len(model.last_linear)
+        loss['embed_weight'] = embed_weight_loss.item()
     
-    total_loss = bin_loss + (adv_loss + config['lambda_weight']* adv_weight_loss) * config['lambda_div']
+    total_loss = bin_loss + (adv_loss + config['lambda_weight']* (adv_weight_loss + embed_weight_loss)) * config['lambda_div']
+    loss['Train'] = total_loss.item()
     opt.zero_grad()
     total_loss.backward()
     
     ### Update network weights!
     opt.step()
-    return total_loss.item(),bin_loss.item(),adv_loss.item(), adv_weight_loss.item()
+    return loss
 
 
 def get_optim(config, model):
@@ -128,7 +131,7 @@ def main():
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val','Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-   
+    config['checkfolder'] = LOG.config['checkfolder']
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -164,9 +167,7 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
-    print("evaluate initial model")
-    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
-
+   
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
@@ -175,20 +176,19 @@ def main():
         if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
         
         time_per_epoch_1 = time.time()
-        losses = []
+        if config['lambda_div'] > 0.0:
+            losses ={key:[] for key in ['Train','adv_weight','embed_weight','binominal','adversarial']}
+        else:
+            losses ={key:[] for key in ['Train','binominal']}
 
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
-            total_loss, bin_loss, adv_loss, weight_loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
-            losses.append([total_loss, bin_loss, adv_loss, weight_loss])
+            loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
+            [losses[key].append(loss[key]) for key in losses.keys()]
 
         time_per_epoch_2 = time.time()
-        losses = np.array(losses)
-        current_loss = np.mean(losses[:,0])
-        LOG.progress_saver['Train'].log('epochs', e)
-        LOG.progress_saver['Train'].log('Train_loss', current_loss)
-        LOG.progress_saver['Train'].log('bin_loss', np.mean(losses[:,1]))
-        LOG.progress_saver['Train'].log('adv_loss', np.mean(losses[:,2]))
-        LOG.progress_saver['Train'].log('adv_weight_loss', np.mean(losses[:,3]))
+        current_loss = np.mean(losses['Train'])
+        for key in losses.keys():
+            LOG.progress_saver['Train'].log(key+'_loss', np.mean(losses[key]))
         LOG.progress_saver['Train'].log('Train_time', np.round(time_per_epoch_2 - time_per_epoch_1, 4))
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
@@ -204,24 +204,9 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
 
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ''
     full_training_time = time.time()-t1
-    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
-    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
-    # load checkpoint file
-    # check retrieval performance
-    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
-    model.load_state_dict(checkpoint['state_dict'])
-    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
-    for key in retrieve_score: 
-        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
-    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
-        summary_file.write(summary_text)
-    # apply tsne to embeddings from query dataset
-    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
-    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')   
-
+    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
+    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
 
 if __name__ == '__main__':
     main()

@@ -89,7 +89,6 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
         X = batch[0] # images
         T = batch[1]# class labels
         I = batch[2] # image ids
-
     fvecs = model(X.to(config['device']))
     T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
     new_I = T_list[:,0]
@@ -129,7 +128,6 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
         weight = config['criterion'][key]['weight']
         total_loss += weight*temp_loss
     losses['Train'] = total_loss.item()
-        
     optimizer.zero_grad()
     total_loss.backward()
 
@@ -137,7 +135,6 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
     #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
     optimizer.step()
-
     if 'selfsimilarity' in criterion_dict:
         ### Update Key Network
         for model_par, key_model_par in zip(model.parameters(), selfsim_model.parameters()):
@@ -145,7 +142,6 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
             key_model_par.data.copy_(key_model_par.data*momentum + model_par.data*(1-momentum))
         ###
         criterion_dict['selfsimilarity'].update_memory_queue(selfsim_key_features)
-
     return losses
 
 
@@ -159,7 +155,6 @@ def get_criterion(config, to_optim):
         loss_name = config['criterion']['decorrelation']['loss']
         batchminner = config['criterion']['decorrelation']['batchminner']
         criterion_dict['decorrelation'], to_optim = lib.loss.select(config,to_optim,loss_name,batchminner)
-
     return criterion_dict,to_optim
 
 def get_optim(config, model):
@@ -176,6 +171,7 @@ def main():
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val', 'Grad']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    config['checkfolder'] = LOG.config['checkfolder']
    
     # set random seed for all gpus
     seed = config['random_seed']
@@ -190,10 +186,11 @@ def main():
     if 'selfsimilarity' in config['diva_features']:
         selfsim_model = lib.multifeature_resnet50.Network(config)
         _  = selfsim_model.to(config['device'])
-
+    
     # create train dataset
     flag_aux =config['include_aux_augmentations']
     dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
+
     # update num_classes
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
@@ -202,10 +199,17 @@ def main():
     
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    print("Evaluate initial model") 
-    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
-    
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
+
+    # print("Evaluate inital model\n")
+    # scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=True, K=[1],metrics=config['eval_metric']) 
+    # summary_text = "Evaluate inital model\n"
+    # for key in scores.keys(): 
+    #     summary_text += "{} :{:.3f}\n".format(key, scores[key])
+    # with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
+    #     summary_file.write(summary_text)
+
+
     # define loss function for each feature
     to_optim = get_optim(config, model)
     criterion_dict, to_optim = get_criterion(config, to_optim)
@@ -257,6 +261,7 @@ def main():
         if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
+            #lib.utils.evaluate_query_gallery(model, config, dl_query,dl_gallery, False, config['backend'], LOG, 'Val') 
             lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
@@ -265,23 +270,9 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
 
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ''
     full_training_time = time.time()-t1
-    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
-    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
-    # load checkpoint file
-    # check retrieval performance
-    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
-    model.load_state_dict(checkpoint['state_dict'])
-    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
-    for key in retrieve_score: 
-        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
-    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
-        summary_file.write(summary_text)
-    # apply tsne to embeddings from query dataset
-    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
-    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')     
+    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2)))
+    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
 
 if __name__ == '__main__':
     main()

@@ -24,7 +24,6 @@ pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
 def load_dac_config(config, args):
-
     #### Update divide and conquer parameters ###
     config['project'] = 'dac'
     config['recluster']['mod_epoch'] = args.pop('dac_mod_epoch')
@@ -95,7 +94,7 @@ def main():
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val']
     LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-   
+    config['checkfolder'] = LOG.config['checkfolder']
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
@@ -122,9 +121,6 @@ def main():
     ds_name = config['dataset_selected']
     num_classes= dl_query.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
-
-    print("evaluate initial model")
-    lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val',is_init=True) 
     
     to_optim = get_optim(config, model)
     criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
@@ -199,24 +195,9 @@ def main():
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()
         
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ''
-    full_training_time = time.time()- t1
-    summary_text += 'Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
-    summary_text += '---------------\n'+ config['project'] + ' Retrieve performance\n'
-    # load checkpoint file
-    # check retrieval performance
-    checkpoint = torch.load(LOG.config['checkfolder']+"/checkpoint_recall@1.pth.tar")
-    model.load_state_dict(checkpoint['state_dict'])
-    retrieve_score = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend']) 
-    for key in retrieve_score: 
-        summary_text += str(key)+": " + str(retrieve_score[key])+ '\n'
-    with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
-        summary_file.write(summary_text)
-    # apply tsne to embeddings from query dataset
-    X, T, _ = lib.utils.predict_batchwise(model, dl_query, config['device'], False, desc='Extraction Eval Features') 
-    lib.utils.apply_tsne(X,T, dl_query.dataset.conversion, LOG.config['checkfolder']+'/'+config['project']+'_tsne.png')     
-
+    full_training_time = time.time()-t1
+    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
+    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])   
 
 if __name__ == '__main__':
     main()
