@@ -70,19 +70,18 @@ def get_MLRSNet(img_path):
     return img_data.reshape(-1)
     
 class BaseDataset(torch.utils.data.Dataset):
-    """
-    We use the train set for training, the val set for
-    query and the test set for retrieval
-    Args:
-        image_list: contains file_paths and multi-hot labels
-        dataset_name: choose from {"MLRSNet", "BigEarthNet}
-        hdf_file: the path of hdf_file, if set use_hdf true, it will be automatically generated
-        conversion: dictionary, {'label': label_name}
-        transform: dictonary, keys: sz_crop, input_shape
-        is_training: if set true, apply random flip and crop for training, else apply center crop
-        include_aux_augmentations: if set true, apply rotation to get augumented image data
-    """
     def __init__(self, image_list, dataset_name, hdf_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
+        """
+        The train data is randomly flip and cropped, the eval data is center cropped
+        Args:
+            image_list: contains file_paths and multi-hot labels
+            dataset_name: choose from {"MLRSNet", "BigEarthNet}
+            hdf_file: the path of hdf_file, if set use_hdf true, it will be automatically generated
+            conversion: dictionary, {'label': label_name}
+            transform: dictonary, keys: sz_crop, input_shape
+            is_training: if set true, apply random flip and crop for training, else apply center crop
+            include_aux_augmentations: if set true, apply rotation to get augumented image data
+        """
         torch.utils.data.Dataset.__init__(self)
         self.dataset_name = dataset_name
         self.transform = transform

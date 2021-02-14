@@ -145,7 +145,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         n_closest = 4
         save_path = config['checkfolder']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
-        #check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/tsne.png')  
+        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/tsne.png')  
     
     if 'Mirco_F1' in metrics:
         y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
@@ -204,8 +204,8 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-        #print("Get the inter and intra class distance for different classes")
-        #check_distance_ratio(X, T,LOG,log_key)
+        print("Get the inter and intra class distance for different classes")
+        check_distance_ratio(X, T,LOG,log_key)
     
     if recover_image:
         ## recover n_closest images
@@ -213,7 +213,7 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
         n_closest = 4
         save_path = config['checkfolder']+'/sample_recoveries.png'
         recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
-        #check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
+        check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
 
     if 'Mirco_F1' in metrics:
         y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
@@ -473,7 +473,7 @@ def eval_final_model(model,config,dl_query,dl_gallery,save_path):
     checkpoint = torch.load(save_path+"/checkpoint_recall@1.pth.tar")
     model.load_state_dict(checkpoint['state_dict'])
     summary_text += "Evaluate final model\n"
-    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[1],metrics=config['eval_metric'],recover_image=True) 
+    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[4],metrics=config['eval_metric'],recover_image=True) 
     for key in scores.keys(): 
         summary_text += "{} :{:.3f}\n".format(key, scores[key])
     with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:

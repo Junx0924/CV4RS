@@ -2,8 +2,6 @@ from .margin_loss import MarginLoss
 from .adversarial_loss import Adversarial
 from .binominal_loss import BinomialLoss
 from .fast_moco import Fast_moco
-from .nca import NCACrossEntropy
-from .bcelogitloss import BCELogitLoss
 
 from .batchminner.semihard import Semihard
 from .batchminner.random_distance import Random_distance
@@ -24,11 +22,6 @@ def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
         to_optim    += [{'params':criterion.parameters(), 'lr':criterion.lr}]
     elif 'binominal' in loss_name : 
         criterion = BinomialLoss()
-    elif 'nca' in loss_name:
-        criterion = NCACrossEntropy(multi_hot,config['margin'] / config['temperature'])
-    elif 'bce' in loss_name:
-        criterion = BCELogitLoss(config['sz_embedding'],num_classes)
-        to_optim    += [{'params':criterion.parameters(), 'lr':criterion.lr}]
     else:
         raise Exception('Loss {} not available!'.format(loss_name))
     return criterion.to(config['device']), to_optim

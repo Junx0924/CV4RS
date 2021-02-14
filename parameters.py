@@ -72,14 +72,6 @@ def diva(parser):
     parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
     return parser 
 
-def snca(parser):
-    ## for Method Scalable Neighborhood Component Analysis
-    parser.add_argument('--snca_margin', default=0.0, type=float,help='classification margin')
-    parser.add_argument('--snca_temperature', default=0.05, type=float,  help='temperature parameter')
-    parser.add_argument('--snca_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
-    parser.add_argument('--snca_momentum', default=0.9, type=float,  help='momentum')              
-    return parser 
-
 def wandb_parameters(parser):
     ### Wandb Log Arguments
     parser.add_argument('--log_online',      action='store_true',help='Flag. If set, run metrics are stored online in addition to offline logging. Should generally be set.')
@@ -97,7 +89,6 @@ def load_common_config():
     parser = diva(parser)
     parser = divide_and_conquer(parser)
     parser = bier(parser)
-    parser = snca(parser)
     args = vars(parser.parse_args())
 
     ##### Read config.json
