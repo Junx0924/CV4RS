@@ -136,7 +136,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-        print("Get the inter and intra class distance for different classes")
+        #print("Get the inter and intra class distance for different classes")
         #check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), LOG, log_key)
 
     if recover_image:

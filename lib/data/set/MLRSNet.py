@@ -65,7 +65,7 @@ def read_csv(csv_filename,datapath):
     return file_list
  
 
-def create_csv_split(datapath):
+def create_csv_split(csv_dir,datapath):
     """
     Split the dataset to train/val/test with ratio 50%/10%/40%
     Keep this ratio among classes
@@ -149,7 +149,7 @@ def Give(datapath,dset_type):
     csv_dir = os.path.dirname(__file__) + '/MLRSNet_split'
     # check the split train/test/val existed or not
     if not os.path.exists(csv_dir +'/train.csv'):
-        create_csv_split(datapath)
+        create_csv_split(csv_dir,datapath)
     
     with open(csv_dir +'/category.json') as json_file:
         category = json.load(json_file)

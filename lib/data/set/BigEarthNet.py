@@ -44,6 +44,8 @@ def Give(datapath,dset_type):
     if os.path.exists(csv_dir + '/new_labels.json'):
         with open(csv_dir + '/new_labels.json', 'rb') as f:
             new_conversion = json.load(f)
+    else:
+        new_conversion = label_names
 
     # read csv files
     csv_list =['/train.csv','/val.csv','/test.csv']
