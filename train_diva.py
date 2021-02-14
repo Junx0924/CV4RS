@@ -168,10 +168,6 @@ def main():
     config, args = par.load_common_config()
     config = load_diva_config(config, args)
     metrics = {}
-    #################### CREATE LOGGING FILES ###############
-    sub_loggers = ['Train', 'Val', 'Grad']
-    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-    config['checkfolder'] = LOG.config['checkfolder']
    
     # set random seed for all gpus
     seed = config['random_seed']
@@ -196,19 +192,10 @@ def main():
     num_classes= dl_train.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
-    
+
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
-
-    # print("Evaluate inital model\n")
-    # scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=True, K=[1],metrics=config['eval_metric']) 
-    # summary_text = "Evaluate inital model\n"
-    # for key in scores.keys(): 
-    #     summary_text += "{} :{:.3f}\n".format(key, scores[key])
-    # with open(LOG.config['checkfolder']+'/training_summary.txt','w') as summary_file:
-    #     summary_file.write(summary_text)
-
 
     # define loss function for each feature
     to_optim = get_optim(config, model)
@@ -228,7 +215,12 @@ def main():
     if 'selfsimilarity' in criterion_dict.keys():
         dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train')
         criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
-
+    
+    #################### CREATE LOGGING FILES ###############
+    sub_loggers = ['Train', 'Val', 'Grad']
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    config['checkfolder'] = LOG.config['checkfolder']
+    
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 

@@ -91,10 +91,7 @@ def main():
     config, args = par.load_common_config()
     config = load_snca_config(config, args)
     metrics = {}
-    #################### CREATE LOGGING FILES ###############
-    sub_loggers = ['Train', 'Val','Grad']
-    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-    config['checkfolder'] = LOG.config['checkfolder']
+    
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -111,7 +108,8 @@ def main():
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
-    
+    config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
+
     # define lemniscate and loss function (criterion)
     N = len(dl_train.dataset)
     lemniscate = LinearAverage(config['sz_embedding'], N, config['temperature'], config['memory_momentum']).cuda()
@@ -127,6 +125,11 @@ def main():
     # create query and gallery dataset for evaluation
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
+    
+    #################### CREATE LOGGING FILES ###############
+    sub_loggers = ['Train', 'Val', 'Grad']
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    config['checkfolder'] = LOG.config['checkfolder']
     
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()

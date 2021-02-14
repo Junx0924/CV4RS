@@ -39,7 +39,7 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
                 num_workers= 8,
                 shuffle= False,
                 pin_memory= True,
-                batch_size= 128
+                batch_size= 256
                 )
             with h5py.File(hdf_file, "w") as f:
                 for batch in tqdm(dl, desc="Start to create hdf5 for "+dset_type):

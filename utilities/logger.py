@@ -83,12 +83,14 @@ def set_logging(config):
         checkfolder = save_path+'/'+ save_name +'_'+str(counter)
         counter += 1
     config['log']['save_name'] = checkfolder.split('/')[-1]
+    config['checkfolder'] = checkfolder
+
     os.makedirs(checkfolder)
     with open(checkfolder+'/Parameter_Info.txt','w') as f:
          f.write(gimme_save_string(config))
     with open(checkfolder+"/hypa.pkl","wb") as f:
         pkl.dump(config,f)
-    config['checkfolder'] = checkfolder
+    return config
     
 class Progress_Saver():
     def __init__(self):
@@ -119,8 +121,8 @@ class LOGGER():
         self.prefix      = '{}_'.format(prefix) if prefix is not None else ''
         self.sub_loggers = sub_loggers
         ### Make Logging Directories
-        if start_new: set_logging(config)
-        checkfolder = config['checkfolder']
+        if start_new: self.config = set_logging(config)
+        checkfolder = self.config['checkfolder']
         ### Set Graph and CSV writer
         self.csv_writer, self.graph_writer, self.progress_saver = {},{},{}
         for sub_logger in sub_loggers:

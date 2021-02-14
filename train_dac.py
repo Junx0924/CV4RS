@@ -91,10 +91,7 @@ def main():
     config, args = par.load_common_config()
     config = load_dac_config(config, args)
     metrics = {}
-    #################### CREATE LOGGING FILES ###############
-    sub_loggers = ['Train', 'Val']
-    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
-    config['checkfolder'] = LOG.config['checkfolder']
+   
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
@@ -121,6 +118,8 @@ def main():
     ds_name = config['dataset_selected']
     num_classes= dl_query.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
+    config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
+
     
     to_optim = get_optim(config, model)
     criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
@@ -140,6 +139,11 @@ def main():
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
 
+    #################### CREATE LOGGING FILES ###############
+    sub_loggers = ['Train', 'Val', 'Grad']
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    config['checkfolder'] = LOG.config['checkfolder']
+    
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
