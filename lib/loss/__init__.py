@@ -10,7 +10,7 @@ from .batchminner.random_distance import Random_distance
 from .batchminner.intra_random import Intra_random
 from .batchminner.distance import Distance
 
-def select(config,to_optim,loss_name="",minner_name= "",onehot_labels = None):
+def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
     batch_minner = select_batchminner(minner_name)
     ds_name = config['dataset_selected']
     num_classes = int(config['dataset'][ds_name]["classes"])
@@ -25,7 +25,7 @@ def select(config,to_optim,loss_name="",minner_name= "",onehot_labels = None):
     elif 'binominal' in loss_name : 
         criterion = BinomialLoss()
     elif 'nca' in loss_name:
-        criterion = NCACrossEntropy(onehot_labels,config['margin'] / config['temperature'])
+        criterion = NCACrossEntropy(multi_hot,config['margin'] / config['temperature'])
     elif 'bce' in loss_name:
         criterion = BCELogitLoss(config['sz_embedding'],num_classes)
         to_optim    += [{'params':criterion.parameters(), 'lr':criterion.lr}]

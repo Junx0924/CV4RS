@@ -90,7 +90,6 @@ def get_optim(config, model):
 def main():
     config, args = par.load_common_config()
     config = load_dac_config(config, args)
-    metrics = {}
    
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()

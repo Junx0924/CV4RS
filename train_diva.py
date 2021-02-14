@@ -167,7 +167,6 @@ def get_optim(config, model):
 def main():
     config, args = par.load_common_config()
     config = load_diva_config(config, args)
-    metrics = {}
    
     # set random seed for all gpus
     seed = config['random_seed']

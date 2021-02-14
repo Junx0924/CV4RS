@@ -90,7 +90,6 @@ def get_optim(config, model):
 def main():
     config, args = par.load_common_config()
     config = load_snca_config(config, args)
-    metrics = {}
     
     # set random seed for all gpus
     seed = config['random_seed']
@@ -108,7 +107,6 @@ def main():
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
-    config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
     # define lemniscate and loss function (criterion)
     N = len(dl_train.dataset)
@@ -116,9 +114,8 @@ def main():
     
     to_optim = get_optim(config, model)
     criterion_dict ={}
-    criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', onehot_labels =torch.Tensor(dl_train.dataset.ys))
+    criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', multi_hot =torch.Tensor(dl_train.dataset.ys))
     criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
-    #criterion_dict['margin'], to_optim = lib.loss.select(config,to_optim,'margin','semihard')
 
     optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
 
