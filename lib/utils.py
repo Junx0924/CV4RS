@@ -434,7 +434,7 @@ def check_image_label(dataset,save_path):
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
-    Split the scores of recall@1 into bins, check the frequency for each score interval
+    Split the scores of recall into bins, check the frequency for each score interval
     Args:
         score_per_sample: np array, flatten, length: total sample number
         T: original
@@ -448,7 +448,7 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
     ax = fig.add_axes([0,0,1.5,1.5])
     langs = [ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))]
     ax.bar(langs,count/sum(count),edgecolor='w')
-    plt.xlabel("recall@1")
+    plt.xlabel("recall")
     plt.ylabel("Percent of eval data")
     plt.title("recall@1 histogram of eval data")
     plt.savefig(save_path, format='png')
