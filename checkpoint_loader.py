@@ -41,4 +41,4 @@ with open(checkpoint_folder+'/evaluate_inital_model.txt','w') as summary_file:
     summary_file.write(summary_text)
 
 print("Evaluate final model\n")    
-lib.utils.eval_final_model(model,config,dl_train,dl_query,dl_gallery,checkpoint_folder)
+lib.utils.eval_final_model(model,config,dl_query,dl_gallery,checkpoint_folder)

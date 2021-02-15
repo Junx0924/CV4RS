@@ -99,15 +99,14 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         score: dict of score for different metrics
     """
     # calculate embeddings with model and get targets
-    X_query, T_query, I_query = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
-    X_gallery, T_gallery, I_gallery = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
+    X_query, T_query, _ = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
+    X_gallery, T_gallery, _ = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
 
     if 'evaluation_weight' in config.keys() and not is_init:
         X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
 
     # make sure the query and the gallery has same number of classes
-    nb_classes = dl_query.dataset.nb_classes()
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
     k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= torch.cuda.current_device())
@@ -143,9 +142,9 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        save_path = config['checkfolder']+'/sample_recoveries.png'
+        save_path = config['checkfolder']+'/' + config['project'] +'/_query_sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
-        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/tsne.png')  
+        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png')  
     
     if 'Mirco_F1' in metrics:
         y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
@@ -172,7 +171,6 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
         Return:
             scores: dict of recalls, f1 for each sample
     """
-    nb_classes = dl.dataset.nb_classes()
     # calculate embeddings with model and get targets
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
     if 'evaluation_weight' in config.keys() and not is_init:
@@ -199,32 +197,32 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
             if k==1 and s > history_recall1:
                 flag_checkpoint = True
 
+    print("Get the inter and intra class distance for different classes")
+    check_distance_ratio(X, T,LOG,log_key)
     ### save checkpoint #####
     if  flag_checkpoint and LOG !=None:
         print("Best epoch! save to checkpoint")
         savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
         torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-        print("Get the inter and intra class distance for different classes")
-        check_distance_ratio(X, T,LOG,log_key)
     
-    if recover_image:
-        ## recover n_closest images
-        n_img_samples = 10
-        n_closest = 4
-        save_path = config['checkfolder']+'/sample_recoveries.png'
-        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
-        check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
+    # if recover_image:
+    #     ## recover n_closest images
+    #     n_img_samples = 10
+    #     n_closest = 4
+    #     save_path = config['checkfolder']+'/' + config['project'] +'/_sample_recoveries.png'
+    #     recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
+    #     check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png') 
 
-    if 'Mirco_F1' in metrics:
-        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
-        with open(save_path,'w',newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerows(['TP']+list(TP))
-            writer.writerows(['FP']+list(FP))
-            writer.writerows(['TN']+list(TN))
-            writer.writerows(['FN']+list(FN))  
+    # if 'Mirco_F1' in metrics:
+    #     y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+    #     TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+    #     save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
+    #     with open(save_path,'w',newline='') as csv_file:
+    #         writer = csv.writer(csv_file)
+    #         writer.writerows(['TP']+list(TP))
+    #         writer.writerows(['FP']+list(FP))
+    #         writer.writerows(['TN']+list(TN))
+    #         writer.writerows(['FN']+list(FN))  
     return scores
 
 
@@ -459,9 +457,6 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
 def eval_final_model(model,config,dl_query,dl_gallery,save_path):
     ### CREATE A SUMMARY TEXT FILE
     summary_text = ""
-    # check the label distribution for train dataset
-    # summary_text += 'Check the label distribution for train dataset\n'
-    # summary_text += check_image_label(dl_train.dataset,save_path= save_path+'/train_image_distribution.png')
     # check the label distribution for query dataset 
     summary_text += 'Check the label distribution for query dataset\n'
     summary_text += check_image_label(dl_query.dataset,save_path= save_path+'/query_image_distribution.png')
@@ -473,7 +468,7 @@ def eval_final_model(model,config,dl_query,dl_gallery,save_path):
     checkpoint = torch.load(save_path+"/checkpoint_recall@1.pth.tar")
     model.load_state_dict(checkpoint['state_dict'])
     summary_text += "Evaluate final model\n"
-    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[4],metrics=config['eval_metric'],recover_image=True) 
+    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[1],metrics=config['eval_metric'],recover_image=True) 
     for key in scores.keys(): 
         summary_text += "{} :{:.3f}\n".format(key, scores[key])
     with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:

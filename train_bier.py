@@ -160,9 +160,8 @@ def main():
     config['dataset'][ds_name]["classes"] = num_classes
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
     
-    # create query and gallery dataset for evaluation
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')  
+    # create query dataset for evaluation during training
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query') 
    
     #################### CREATE LOGGING FILES ###############
     sub_loggers = ['Train', 'Val','Grad']
@@ -207,6 +206,7 @@ def main():
 
     full_training_time = time.time() - t1
     print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery') 
     lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
 
 if __name__ == '__main__':
