@@ -7,7 +7,7 @@ from . import faissext
 import numpy as np
 import torch
 from tqdm import tqdm
-from sklearn.preprocessing import scale,normalize
+from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
 import PIL
 import os
@@ -15,7 +15,6 @@ from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
 import random
-import itertools
 import csv
 
 
@@ -112,11 +111,6 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= torch.cuda.current_device())
     T_query_pred   = T_gallery[k_closest_points]
 
-    flag_checkpoint = False
-    history_recall1 = 0
-    if LOG !=None and "recall" in LOG.progress_saver[log_key].groups.keys():
-        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
-
     scores={}
     for k in K:
         y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_query_pred])
@@ -127,24 +121,20 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-            if k==1 and s > history_recall1:
-                flag_checkpoint = True
-    
-    ### save checkpoint #####
-    if  flag_checkpoint and LOG !=None:
-        print("Best epoch! save to checkpoint")
-        savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
-        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
-        print("Get the inter and intra class distance for different classes")
-        check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), LOG, log_key)
+
+    # check the intra and inter dist distribution
+    intra_dist, inter_dist, labels = check_distance_ratio(X_query,T_query)
+    plot_intra_inter_dist(intra_dist, inter_dist, labels, config['checkfolder'])
 
     if recover_image:
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        save_path = config['checkfolder']+'/' + config['project'] +'/_query_sample_recoveries.png'
-        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, save_path,n_img_samples, n_closest)
-        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png')  
+        recover_save_path = config['checkfolder']+'/sample_recoveries.png'
+        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest)
+        tsne_save_path =  config['checkfolder']+'/tsne.png'
+        check_tsne_plot( X_query,T_query, dl_query.dataset.conversion,tsne_save_path)
+        #check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png')  
     
     if 'Mirco_F1' in metrics:
         y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
@@ -160,7 +150,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
 
 
 def evaluate_standard(model, config,dl, use_penultimate, backend,
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], recover_image =False):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],recover_image= False):
     """
     Evaluate the retrieve performance
         Args:
@@ -169,7 +159,7 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
             use_penultimate: use the embedding layer if it is false
             backend: default faiss-gpu
         Return:
-            scores: dict of recalls, f1 for each sample
+            scores: dict of score for different metrics
     """
     # calculate embeddings with model and get targets
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
@@ -178,11 +168,6 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
     
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= torch.cuda.current_device())
     T_pred = T[k_closest_points[:,1:]]
-
-    flag_checkpoint = False
-    history_recall1 = 0
-    if LOG !=None and "recall" in LOG.progress_saver[log_key].groups.keys():
-        history_recall1 = np.max(LOG.progress_saver[log_key].groups['recall']["recall@1"]['content'])
 
     scores={}
     for k in K:
@@ -194,35 +179,28 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-            if k==1 and s > history_recall1:
-                flag_checkpoint = True
 
     print("Get the inter and intra class distance for different classes")
     check_distance_ratio(X, T,LOG,log_key)
-    ### save checkpoint #####
-    if  flag_checkpoint and LOG !=None:
-        print("Best epoch! save to checkpoint")
-        savepath = LOG.config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
-        torch.save({'state_dict':model.state_dict(), 'opt':config, 'progress': LOG.progress_saver, 'aux':config['device']}, savepath)
     
-    # if recover_image:
-    #     ## recover n_closest images
-    #     n_img_samples = 10
-    #     n_closest = 4
-    #     save_path = config['checkfolder']+'/' + config['project'] +'/_sample_recoveries.png'
-    #     recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
-    #     check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png') 
+    if recover_image:
+        ## recover n_closest images
+        n_img_samples = 10
+        n_closest = 4
+        save_path = config['checkfolder']+'/sample_recoveries.png'
+        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
+        check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
 
-    # if 'Mirco_F1' in metrics:
-    #     y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-    #     TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-    #     save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
-    #     with open(save_path,'w',newline='') as csv_file:
-    #         writer = csv.writer(csv_file)
-    #         writer.writerows(['TP']+list(TP))
-    #         writer.writerows(['FP']+list(FP))
-    #         writer.writerows(['TN']+list(TN))
-    #         writer.writerows(['FN']+list(FN))  
+    if 'Mirco_F1' in metrics:
+        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
+        with open(save_path,'w',newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerows(['TP']+list(TP))
+            writer.writerows(['FP']+list(FP))
+            writer.writerows(['TN']+list(TN))
+            writer.writerows(['FN']+list(FN))  
     return scores
 
 
@@ -304,8 +282,6 @@ def plot_recovered_images(image_paths,save_path):
     f.savefig(save_path)
     plt.close()
 
-
-
 def classBalancedSamper(T,num_samples_per_class=2):
     """
     Get a list of category labels with its original index from multi-hot labels
@@ -338,30 +314,38 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
     """
     # compute the l2 distance mat of X
     # the diagonals are zeros
+    start_time = time.time()
+    
     dist = similarity.pairwise_distance(X)
-
     # get the labels for each embedding
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
     classes = np.unique(T_list[:,1])
-    image_dict = {str(c):[] for c in classes}
-    [image_dict[str(c)].append(ind) for ind,c in T_list]
-    
+    embed_dict = {str(c):[] for c in classes}
+    [embed_dict[str(c)].append(ind) for ind,c in T_list]
+    labels = [label for label in embed_dict.keys()]
+
     # Compute average intra and inter l2 distance
-    for label in image_dict.keys():
-        inds = image_dict[label] 
+    all_intra, all_inter, all_labels =[],[],[]
+    for i in range(len(labels)):
+        label = labels[i]
+        all_labels.append(label)
+        inds = embed_dict[label] 
         if len(inds)<2: continue
         intra_ind = np.array([[ [i,j] for j in inds if i != j] for i in inds]).reshape(-1,2)
         dist_intra =  dist[intra_ind[:,0],intra_ind[:,1]]
+        all_intra.append(dist_intra)
         mean_intra = np.mean(dist_intra)
 
         other_inds = list(set(range(len(X))) - set(range(len(X))).intersection(inds))
         inter_ind = np.array([[[i,j] for j in other_inds] for i in inds]).reshape(-1,2)
         dist_inter =  dist[inter_ind[:,0],inter_ind[:,1]]
+        all_inter.append(dist_inter)
         mean_inter = np.mean(dist_inter)
         if LOG !=None:
             LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-  
+    print("Calculate dist ratio takes: {:.2f} s.\n".format(time.time()- start_time))
+    return all_intra, all_inter,all_labels
 
 def check_gradient(model,LOG,log_key):
     """
@@ -410,7 +394,7 @@ def check_tsne_plot(X,T,conversion,save_path,n_components=2):
         plt.scatter(c_tsne_result[:,0], c_tsne_result[:,1], c=colors[i], alpha=0.5,label=conversion[str(c)])
     plt.legend(loc="upper right")
     plt.savefig(save_path, format='png')
-
+    plt.close()
 
 def check_image_label(dataset,save_path):
     """
@@ -420,16 +404,16 @@ def check_image_label(dataset,save_path):
      Args:
         dataset: torch.dataset
     """
-    txt =""
     avg_labels_per_image = np.mean(np.sum(dataset.ys,axis= 1))
-    txt +="Avg. num labels per image = "+ str(avg_labels_per_image) +'\n'
+    print("Avg. num labels per image = "+ str(avg_labels_per_image) +'\n')
     images_per_label =[len(dataset.image_dict[label]) for label in dataset.image_dict.keys()]
+    plt.figure()
     plt.bar(range(len(images_per_label)) ,height=images_per_label)
     plt.xlabel("labels")
     plt.ylabel("Number of images")
     plt.title("Distribution of images among labels")
     plt.savefig(save_path)
-    return txt
+    plt.close()
 
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
@@ -452,25 +436,57 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
     plt.ylabel("Percent of eval data")
     plt.title("recall@1 histogram of eval data")
     plt.savefig(save_path, format='png')
+    plt.close()
 
-    
-def eval_final_model(model,config,dl_query,dl_gallery,save_path):
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ""
-    # check the label distribution for query dataset 
-    summary_text += 'Check the label distribution for query dataset\n'
-    summary_text += check_image_label(dl_query.dataset,save_path= save_path+'/query_image_distribution.png')
-    summary_text += 'Check the label distribution for gallery dataset\n'
-    summary_text += check_image_label(dl_gallery.dataset,save_path= save_path+'/gallery_image_distribution.png')
+def start_wandb(config):
+    import wandb
+    os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
+    # store this id to use it later when resuming
+    if 'wandb_id' not in config['wandb'].keys():
+        config['wandb']['wandb_id']= wandb.util.generate_id()
+    wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
+    wandb.config.update(config, allow_val_change= True)
+    return config
 
-    # load checkpoint file
-    # check retrieval performance
-    checkpoint = torch.load(save_path+"/checkpoint_recall@1.pth.tar")
-    model.load_state_dict(checkpoint['state_dict'])
-    summary_text += "Evaluate final model\n"
-    scores = evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'],is_init=False, K=[1],metrics=config['eval_metric'],recover_image=True) 
-    for key in scores.keys(): 
-        summary_text += "{} :{:.3f}\n".format(key, scores[key])
-    with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:
-        summary_file.write(summary_text)
-    
+def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= None):
+    import seaborn as sns
+    sns.set_style('whitegrid')
+
+    new_save_path = save_path + '/dist_per_class.png'
+    n = 4
+    m = len(labels)//n if len(labels)%n ==0 else len(labels)//n+1
+    plt.figure()
+    fig, axes = plt.subplots(m, n, sharex='row', sharey='col')
+    temp_axes = axes.flatten()
+
+    all_intra, all_inter =[],[]
+    #plot and save the distribution of intra distance and inter distance for each class
+    for i in range(len(labels)):
+        label = labels[i]
+        dist_intra = intra_dist[i]
+        all_intra = all_intra + list(dist_intra)
+        dist_inter = inter_dist[i]
+        all_inter = all_inter + list(dist_inter)
+        class_name = conversion[str(label)] if conversion !=None else str(label)
+        ax = temp_axes[i]
+        ax.set_title('class_'+class_name)
+        sns.kdeplot(np.array(dist_intra), bw=0.5, label ='Intra',ax = ax)
+        sns.kdeplot(np.array(dist_inter), bw=0.5, label= 'Inter',ax = ax)
+    fig.suptitle("Embedding distance for each class")
+    fig.set_size_inches(10,20)
+    fig.tight_layout()
+    fig.savefig(new_save_path,format='png')
+    plt.close()
+
+    # save the distribution of all the intra and inter distance
+    # new_save_path = save_path + '/dist_all.png'
+    # plt.figure()
+    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
+    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
+    # plt.xlabel("Distance")
+    # plt.ylabel("Distribution")
+    # plt.title("Embedding distance distribution")
+    # plt.savefig(new_save_path,format='png')
+    # plt.close()
