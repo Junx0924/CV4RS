@@ -2,18 +2,15 @@ from __future__ import print_function
 from __future__ import division
 
 import os
-import matplotlib
 import numpy as np
 import torch
 import time
 import json
 import random
 from tqdm import tqdm
-import argparse
-
+import pickle as pkl
 import warnings
 import parameters as par
-from utilities import misc
 from utilities import logger
 import lib
 from lib.clustering import make_clustered_dataloaders
@@ -90,7 +87,14 @@ def get_optim(config, model):
 def main():
     config, args = par.load_common_config()
     config = load_dac_config(config, args)
-   
+    start_new = True
+    if os.path.exists(config['load_from_checkpoint']):
+        start_new = False
+        config['checkfolder'] = config['load_from_checkpoint']
+        checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+        with open(config['checkfolder'] +"/hypa.pkl","rb") as f:
+            config = pkl.load(f)
+
     # reserve GPU memory for faiss if faiss-gpu used
     faiss_reserver = lib.faissext.MemoryReserver()
 
@@ -100,30 +104,32 @@ def main():
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-    faiss_reserver.lock(config['backend'])
-
+    # load model
     model = lib.multifeature_resnet50.Network(config)
+    if not start_new:
+        model.load_state_dict(checkpoint['state_dict'])  
     _  = model.to(config['device'])
-
+    
+    # create dataset
+    faiss_reserver.lock(config['backend'])
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
     dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
-    
-    # create query dataset for evaluation during training
     dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-    
-    # update num_classes
+    # update num_classes and batch_size
     ds_name = config['dataset_selected']
     num_classes= dl_query.dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
+    # config loss function and optimizer
     to_optim = get_optim(config, model)
     criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
     optimizer = torch.optim.Adam(to_optim)
-    # As optimizer, Adam with standard parameters is used.
-    optimizer = torch.optim.Adam(to_optim)
+    if not start_new:
+        optimizer.load_state_dict(checkpoint['optimizer'])
+
+    # config learning scheduler
     if config['scheduler']=='exp':
         scheduler    = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config['gamma'])
     elif config['scheduler']=='step':
@@ -137,17 +143,31 @@ def main():
     dataloaders['train'], C, T, I = make_clustered_dataloaders(model,dataloaders['init'], config, reassign = False)
     faiss_reserver.lock(config['backend'])
 
-    #################### CREATE LOGGING FILES ###############
+    #################### CREATE LOGGING FILES ############
+    if config['log_online']: lib.utils.start_wandb(config)
     sub_loggers = ['Train', 'Val', 'Grad']
-    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new= start_new, log_online=config['log_online'])
     config['checkfolder'] = LOG.config['checkfolder']
-    
+    start_epoch =0
+    if not start_new:
+        LOG.progress_saver= checkpoint['progress']
+        start_epoch = checkpoint['epoch'] + 1
+        
+    ## optional, check the image distribution for each dataset
+    lib.utils.check_image_label(dataloaders['init'].dataset,save_path= config['checkfolder']+'/train_image_distribution.png')
+    lib.utils.check_image_label(dl_query.dataset,save_path= config['checkfolder']+'/query_image_distribution.png')
+
+    #################### START TRAINING ###############
+    history_recall = 0
+    if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
+        history_recall = np.max(LOG.progress_saver["Val"].groups['recall']["recall@1"]['content'])
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
-    for e in range(0, config['nb_epochs']):
-        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
+    for e in range(start_epoch, config['nb_epochs']):
         config['epoch'] = e # for wandb
+        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
+        
         time_per_epoch_1 = time.time()
         losses_per_epoch = []
 
@@ -187,10 +207,17 @@ def main():
         if e% config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            scores =lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             _ = model.train()
+
+            if scores['recall@1'] >history_recall:
+                ### save checkpoint #####
+                print("Best epoch! save to checkpoint")
+                savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
+                torch.save({'state_dict':model.state_dict(), 'epoch':e, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
+
         LOG.update(all=True)
         faiss_reserver.lock(config['backend'])
         model.current_epoch = e
@@ -200,7 +227,16 @@ def main():
     full_training_time = time.time()-t1
     print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
     dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])   
+    lib.utils.check_image_label(dl_gallery.dataset,save_path= config['checkfolder']+'/gallery_image_distribution.png')
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ""
+    summary_text += 'Total Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += "Evaluate final model\n"
+    scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], K=[1],metrics=config['eval_metric'],recover_image=True) 
+    for key in scores.keys(): 
+      summary_text += "{} :{:.3f}\n".format(key, scores[key])
+      with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:
+          summary_file.write(summary_text)
 
 if __name__ == '__main__':
     main()

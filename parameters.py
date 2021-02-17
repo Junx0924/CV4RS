@@ -10,7 +10,6 @@ def setup_parameters(parser):
     parser.add_argument('--dataset_name',      default='MLRSNet',   type=str,choices=['BigEarthNet', 'MLRSNet'], required = True,  help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
     parser.add_argument('--source_path',  default="../Dataset",   type=str,  required = True, help='Path to training data.')
     parser.add_argument('--save_path',    default="../Training_result", type=str,  required = True, help='Where to save everything.')
-    parser.add_argument('--eval_metric',  default=['F_Measure','hamming_loss','precision','accuracy','recall','subset_accuracy','Mirco_F1','Macro_F1'], nargs='+', type=str,   help='metric for evaluate performance of multi-label learning')
     return parser
 
 def basic_training_parameters(parser):
@@ -35,6 +34,8 @@ def basic_training_parameters(parser):
     parser.add_argument('--num_samples_per_class',type=int, default=2)
     parser.add_argument('--savename', default="", type = str)
     parser.add_argument('--eval_epoch',type=int, default=10)
+    parser.add_argument('--eval_metric',  default=['F_Measure','hamming_loss','precision','accuracy','recall','subset_accuracy','Mirco_F1','Macro_F1'], nargs='+', type=str,   help='metric for evaluate performance of multi-label learning')
+    parser.add_argument('--checkpoint_folder', default="", type=str)
     return parser
 
 def divide_and_conquer(parser):
@@ -122,6 +123,7 @@ def load_common_config():
     config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
     config['random_seed'] = args.pop('random_seed')
     config['log_online'] = args.pop('log_online')
+    config['load_from_checkpoint'] = args.pop('checkpoint_folder')
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
     savename = args.pop('savename')
@@ -144,12 +146,7 @@ def load_common_config():
         config['wandb']['group'] =args.pop('group')
         # update save_name
         config['log']['save_name'] = savename if savename !="" else config['wandb']['group']+'_s{}'.format(config['random_seed'])
-        import wandb
-        os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-        #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
-        _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-        wandb.init(project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
-        wandb.config.update(config)
+        
     # update save_path
     config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name
 

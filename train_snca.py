@@ -2,7 +2,6 @@ from __future__ import print_function
 from __future__ import division
 
 import os
-import matplotlib
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -10,21 +9,17 @@ import time
 import json
 import random
 from tqdm import tqdm
-import argparse
-import itertools
 
 import warnings
 import parameters as par
-from utilities import misc
 from utilities import logger
 import lib
 from lib.LinearAverage import LinearAverage
-from lib.clustering import make_clustered_dataloaders
-from torch.autograd import Variable
+import pickle as pkl
 
 warnings.simplefilter("ignore", category=PendingDeprecationWarning)
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
-os.putenv("OMP_NUM_THREADS", "4")
+os.putenv("OMP_NUM_THREADS", "8")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
@@ -90,7 +85,14 @@ def get_optim(config, model):
 def main():
     config, args = par.load_common_config()
     config = load_snca_config(config, args)
-    
+    start_new = True
+    if os.path.exists(config['load_from_checkpoint']):
+        start_new = False
+        config['checkfolder'] = config['load_from_checkpoint']
+        checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
+        with open(config['checkfolder'] +"/hypa.pkl","rb") as f:
+            config = pkl.load(f)
+
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
@@ -99,10 +101,13 @@ def main():
     torch.cuda.manual_seed_all(seed)
 
     model = lib.multifeature_resnet50.Network(config)
+    if not start_new:
+        model.load_state_dict(checkpoint['state_dict'])  
     _  = model.to(config['device'])
 
-    # create init and eval dataloaders; init used for creating clustered DLs
+    # create dataset
     dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train')
+    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
     # update num_classes
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
@@ -111,27 +116,45 @@ def main():
     # define lemniscate and loss function (criterion)
     N = len(dl_train.dataset)
     lemniscate = LinearAverage(config['sz_embedding'], N, config['temperature'], config['memory_momentum']).cuda()
-    
     to_optim = get_optim(config, model)
     criterion_dict ={}
     criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', multi_hot =torch.Tensor(dl_train.dataset.ys))
     criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
-
-    optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
-
-    # create query dataset for evaluation during training
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    #optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
+    optimizer = torch.optim.Adam(to_optim)
+    if not start_new:
+        optimizer.load_state_dict(checkpoint['optimizer'])
     
+    # config learning scheduler
+    if config['scheduler']=='exp':
+        scheduler    = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config['gamma'])
+    elif config['scheduler']=='step':
+        scheduler    = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config['tau'], gamma=config['gamma'])
+    elif config['scheduler']=='none':
+        print('No scheduling used!')
+    else:
+        raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
+
     #################### CREATE LOGGING FILES ###############
+    if config['log_online']: lib.utils.start_wandb(config)
     sub_loggers = ['Train', 'Val', 'Grad']
-    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new=True, log_online=config['log_online'])
+    LOG = logger.LOGGER(config, sub_loggers=sub_loggers, start_new= start_new, log_online=config['log_online'])
     config['checkfolder'] = LOG.config['checkfolder']
+    start_epoch =0
+    if not start_new:
+        LOG.progress_saver= checkpoint['progress']
+        start_epoch = checkpoint['epoch'] + 1
     
+    #################### START TRAINING ###############
+    history_recall = 0
+    if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
+        history_recall = np.max(LOG.progress_saver["Val"].groups['recall']["recall@1"]['content'])
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
-    for epoch in range(0, config['nb_epochs']):
+    for epoch in range(start_epoch, config['nb_epochs']):
         config['epoch'] = epoch # for wandb
+        if config['scheduler']!='none': print('Running with learning rates {}...'.format(' | '.join('{}'.format(x) for x in scheduler.get_last_lr())))
         if epoch >= 80:
             lemniscate.params[1] = 0.8
         if epoch >= 120:
@@ -156,16 +179,34 @@ def main():
         if epoch % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            scores =lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
+
+            if scores['recall@1'] >history_recall:
+                ### save checkpoint #####
+                print("Best epoch! save to checkpoint")
+                savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
+                torch.save({'state_dict':model.state_dict(), 'epoch':epoch, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
+        
         LOG.update(all=True)
-    
+        ### Learning Rate Scheduling Step
+        if config['scheduler'] != 'none':  scheduler.step()
+
     full_training_time = time.time()-t1
-    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2)))
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery') 
-    lib.utils.eval_final_model(model,config,dl_query,dl_gallery,config['checkfolder'])
+    print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
+    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+    lib.utils.check_image_label(dl_gallery.dataset,save_path= config['checkfolder']+'/gallery_image_distribution.png')
+    ### CREATE A SUMMARY TEXT FILE
+    summary_text = ""
+    summary_text += 'Total Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
+    summary_text += "Evaluate final model\n"
+    scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], K=[1],metrics=config['eval_metric'],recover_image=True) 
+    for key in scores.keys(): 
+      summary_text += "{} :{:.3f}\n".format(key, scores[key])
+      with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:
+          summary_file.write(summary_text)
     
 if __name__ == '__main__':
     main()
