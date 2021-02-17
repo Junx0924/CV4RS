@@ -3,6 +3,7 @@ The network architectures and weights are adapted and used from the great https:
 """
 import torch, torch.nn as nn
 import  torchvision
+import os
 
 """============================================================="""
 def increase_channels(conv, num_channels=None, copy_weights=0):
@@ -50,12 +51,10 @@ class Network(nn.Module):
         # This increases the number of input channels for our network
         if config["dataset_selected"] =="BigEarthNet":
             input_channels = 12
-            self.conv1 = increase_channels(model.conv1, input_channels)
-        else:
-            self.conv1 = model.conv1
+            model.conv1 = increase_channels(model.conv1, input_channels)
 
         self.features = torch.nn.Sequential(
-            self.conv1, model.bn1, model.relu, model.maxpool,
+            model.conv1, model.bn1, model.relu, model.maxpool,
            model.layer1, model.layer2, model.layer3, model.layer4)
 
         if config['frozen']:
