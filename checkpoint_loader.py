@@ -19,7 +19,8 @@ args = vars(parser.parse_args())
 checkpoint_folder =  args.pop('checkpoint_folder')
 
 # load config
-config = pkl.load(open(checkpoint_folder + '/hypa.pkl','rb'))
+with open(checkpoint_folder +"/hypa.pkl","rb") as f:
+    config = pkl.load(f)
 checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
 # load initial model
 model = lib.multifeature_resnet50.Network(config)
