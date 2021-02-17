@@ -230,6 +230,8 @@ def main():
         LOG.progress_saver= checkpoint['progress']
         start_epoch = checkpoint['epoch'] + 1
     
+     ## optional, check the image distribution for train dataset
+    lib.utils.check_image_label(dl_train.dataset,save_path= config['checkfolder']+'/train_image_distribution.png')
     #################### START TRAINING ###############
     history_recall = 0
     if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
@@ -282,17 +284,6 @@ def main():
 
     full_training_time = time.time()-t1
     print('Training Time: {} min.\n'.format(np.round(full_training_time/60,2))) 
-    dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
-    lib.utils.check_image_label(dl_gallery.dataset,save_path= config['checkfolder']+'/gallery_image_distribution.png')
-    ### CREATE A SUMMARY TEXT FILE
-    summary_text = ""
-    summary_text += 'Total Training Time: {} min.\n'.format(np.round(full_training_time/60,2))
-    summary_text += "Evaluate final model\n"
-    scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], K=[1],metrics=config['eval_metric'],recover_image=True) 
-    for key in scores.keys(): 
-      summary_text += "{} :{:.3f}\n".format(key, scores[key])
-      with open(config['checkfolder']+'/evaluate_final_model.txt','w+') as summary_file:
-          summary_file.write(summary_text)
           
 if __name__ == '__main__':
     main()
