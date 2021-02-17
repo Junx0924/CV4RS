@@ -122,24 +122,29 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
+    if 'result_path' not in config.keys():
+        result_path = config['checkfolder'] +'/evaluation_results'
+        if not os.path.exists(result_path): os.makedirs(result_path)
+        config['result_path'] = result_path
+
     # check the intra and inter dist distribution
     intra_dist, inter_dist, labels = check_distance_ratio(X_query,T_query)
-    plot_intra_inter_dist(intra_dist, inter_dist, labels, config['checkfolder'])
+    plot_intra_inter_dist(intra_dist, inter_dist, labels, config['result_path'])
 
     if recover_image:
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        recover_save_path = config['checkfolder']+'/sample_recoveries.png'
+        recover_save_path = config['result_path']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest)
-        tsne_save_path =  config['checkfolder']+'/tsne.png'
+        tsne_save_path =  config['result_path']+'/tsne.png'
         check_tsne_plot( X_query,T_query, dl_query.dataset.conversion,tsne_save_path)
         #check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png')  
     
     if 'Mirco_F1' in metrics:
         y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
         TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
+        save_path =config['result_path']+'/confussionMatrix.csv'
         with open(save_path,'w',newline='') as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['TP']+list([int(i) for i in TP]))
@@ -180,7 +185,6 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
-    print("Get the inter and intra class distance for different classes")
     check_distance_ratio(X, T,LOG,log_key)
     
     if recover_image:
@@ -211,6 +215,8 @@ def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
             X: embeddings
             img_paths: the original image paths of embeddings
     """
+    print('Start to recover {} similar images for each sampled image'.format(n_closest))
+    start_time = time.time()
     sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
                                                 k=n_closest+1,
@@ -219,7 +225,7 @@ def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4):
     sample_paths = [img_paths[i] for i in sample_idxs]
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     plot_recovered_images(image_paths,save_path)
-
+    print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
 
 def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4):
     """
@@ -230,6 +236,8 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
             query_img_paths: the original image paths of query embeddings
             gallery_img_path: the original image paths of gallery embeddings
     """
+    print('Start to recover {} similar gallery images for each sampled query image'.format(n_closest))
+    start_time = time.time()
     assert X_gallery.shape[1] == X_gallery.shape[1]
     sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
@@ -240,7 +248,7 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
     sample_paths = [query_img_paths[i] for i in sample_idxs]
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     plot_recovered_images(image_paths,save_path)
-
+    print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
 
 def plot_recovered_images(image_paths,save_path):
     """
@@ -315,7 +323,7 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
     # compute the l2 distance mat of X
     # the diagonals are zeros
     start_time = time.time()
-    
+    print('Start to calculate intra and inter dist ratio')
     dist = similarity.pairwise_distance(X)
     # get the labels for each embedding
     T_list = [ np.where(t==1)[0] for t in T] 
@@ -441,7 +449,7 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
     # store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
@@ -453,7 +461,9 @@ def start_wandb(config):
 def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= None):
     import seaborn as sns
     sns.set_style('whitegrid')
-
+    print('Start to plot intra and inter dist')
+    start_time = time.time()
+    
     new_save_path = save_path + '/dist_per_class.png'
     n = 4
     m = len(labels)//n if len(labels)%n ==0 else len(labels)//n+1
@@ -461,14 +471,11 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= N
     fig, axes = plt.subplots(m, n, sharex='row', sharey='col')
     temp_axes = axes.flatten()
 
-    all_intra, all_inter =[],[]
     #plot and save the distribution of intra distance and inter distance for each class
     for i in range(len(labels)):
         label = labels[i]
         dist_intra = intra_dist[i]
-        all_intra = all_intra + list(dist_intra)
         dist_inter = inter_dist[i]
-        all_inter = all_inter + list(dist_inter)
         class_name = conversion[str(label)] if conversion !=None else str(label)
         ax = temp_axes[i]
         ax.set_title('class_'+class_name)
@@ -481,12 +488,15 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= N
     plt.close()
 
     # save the distribution of all the intra and inter distance
-    # new_save_path = save_path + '/dist_all.png'
-    # plt.figure()
-    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
-    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
-    # plt.xlabel("Distance")
-    # plt.ylabel("Distribution")
-    # plt.title("Embedding distance distribution")
-    # plt.savefig(new_save_path,format='png')
-    # plt.close()
+    all_intra = [item for sublist in intra_dist for item in sublist]
+    all_inter = [item for sublist in inter_dist for item in sublist]
+    new_save_path = save_path + '/dist_all.png'
+    plt.figure()
+    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
+    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
+    plt.xlabel("Distance")
+    plt.ylabel("Distribution")
+    plt.title("Embedding distance distribution")
+    plt.savefig(new_save_path,format='png')
+    plt.close()
+    print('Plot done! Time elapsed: {} seconds'.format(time.time()-start_time))
