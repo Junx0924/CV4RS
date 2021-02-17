@@ -449,7 +449,7 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
     # store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
@@ -488,15 +488,15 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= N
     plt.close()
 
     # save the distribution of all the intra and inter distance
-    all_intra = [item for sublist in intra_dist for item in sublist]
-    all_inter = [item for sublist in inter_dist for item in sublist]
-    new_save_path = save_path + '/dist_all.png'
-    plt.figure()
-    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
-    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
-    plt.xlabel("Distance")
-    plt.ylabel("Distribution")
-    plt.title("Embedding distance distribution")
-    plt.savefig(new_save_path,format='png')
-    plt.close()
-    print('Plot done! Time elapsed: {} seconds'.format(time.time()-start_time))
+    # all_intra = [item for sublist in intra_dist for item in sublist]
+    # all_inter = [item for sublist in inter_dist for item in sublist]
+    # new_save_path = save_path + '/dist_all.png'
+    # plt.figure()
+    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
+    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
+    # plt.xlabel("Distance")
+    # plt.ylabel("Distribution")
+    # plt.title("Embedding distance distribution")
+    # plt.savefig(new_save_path,format='png')
+    # plt.close()
+    # print('Plot done! Time elapsed: {} seconds'.format(time.time()-start_time))

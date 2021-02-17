@@ -26,7 +26,7 @@ class MarginLoss(torch.nn.Module):
     """
 
     def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.0,
- 		 class_specific_beta=True, batchminner = None,**kwargs):
+ 		 class_specific_beta=False, batchminner = None,**kwargs):
         super(MarginLoss, self).__init__()
 
         self.nb_classes = nb_classes
