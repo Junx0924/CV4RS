@@ -441,7 +441,7 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
     # store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
