@@ -78,7 +78,6 @@ def snca(parser):
     parser.add_argument('--snca_margin', default=0.0, type=float,help='classification margin')
     parser.add_argument('--snca_temperature', default=0.05, type=float,  help='temperature parameter')
     parser.add_argument('--snca_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
-    parser.add_argument('--snca_momentum', default=0.9, type=float,  help='momentum')              
     return parser 
 
 def wandb_parameters(parser):

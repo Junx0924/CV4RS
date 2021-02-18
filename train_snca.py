@@ -29,7 +29,6 @@ def load_snca_config(config, args):
     config['margin'] = args.pop('snca_margin')
     config['temperature']= args.pop('snca_temperature')
     config['memory_momentum'] = args.pop('snca_memory_momentum')
-    config['momentum'] = args.pop('snca_momentum')
     config['sub_embed_sizes'] = [config['sz_embedding']]
     return config
 
@@ -120,7 +119,6 @@ def main():
     criterion_dict ={}
     criterion_dict['nca'],to_optim  = lib.loss.select(config,to_optim,loss_name='nca', multi_hot =torch.Tensor(dl_train.dataset.ys))
     criterion_dict['bce'],to_optim  = lib.loss.select(config,to_optim,loss_name='bce')
-    #optimizer = torch.optim.SGD(to_optim,momentum = config['momentum'], nesterov=True)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
         optimizer.load_state_dict(checkpoint['optimizer'])
