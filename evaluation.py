@@ -11,16 +11,23 @@ import pickle as pkl
 
 def setup_parameters(parser):
     parser.add_argument('--checkpoint_folder',  default='../',  type=str,  help='the checkpoint folder from training')
+    parser.add_argument('--source_path',  default='../Dataset',  type=str,  help='Path to dataset')
     return parser
 
 parser = argparse.ArgumentParser()
 parser = setup_parameters(parser)
 args = vars(parser.parse_args())
 checkpoint_folder =  args.pop('checkpoint_folder')
+source_path = args.pop('source_path')
 
 # load config
 with open(checkpoint_folder +"/hypa.pkl","rb") as f:
     config = pkl.load(f)
+# update file path
+config['checkfolder'] = checkpoint_folder
+ds_selected = config['dataset_selected']
+config['dataset'][ds_selected]['root'] = source_path +'/'+ds_selected
+
 if 'result_path' not in config.keys():
     result_path = config['checkfolder'] +'/evaluation_results'
     if not os.path.exists(result_path): os.makedirs(result_path)
@@ -36,10 +43,10 @@ _  = model.to(config['device'])
 dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
 dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
 ## optional, check the image distribution for each dataset
-lib.utils.check_image_label(dl_query.dataset,save_path= config['result_path']+'/query_image_distribution.png')
-lib.utils.check_image_label(dl_gallery.dataset,save_path= config['result_path']+'/gallery_image_distribution.png')
+lib.utils.check_image_label(dl_query.dataset,save_path= config['result_path'], dset_type = 'query')
+lib.utils.check_image_label(dl_gallery.dataset,save_path= config['result_path'], dset_type = 'gallery')
 
-print("Evaluate final model\n")    
+print("Evaluate final model")    
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model\n"

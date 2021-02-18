@@ -128,8 +128,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         config['result_path'] = result_path
 
     # check the intra and inter dist distribution
-    intra_dist, inter_dist, labels = check_distance_ratio(X_query,T_query)
-    plot_intra_inter_dist(intra_dist, inter_dist, labels, config['result_path'])
+    intra_dist, inter_dist, labels, shared_info = check_distance_ratio(X_query,T_query)
+    plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
 
     if recover_image:
         ## recover n_closest images
@@ -248,7 +248,7 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
     sample_paths = [query_img_paths[i] for i in sample_idxs]
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     plot_recovered_images(image_paths,save_path)
-    print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
+    print("Recover done! Time elapsed: {:.2f} seconds.\n".format(time.time()- start_time))
 
 def plot_recovered_images(image_paths,save_path):
     """
@@ -320,40 +320,48 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
             X: embeddings
             T: multi-hot labels
     """
-    # compute the l2 distance mat of X
-    # the diagonals are zeros
     start_time = time.time()
     print('Start to calculate intra and inter dist ratio')
+    # compute the l2 distance for each embedding
     dist = similarity.pairwise_distance(X)
+    # get the number of shared labels
+    shared = np.matmul(T,np.transpose(T))
+    # only store the up triangle area to reduce computing
+    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(X))]
+    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    shared_info_keys = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
+    shared_info ={key:[] for key in shared_info_keys}
+    {shared_info[shared[p[0],p[1]]].append(dist[p[0],p[1]]) for p in ind_pairs}
+
     # get the labels for each embedding
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    classes = np.unique(T_list[:,1])
-    embed_dict = {str(c):[] for c in classes}
+    labels = np.unique(T_list[:,1])
+    embed_dict = {str(c):[] for c in labels}
     [embed_dict[str(c)].append(ind) for ind,c in T_list]
-    labels = [label for label in embed_dict.keys()]
 
     # Compute average intra and inter l2 distance
     all_intra, all_inter, all_labels =[],[],[]
-    for i in range(len(labels)):
-        label = labels[i]
-        all_labels.append(label)
-        inds = embed_dict[label] 
-        if len(inds)<2: continue
-        intra_ind = np.array([[ [i,j] for j in inds if i != j] for i in inds]).reshape(-1,2)
-        dist_intra =  dist[intra_ind[:,0],intra_ind[:,1]]
-        all_intra.append(dist_intra)
-        mean_intra = np.mean(dist_intra)
+    for label in labels:
+        intra_inds = embed_dict[str(label)]
+        if len(intra_inds)<2: continue
+        intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
+        intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
+        intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
+        all_intra.append(intra_dist)
+        mean_intra = np.mean(intra_dist) 
 
-        other_inds = list(set(range(len(X))) - set(range(len(X))).intersection(inds))
-        inter_ind = np.array([[[i,j] for j in other_inds] for i in inds]).reshape(-1,2)
-        dist_inter =  dist[inter_ind[:,0],inter_ind[:,1]]
-        all_inter.append(dist_inter)
-        mean_inter = np.mean(dist_inter)
+        other_inds = list(set(range(len(X))) - set(intra_inds))
+        inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
+        inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
+        inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
+        all_inter.append(inter_dist)
+        mean_inter = np.mean(inter_dist)
+        all_labels.append(label)
         if LOG !=None:
             LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-    print("Calculate dist ratio takes: {:.2f} s.\n".format(time.time()- start_time))
-    return all_intra, all_inter,all_labels
+    print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+    return all_intra, all_inter,all_labels,shared_info
 
 def check_gradient(model,LOG,log_key):
     """
@@ -383,28 +391,13 @@ def check_tsne_plot(X,T,conversion,save_path,n_components=2):
     time_start = time.time()
     tsne = TSNE(n_components=n_components, verbose=1, perplexity=40, n_iter=300)
     tsne_results = tsne.fit_transform(X)
-    print('t-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start))
-    
-    # get the labels for each embedding
-    T_list = [ np.where(t==1)[0] for t in T] 
-    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    classes = np.unique(T_list[:,1])
-    image_dict = {str(c):[] for c in classes}
-    [image_dict[str(c)].append(ind) for ind,c in T_list]
-
-    # Fixing random state for reproducibility
-    np.random.seed(19680801)
-    number_of_colors = len(classes)
-    colors = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(number_of_colors)]
+    print('t-SNE done! Time elapsed: {:.2f} seconds'.format(time.time()-time_start))
     plt.figure(figsize=(16,10))
-    for i,c in enumerate(classes):
-        c_tsne_result = tsne_results[image_dict[str(c)]]
-        plt.scatter(c_tsne_result[:,0], c_tsne_result[:,1], c=colors[i], alpha=0.5,label=conversion[str(c)])
-    plt.legend(loc="upper right")
+    plt.scatter(tsne_results[:,0], tsne_results[:,1])
     plt.savefig(save_path, format='png')
     plt.close()
 
-def check_image_label(dataset,save_path):
+def check_image_label(dataset,save_path, dset_type='train'):
     """
     Generally check if the datasets have similar distribution
      Check Avg. num labels per image
@@ -412,17 +405,50 @@ def check_image_label(dataset,save_path):
      Args:
         dataset: torch.dataset
     """
+    save_path = save_path +'/stat_' + dset_type
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
     avg_labels_per_image = np.mean(np.sum(dataset.ys,axis= 1))
-    print("Avg. num labels per image = "+ str(avg_labels_per_image) +'\n')
+    print("Avg. num labels per image = "+ str(avg_labels_per_image))
     images_per_label =[len(dataset.image_dict[label]) for label in dataset.image_dict.keys()]
-    plt.figure()
-    plt.bar(range(len(images_per_label)) ,height=images_per_label)
+    plt.figure(figsize=(15,6))
+    plt.bar([c for c in dataset.image_dict.keys()] ,height=np.array(images_per_label)/sum(images_per_label))
     plt.xlabel("labels")
-    plt.ylabel("Number of images")
-    plt.title("Distribution of images among labels")
-    plt.savefig(save_path)
+    plt.ylabel("Percent of samples")
+    plt.title("Distribution of samples for "+ dataset.dataset_name + " "+ dset_type + " dataset")
+    plt.savefig(save_path +'/statistic_samples.png')
     plt.close()
 
+    label_counts = np.sum(dataset.ys,axis= 1)
+    count_dict = {}
+    for item in label_counts:
+        count_dict[item] = count_dict.get(item, 0) + 1
+    num_labels = sorted([k for k in count_dict.keys()])
+    counts = np.array([count_dict[k] for k in num_labels])
+    plt.figure()
+    plt.bar(num_labels,counts/np.sum(counts),edgecolor='w')
+    plt.xlabel("label counts")
+    plt.ylabel("Percent of samples")
+    plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.savefig(save_path+'/statistic_labels.png')
+    plt.close()
+    # # get the number of shared labels
+    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # # only store the up triangle area to reduce computing
+    # shared_dict ={}
+    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    # for c in shared_info:
+    #     shared_dict[c]= shared_dict.get(c,0) +1
+    # num_shared_labels = sorted([k for k in shared_dict.keys()])
+    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    # plt.xlabel("shared label counts")
+    # plt.ylabel("Percent of samples")
+    # plt.title("Distribution of shared label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    # plt.close()    
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
@@ -458,13 +484,12 @@ def start_wandb(config):
     wandb.config.update(config, allow_val_change= True)
     return config
 
-def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= None):
+def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,conversion= None):
     import seaborn as sns
     sns.set_style('whitegrid')
     print('Start to plot intra and inter dist')
     start_time = time.time()
     
-    new_save_path = save_path + '/dist_per_class.png'
     n = 4
     m = len(labels)//n if len(labels)%n ==0 else len(labels)//n+1
     plt.figure()
@@ -479,24 +504,22 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels,save_path,conversion= N
         class_name = conversion[str(label)] if conversion !=None else str(label)
         ax = temp_axes[i]
         ax.set_title('class_'+class_name)
-        sns.kdeplot(np.array(dist_intra), bw=0.5, label ='Intra',ax = ax)
-        sns.kdeplot(np.array(dist_inter), bw=0.5, label= 'Inter',ax = ax)
-    fig.suptitle("Embedding distance for each class")
+        sns.kdeplot(np.array(dist_intra), bw=0.5, label ='Intra',ax = ax).set(xlim=(0))
+        sns.kdeplot(np.array(dist_inter), bw=0.5, label= 'Inter',ax = ax).set(xlim=(0))
+    fig.suptitle("Embedding distance distribution")
     fig.set_size_inches(10,20)
     fig.tight_layout()
-    fig.savefig(new_save_path,format='png')
+    fig.savefig(save_path + '/dist_per_class.png',format='png')
     plt.close()
 
-    # save the distribution of all the intra and inter distance
-    # all_intra = [item for sublist in intra_dist for item in sublist]
-    # all_inter = [item for sublist in inter_dist for item in sublist]
-    # new_save_path = save_path + '/dist_all.png'
-    # plt.figure()
-    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class')
-    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class')
-    # plt.xlabel("Distance")
-    # plt.ylabel("Distribution")
-    # plt.title("Embedding distance distribution")
-    # plt.savefig(new_save_path,format='png')
-    # plt.close()
-    # print('Plot done! Time elapsed: {} seconds'.format(time.time()-start_time))
+    # Plot the dist distribution for shared labels
+    plt.figure()
+    for num_shared in shared_info.keys():
+        dist = shared_info[num_shared]
+        sns.kdeplot(np.array(dist), bw=0.5, label =str(num_shared) +'_labels_shared').set(xlim=(0))
+    plt.xlabel("Distance")
+    plt.ylabel("Distribution")
+    plt.title("Embedding distance distribution")
+    plt.savefig(save_path + '/dist_shared.png',format='png')
+    plt.close()
+    print('Plot done! Time elapsed: {:.2f} seconds.\n'.format(time.time()-start_time))
