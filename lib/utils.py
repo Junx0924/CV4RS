@@ -445,7 +445,7 @@ def check_image_label(dataset,save_path, dset_type='train'):
     # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
     # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
     # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of samples")
+    # plt.ylabel("Percent of sample pairs")
     # plt.title("Distribution of shared label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
     # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
     # plt.close()    
@@ -518,21 +518,20 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
         dist = shared_info[num_shared]
         sns.kdeplot(np.array(dist), bw=0.5, label =str(num_shared) +'_labels_shared').set(xlim=(0))
     plt.xlabel("Distance")
-    plt.ylabel("Distribution")
-    plt.title("Embedding distance distribution")
+    plt.ylabel("Percent of embedding pairs")
+    plt.title("Distance distribution of embedding pairs")
     plt.savefig(save_path + '/dist_shared.png',format='png')
     plt.close()
 
     # save the distribution of all the intra and inter distance
-    all_intra = [item for sublist in intra_dist for item in sublist]
-    all_inter = [item for sublist in inter_dist for item in sublist]
-    new_save_path = save_path + '/dist_all.png'
-    plt.figure()
-    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
-    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
-    plt.xlabel("Distance")
-    plt.ylabel("Distribution")
-    plt.title("Embedding distance distribution")
-    plt.savefig(new_save_path,format='png')
-    plt.close()
-    print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
+    # all_intra = [item for sublist in intra_dist for item in sublist]
+    # all_inter = [item for sublist in inter_dist for item in sublist]
+    # plt.figure()
+    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
+    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
+    # plt.xlabel("Distance")
+    # plt.ylabel("Percent of embedding pairs")
+    # plt.title("Distance distribution of embedding pairs")
+    # plt.savefig(save_path + '/dist_all.png',format='png')
+    # plt.close()
+    # print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
