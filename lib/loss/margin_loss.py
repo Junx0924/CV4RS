@@ -14,7 +14,7 @@ class MarginLoss(torch.nn.Module):
     margin : float
         Margin between positive and negative pairs.
     nu : float
-        Regularization parameter for beta.
+        Regularisation Parameter for beta values if they are learned.
     class_specific_beta : bool
         Are class-specific boundaries beind used
     batchminer: return semihard triplets
@@ -25,7 +25,7 @@ class MarginLoss(torch.nn.Module):
         Loss value.
     """
 
-    def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.0,
+    def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.1,
  		 class_specific_beta=False, batchminner = None,**kwargs):
         super(MarginLoss, self).__init__()
 
