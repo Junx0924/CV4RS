@@ -44,8 +44,9 @@ class Network(nn.Module):
         super(Network, self).__init__()
         # set pretrained = False to stop downloading weight from internet
         model = torchvision.models.resnet50(pretrained = False)
-        state_dict = torch.load(config['pretrained_weights_file'])
-        model.load_state_dict(state_dict)  
+        if os.path.exists(config['pretrained_weights_file']):
+            state_dict = torch.load(config['pretrained_weights_file'])
+            model.load_state_dict(state_dict)  
 
         self.feature_dim = model.fc.in_features
         # This increases the number of input channels for our network
