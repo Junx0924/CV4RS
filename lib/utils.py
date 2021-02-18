@@ -512,7 +512,7 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     fig.savefig(save_path + '/dist_per_class.png',format='png')
     plt.close()
 
-    # Plot the dist distribution for shared labels
+    #Plot the dist distribution for shared labels
     plt.figure()
     for num_shared in shared_info.keys():
         dist = shared_info[num_shared]
@@ -522,4 +522,17 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     plt.title("Embedding distance distribution")
     plt.savefig(save_path + '/dist_shared.png',format='png')
     plt.close()
-    print('Plot done! Time elapsed: {:.2f} seconds.\n'.format(time.time()-start_time))
+
+    # save the distribution of all the intra and inter distance
+    all_intra = [item for sublist in intra_dist for item in sublist]
+    all_inter = [item for sublist in inter_dist for item in sublist]
+    new_save_path = save_path + '/dist_all.png'
+    plt.figure()
+    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
+    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
+    plt.xlabel("Distance")
+    plt.ylabel("Distribution")
+    plt.title("Embedding distance distribution")
+    plt.savefig(new_save_path,format='png')
+    plt.close()
+    print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
