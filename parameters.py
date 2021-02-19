@@ -35,7 +35,7 @@ def basic_training_parameters(parser):
     parser.add_argument('--savename', default="", type = str)
     parser.add_argument('--eval_epoch',type=int, default=10)
     parser.add_argument('--eval_metric',  default=['F_Measure','hamming_loss','precision','accuracy','recall','subset_accuracy','Mirco_F1','Macro_F1'], nargs='+', type=str,   help='metric for evaluate performance of multi-label learning')
-    parser.add_argument('--checkpoint_folder', default="", type=str)
+    parser.add_argument('--load_from_checkpoint', default="", type=str)
     return parser
 
 def divide_and_conquer(parser):
@@ -73,11 +73,11 @@ def diva(parser):
     parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
     return parser 
 
-def snca(parser):
+def sndl(parser):
     ## for Method Scalable Neighborhood Component Analysis
-    parser.add_argument('--snca_margin', default=0.0, type=float,help='classification margin')
-    parser.add_argument('--snca_temperature', default=0.05, type=float,  help='temperature parameter')
-    parser.add_argument('--snca_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
+    parser.add_argument('--sndl_margin', default=0.0, type=float,help='classification margin')
+    parser.add_argument('--sndl_temperature', default=0.05, type=float,  help='temperature parameter')
+    parser.add_argument('--sndl_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
     return parser 
 
 def wandb_parameters(parser):
@@ -97,7 +97,7 @@ def load_common_config():
     parser = diva(parser)
     parser = divide_and_conquer(parser)
     parser = bier(parser)
-    parser = snca(parser)
+    parser = sndl(parser)
     args = vars(parser.parse_args())
 
     ##### Read config.json
@@ -122,7 +122,7 @@ def load_common_config():
     config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
     config['random_seed'] = args.pop('random_seed')
     config['log_online'] = args.pop('log_online')
-    config['load_from_checkpoint'] = args.pop('checkpoint_folder')
+    config['load_from_checkpoint'] = args.pop('load_from_checkpoint')
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
     savename = args.pop('savename')

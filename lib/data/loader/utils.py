@@ -25,7 +25,7 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
         use_hdf5 = config['use_hdf5']
     )
     if type == 'train':
-        if config['project']=='snca':
+        if config['project']=='sndl':
             dl = torch.utils.data.DataLoader(
                 ds,
                 num_workers= config['dataloader']["num_workers"],

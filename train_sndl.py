@@ -23,12 +23,12 @@ os.putenv("OMP_NUM_THREADS", "8")
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
 
-def load_snca_config(config, args):
-    #### UPdate snca parameter 
-    config['project'] = 'snca'
-    config['margin'] = args.pop('snca_margin')
-    config['temperature']= args.pop('snca_temperature')
-    config['memory_momentum'] = args.pop('snca_memory_momentum')
+def load_sndl_config(config, args):
+    #### UPdate sndl parameter 
+    config['project'] = 'sndl'
+    config['margin'] = args.pop('sndl_margin')
+    config['temperature']= args.pop('sndl_temperature')
+    config['memory_momentum'] = args.pop('sndl_memory_momentum')
     config['sub_embed_sizes'] = [config['sz_embedding']]
     return config
 
@@ -83,7 +83,7 @@ def get_optim(config, model):
 
 def main():
     config, args = par.load_common_config()
-    config = load_snca_config(config, args)
+    config = load_sndl_config(config, args)
     start_new = True
     if os.path.exists(config['load_from_checkpoint']):
         start_new = False
