@@ -10,14 +10,14 @@ import matplotlib.pyplot as plt
 import pickle as pkl
 
 def setup_parameters(parser):
-    parser.add_argument('--checkpoint_folder',  default='../',  type=str,  help='the checkpoint folder from training')
+    parser.add_argument('--load_from_checkpoint',  default='../',  type=str,  help='the checkpoint folder from training')
     parser.add_argument('--source_path',  default='../Dataset',  type=str,  help='Path to dataset')
     return parser
 
 parser = argparse.ArgumentParser()
 parser = setup_parameters(parser)
 args = vars(parser.parse_args())
-checkpoint_folder =  args.pop('checkpoint_folder')
+checkpoint_folder =  args.pop('load_from_checkpoint')
 source_path = args.pop('source_path')
 
 # load config
