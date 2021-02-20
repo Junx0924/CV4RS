@@ -8,7 +8,7 @@ import numpy as np
 import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
-def make(config, model, type, subset_indices = None, dset_type = None,include_aux_augmentations = False):
+def make(config, type, subset_indices = None, dset_type = None,include_aux_augmentations = False):
     """
     Args:
         subset_indices: indices for selecting subset of dataset,
@@ -18,7 +18,7 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
     ds_name = config['dataset_selected']
     ds = dataset.select(
         datapath = config['dataset'][ds_name]['root'],
-        dset_type = dset_type, # dset_type: train, query, gallery
+        dset_type = dset_type, # dset_type: train, val,test
         transform = config['transform_parameters'][ds_name],
         is_training = type == 'train',
         include_aux_augmentations = include_aux_augmentations,
@@ -47,7 +47,7 @@ def make(config, model, type, subset_indices = None, dset_type = None,include_au
     return dl
 
 
-def make_from_clusters(C, subset_indices, model, config):
+def make_from_clusters(C, subset_indices, config):
     """
     For project divide_and_conquer
     Get different dataloaders for different clusters
@@ -61,7 +61,6 @@ def make_from_clusters(C, subset_indices, model, config):
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(
             config = config, 
-            model = model,
             type = 'train',
             subset_indices = subset_indices[C == c],
             dset_type = 'train')
@@ -78,7 +77,6 @@ def merge(dls_non_iter):
     nb_batches_per_dl = [len(dl) for dl in dls_non_iter]
     nb_batches = max(nb_batches_per_dl)
     I = range(len(dls_non_iter))
-    length = len(dls_non_iter)
     dls = [iter(dl) for dl in dls_non_iter]
 
     for j in range(nb_batches):
