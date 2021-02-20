@@ -19,9 +19,6 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
     Return:
         torch.utils.data.Dataset
     """
-    types = {"train":"train","query":"val","gallery":"test"}
-    dset_type = types[dset_type]
-
     if 'MLRSNet' in datapath:
         image_list,conversion = MLRSNet.Give(datapath,dset_type)
         dataset_name ='MLRSNet'
