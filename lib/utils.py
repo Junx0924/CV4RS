@@ -432,23 +432,23 @@ def check_image_label(dataset,save_path, dset_type='train'):
     plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
     plt.savefig(save_path+'/statistic_labels.png')
     plt.close()
-    # # get the number of shared labels
-    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
-    # # only store the up triangle area to reduce computing
-    # shared_dict ={}
-    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
-    # for c in shared_info:
-    #     shared_dict[c]= shared_dict.get(c,0) +1
-    # num_shared_labels = sorted([k for k in shared_dict.keys()])
-    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of sample pairs")
-    # plt.title("Distribution of shared label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    # plt.close()    
+    # get the number of shared labels
+    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # only store the up triangle area to reduce computing
+    shared_dict ={}
+    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    for c in shared_info:
+        shared_dict[c]= shared_dict.get(c,0) +1
+    num_shared_labels = sorted([k for k in shared_dict.keys()])
+    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    plt.xlabel("shared label counts")
+    plt.ylabel("Percent of sample pairs")
+    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    plt.close()    
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
