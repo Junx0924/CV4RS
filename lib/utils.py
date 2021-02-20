@@ -524,14 +524,14 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     plt.close()
 
     # save the distribution of all the intra and inter distance
-    # all_intra = [item for sublist in intra_dist for item in sublist]
-    # all_inter = [item for sublist in inter_dist for item in sublist]
-    # plt.figure()
-    # sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
-    # sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
-    # plt.xlabel("Distance")
-    # plt.ylabel("Percent of embedding pairs")
-    # plt.title("Distance distribution of embedding pairs")
-    # plt.savefig(save_path + '/dist_all.png',format='png')
-    # plt.close()
-    # print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
+    all_intra = [item for sublist in intra_dist for item in sublist]
+    all_inter = [item for sublist in inter_dist for item in sublist]
+    plt.figure()
+    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
+    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
+    plt.xlabel("Distance")
+    plt.ylabel("Percent of embedding pairs")
+    plt.title("Distance distribution of embedding pairs")
+    plt.savefig(save_path + '/dist_all.png',format='png')
+    plt.close()
+    print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
