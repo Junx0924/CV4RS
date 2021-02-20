@@ -122,11 +122,11 @@ def main():
     faiss_reserver.lock(config['backend'])
     # create init and eval dataloaders; init used for creating clustered DLs
     dataloaders = {}
-    dataloaders['init'] = lib.data.loader.make(config, model,'init', dset_type = 'train')
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dataloaders['init'] = lib.data.loader.make(config,'init', dset_type = 'train')
+    dl_val = lib.data.loader.make(config,'eval', dset_type = 'val')
     # update num_classes and batch_size
     ds_name = config['dataset_selected']
-    num_classes= dl_query.dataset.nb_classes()
+    num_classes= dataloaders['init'].dataset.nb_classes()
     config['dataset'][ds_name]["classes"] = num_classes
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
@@ -181,18 +181,20 @@ def main():
         time_per_epoch_1 = time.time()
         losses_per_epoch = []
 
-        if e == config['finetune_epoch'] :
-            print('Starting to finetune model...')
-            config['nb_clusters'] = 1
-            print("config['nb_clusters']: {})".format(config['nb_clusters']))
-            faiss_reserver.release()
-            dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config)
-            assert len(dataloaders['train']) == 1
-        if e > 0 and config['recluster']['enabled'] and config['nb_clusters'] > 0 and e % config['recluster']['mod_epoch'] == 0:
-            print("Reclustering dataloaders...")
-            faiss_reserver.release()
-            dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config, reassign = True,C_prev = C, I_prev = I, LOG = LOG)
-            faiss_reserver.lock(config['backend'])
+        if e >= config['finetune_epoch']:
+            if e == config['finetune_epoch'] or e == start_epoch:
+                print('Starting to finetune model...')
+                config['nb_clusters'] = 1
+                print("config['nb_clusters']: {})".format(config['nb_clusters']))
+                faiss_reserver.release()
+                dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config)
+                assert len(dataloaders['train']) == 1
+        elif e > 0 and config['recluster']['enabled'] and config['nb_clusters'] > 0:
+            if e % config['recluster']['mod_epoch'] == 0:
+                print("Reclustering dataloaders...")
+                faiss_reserver.release()
+                dataloaders['train'], C, T, I = make_clustered_dataloaders(model, dataloaders['init'], config, reassign = True,C_prev = C, I_prev = I, LOG = LOG)
+                faiss_reserver.lock(config['backend'])
 
         # merge dataloaders (created from clusters) into one dataloader
         mdl = lib.data.loader.merge(dataloaders['train'])
@@ -217,7 +219,7 @@ def main():
         if e% config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             _ = model.train()

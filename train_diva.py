@@ -199,8 +199,8 @@ def main():
     
     # create dataset
     flag_aux =config['include_aux_augmentations']
-    dl_train = lib.data.loader.make(config, model,'train', dset_type = 'train',include_aux_augmentations=flag_aux)
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
+    dl_train = lib.data.loader.make(config, 'train', dset_type = 'train',include_aux_augmentations=flag_aux)
+    dl_val = lib.data.loader.make(config,  'eval', dset_type = 'val')
     # update num_classes
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
@@ -225,7 +225,7 @@ def main():
         raise Exception('No scheduling option for input: {}'.format(config['scheduler']))
 
     if 'selfsimilarity' in criterion_dict.keys():
-        dl_init = lib.data.loader.make(config, model,'init', dset_type = 'train')
+        dl_init = lib.data.loader.make(config,'init', dset_type = 'train')
         criterion_dict['selfsimilarity'].create_memory_queue(selfsim_model, dl_init, config['device'], opt_key='selfsimilarity') 
     
     #################### CREATE LOGGING FILES ###############
@@ -276,7 +276,7 @@ def main():
         if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()
 

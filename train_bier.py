@@ -158,8 +158,8 @@ def main():
     optimizer = torch.optim.Adam(to_optim)
     
     # create dataset
-    dl_train  = lib.data.loader.make(config, model,'train', dset_type = 'train')
-    dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query') 
+    dl_train  = lib.data.loader.make(config ,'train', dset_type = 'train')
+    dl_val = lib.data.loader.make(config ,'eval', dset_type = 'val') 
     # update num_classes
     ds_name = config['dataset_selected']
     num_classes= dl_train.dataset.nb_classes()
@@ -222,7 +222,7 @@ def main():
         if e % config['eval_epoch'] == 0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_query, False, config['backend'], LOG, 'Val') 
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
             print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
             LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
             _ = model.train()

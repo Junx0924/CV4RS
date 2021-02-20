@@ -40,17 +40,15 @@ model.load_state_dict(checkpoint['state_dict'])
 _  = model.to(config['device'])
 
 # create dataloader for evaluation
-dl_query = lib.data.loader.make(config, model,'eval', dset_type = 'query')
-dl_gallery = lib.data.loader.make(config, model,'eval', dset_type = 'gallery')
+dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
 ## optional, check the image distribution for each dataset
-lib.utils.check_image_label(dl_query.dataset,save_path= config['result_path'], dset_type = 'query')
-lib.utils.check_image_label(dl_gallery.dataset,save_path= config['result_path'], dset_type = 'gallery')
+lib.utils.check_image_label(dl_test.dataset,save_path= config['result_path'], dset_type = 'test')
 
 print("Evaluate final model")    
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model\n"
-scores = lib.utils.evaluate_query_gallery(model, config, dl_query, dl_gallery, False, config['backend'], K=[1],metrics=config['eval_metric'],recover_image=True) 
+scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1],metrics=config['eval_metric']) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
   with open(config['result_path']+'/evaluate_final_model.txt','w+') as summary_file:
