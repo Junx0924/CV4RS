@@ -82,8 +82,8 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate, backend, 
-                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], recover_image =False):
+def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,  
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_validation= False):
     """
     Evaluate the retrieve performance
     Args:
@@ -91,10 +91,9 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         dl_query: query dataloader
         dl_gallery: gallery dataloader
         use_penultimate: use the embedding layer if it is false
-        backend: default faiss-gpu 
         K: [1,2,4,8]
         metrics: default ['recall']
-        recover_image: recover sampled image and its retrieved image
+        is_validation: if set false, evaluation results will be generated
     Return:
         score: dict of score for different metrics
     """
@@ -109,7 +108,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     # make sure the query and the gallery has same number of classes
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
-    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= torch.cuda.current_device())
+    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= config['device'])
     T_query_pred   = T_gallery[k_closest_points]
 
     scores={}
@@ -122,48 +121,49 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
+    
+    if not is_validation:
+        if 'result_path' not in config.keys():
+            result_path = config['checkfolder'] +'/evaluation_results'
+            if not os.path.exists(result_path): os.makedirs(result_path)
+            config['result_path'] = result_path
 
-    if 'result_path' not in config.keys():
-        result_path = config['checkfolder'] +'/evaluation_results'
-        if not os.path.exists(result_path): os.makedirs(result_path)
-        config['result_path'] = result_path
+        # check the intra and inter dist distribution
+        intra_dist, inter_dist, labels, shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)))
+        plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
 
-    # check the intra and inter dist distribution
-    intra_dist, inter_dist, labels, shared_info = check_distance_ratio(X_query,T_query)
-    plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
-
-    if recover_image:
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
         recover_save_path = config['result_path']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest)
         tsne_save_path =  config['result_path']+'/tsne.png'
-        check_tsne_plot( X_query,T_query, dl_query.dataset.conversion,tsne_save_path)
-        #check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, config['checkfolder']+'/' + config['project'] +'/_tsne.png')  
-    
-    if 'Mirco_F1' in metrics:
-        y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-        save_path =config['result_path']+'/confussionMatrix.csv'
-        with open(save_path,'w',newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(['TP']+list([int(i) for i in TP]))
-            writer.writerow(['FP']+list([int(i) for i in FP]))
-            writer.writerow(['TN']+list([int(i) for i in TN]))
-            writer.writerow(['FN']+list([int(i) for i in FN]))
+        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, tsne_save_path)  
+        
+        if 'Mirco_F1' in metrics:
+            y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
+            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
+            save_path =config['result_path']+'/confussionMatrix.csv'
+            with open(save_path,'w',newline='') as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(['TP']+list([int(i) for i in TP]))
+                writer.writerow(['FP']+list([int(i) for i in FP]))
+                writer.writerow(['TN']+list([int(i) for i in TN]))
+                writer.writerow(['FN']+list([int(i) for i in FN]))
     return scores
 
 
-def evaluate_standard(model, config,dl, use_penultimate, backend,
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],recover_image= False):
+def evaluate_standard(model, config,dl, use_penultimate, 
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_validation= False):
     """
     Evaluate the retrieve performance
         Args:
             model: pretrained resnet50
             dl: dataloader
             use_penultimate: use the embedding layer if it is false
-            backend: default faiss-gpu
+            K: [1,2,4,8]
+            metrics: default ['recall']
+            is_validation: if set false, evaluation results will be generated
         Return:
             scores: dict of score for different metrics
     """
@@ -172,7 +172,8 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
     if 'evaluation_weight' in config.keys() and not is_init:
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     
-    k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= torch.cuda.current_device())
+    k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['device'])
+    # leave itself out
     T_pred = T[k_closest_points[:,1:]]
 
     scores={}
@@ -186,26 +187,33 @@ def evaluate_standard(model, config,dl, use_penultimate, backend,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
-    check_distance_ratio(X, T,LOG,log_key)
+    if not is_validation:
+        if 'result_path' not in config.keys():
+            result_path = config['checkfolder'] +'/evaluation_results'
+            if not os.path.exists(result_path): os.makedirs(result_path)
+            config['result_path'] = result_path
+
+        # check the intra and inter dist distribution
+        intra_dist, inter_dist, labels, shared_info = check_distance_ratio(X, T,LOG,log_key)
+        plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
     
-    if recover_image:
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        save_path = config['checkfolder']+'/sample_recoveries.png'
+        save_path = config['result_path']+'/sample_recoveries.png'
         recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest)
-        check_tsne_plot(X,T, dl.dataset.conversion, config['checkfolder']+'/tsne.png') 
+        check_tsne_plot(X,T, dl.dataset.conversion, config['result_path']+'/tsne.png') 
 
-    if 'Mirco_F1' in metrics:
-        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        save_path = config['checkfolder']+'/CSV_Logs/confussionMatrix.csv'
-        with open(save_path,'w',newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerows(['TP']+list(TP))
-            writer.writerows(['FP']+list(FP))
-            writer.writerows(['TN']+list(TN))
-            writer.writerows(['FN']+list(FN))  
+        if 'Mirco_F1' in metrics:
+            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+            save_path = config['result_path']+'/confussionMatrix.csv'
+            with open(save_path,'w',newline='') as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerows(['TP']+list(TP))
+                writer.writerows(['FP']+list(FP))
+                writer.writerows(['TN']+list(TN))
+                writer.writerows(['FN']+list(FN))  
     return scores
 
 
@@ -435,22 +443,22 @@ def check_image_label(dataset,save_path, dset_type='train'):
     plt.close()
 
     # # get the number of shared labels
-    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
-    # # only store the up triangle area to reduce computing
-    # shared_dict ={}
-    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
-    # for c in shared_info:
-    #     shared_dict[c]= shared_dict.get(c,0) +1
-    # num_shared_labels = sorted([k for k in shared_dict.keys()])
-    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of sample pairs")
-    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    # plt.close()    
+    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # only store the up triangle area to reduce computing
+    shared_dict ={}
+    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    for c in shared_info:
+        shared_dict[c]= shared_dict.get(c,0) +1
+    num_shared_labels = sorted([k for k in shared_dict.keys()])
+    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    plt.xlabel("shared label counts")
+    plt.ylabel("Percent of sample pairs")
+    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    plt.close()    
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
@@ -504,8 +512,8 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
         label = labels[i]
         class_name = conversion[str(label)] if conversion !=None else str(label)
         ax.set_title('class_'+class_name)
-        dist_df = pd.DataFrame(data = {'distance':intra_dist[i]+inter_dist[i], 'dist_type':['intra']*len(intra_dist[i])+['inter']*len(inter_dist[i])})
-        sns.kdeplot(dist_df,x="distance", hue="dist_type",
+        dist_df = pd.DataFrame(data = {"distance":intra_dist[i]+inter_dist[i], "type":['intra']*len(intra_dist[i])+['inter']*len(inter_dist[i])})
+        sns.kdeplot(dist_df,x="distance", hue="type",
                     fill=True, common_norm=True, palette="crest",
                     alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
         ax.legend()
@@ -518,9 +526,9 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     #Plot the dist distribution for shared labels
     temp_list = [[[d,key] for d in shared_info[key]] for key in shared_info.keys()]
     temp_list = np.array([item for sublist in temp_list for item in sublist])
-    shared_df = pd.DataFrame(data={'distance':temp_list[:,0],'shared_label_counts':temp_list[:,1]})
+    shared_df = pd.DataFrame(data={"distance":temp_list[:,0],"labelShared":temp_list[:,1]})
     plt.figure()
-    sns.kdeplot(shared_df, x="distance", hue="shared_label_counts",
+    sns.kdeplot(shared_df, x="distance", hue="labelShared",
                 fill=True, common_norm=True, palette="crest",bw_adjust=0.5,
                 alpha=.5, linewidth=0, cut =0)
     plt.title("Distribution of embedding pairs among shared labels")
@@ -531,9 +539,9 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     # save the distribution of all the intra and inter distance
     all_intra = [item for sublist in intra_dist for item in sublist]
     all_inter = [item for sublist in inter_dist for item in sublist]
-    dist_df = pd.DataFrame(data = {'distance':all_intra+all_inter, 'dist_type':['intra']*len(all_intra)+['inter']*len(all_inter)})
+    dist_df = pd.DataFrame(data = {"distance":all_intra+all_inter, "type":['intra']*len(all_intra)+['inter']*len(all_inter)})
     plt.figure()
-    sns.kdeplot(dist_df,x="distance", hue="dist_type",
+    sns.kdeplot(dist_df,x="distance", hue="type",
                     fill=True, common_norm=True, palette="crest",
                     alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
     plt.title("Distance distribution of embedding pairs")
