@@ -82,7 +82,7 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
-def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,  
+def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
                           LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_validation= False):
     """
     Evaluate the retrieve performance
@@ -93,7 +93,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
         use_penultimate: use the embedding layer if it is false
         K: [1,2,4,8]
         metrics: default ['recall']
-        is_validation: if set false, evaluation results will be generated
+        is_validation: if set true it will just do validation, no evaluation results will be generated
     Return:
         score: dict of score for different metrics
     """
@@ -153,7 +153,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate,
     return scores
 
 
-def evaluate_standard(model, config,dl, use_penultimate, 
+def evaluate_standard(model, config,dl, use_penultimate= False, 
                     LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_validation= False):
     """
     Evaluate the retrieve performance
@@ -513,9 +513,7 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
         class_name = conversion[str(label)] if conversion !=None else str(label)
         ax.set_title('class_'+class_name)
         dist_df = pd.DataFrame(data = {"distance":intra_dist[i]+inter_dist[i], "type":['intra']*len(intra_dist[i])+['inter']*len(inter_dist[i])})
-        sns.kdeplot(dist_df,x="distance", hue="type",
-                    fill=True, common_norm=True, palette="crest",
-                    alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
+        sns.kdeplot(dist_df, x="distance", hue="type", common_norm = True,cut=0,ax=ax)
         ax.legend()
     fig.suptitle("Embedding distance distribution")
     fig.set_size_inches(10,20)
@@ -528,9 +526,10 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     temp_list = np.array([item for sublist in temp_list for item in sublist])
     shared_df = pd.DataFrame(data={"distance":temp_list[:,0],"labelShared":temp_list[:,1]})
     plt.figure()
-    sns.kdeplot(shared_df, x="distance", hue="labelShared",
-                fill=True, common_norm=True, palette="crest",bw_adjust=0.5,
-                alpha=.5, linewidth=0, cut =0)
+    sns.kdeplot(shared_df, x="distance", hue="labelShared", common_norm = True,cut=0)
+    #sns.kdeplot(shared_df, x="distance", hue="labelShared",
+    #            fill=True, common_norm=True, palette="crest",bw_adjust=0.5,
+    #            alpha=.5, linewidth=0, cut =0)
     plt.title("Distribution of embedding pairs among shared labels")
     plt.legend(loc="upper right")
     plt.savefig(save_path + '/dist_shared.png',format='png')
@@ -541,9 +540,7 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     all_inter = [item for sublist in inter_dist for item in sublist]
     dist_df = pd.DataFrame(data = {"distance":all_intra+all_inter, "type":['intra']*len(all_intra)+['inter']*len(all_inter)})
     plt.figure()
-    sns.kdeplot(dist_df,x="distance", hue="type",
-                    fill=True, common_norm=True, palette="crest",
-                    alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
+    sns.kdeplot(dist_df, x="distance", hue="type", common_norm = True,cut=0)
     plt.title("Distance distribution of embedding pairs")
     plt.legend(loc="upper right")
     plt.savefig(save_path + '/dist_all.png',format='png')
