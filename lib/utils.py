@@ -16,6 +16,7 @@ from sklearn.manifold import TSNE
 import time
 import random
 import csv
+import pandas as pd
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -348,14 +349,14 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
         intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
         intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
         intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
-        all_intra.append(intra_dist)
+        all_intra.append(list(intra_dist))
         mean_intra = np.mean(intra_dist) 
 
         other_inds = list(set(range(len(X))) - set(intra_inds))
         inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
         inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
         inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
-        all_inter.append(inter_dist)
+        all_inter.append(list(inter_dist))
         mean_inter = np.mean(inter_dist)
         all_labels.append(label)
         if LOG !=None:
@@ -413,7 +414,7 @@ def check_image_label(dataset,save_path, dset_type='train'):
     images_per_label =[len(dataset.image_dict[label]) for label in dataset.image_dict.keys()]
     plt.figure(figsize=(15,6))
     plt.bar([c for c in dataset.image_dict.keys()] ,height=np.array(images_per_label)/sum(images_per_label))
-    plt.xlabel("labels")
+    plt.xlabel("label")
     plt.ylabel("Percent of samples")
     plt.title("Distribution of samples for "+ dataset.dataset_name + " "+ dset_type + " dataset")
     plt.savefig(save_path +'/statistic_samples.png')
@@ -432,23 +433,24 @@ def check_image_label(dataset,save_path, dset_type='train'):
     plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
     plt.savefig(save_path+'/statistic_labels.png')
     plt.close()
-    # get the number of shared labels
-    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
-    # only store the up triangle area to reduce computing
-    shared_dict ={}
-    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
-    for c in shared_info:
-        shared_dict[c]= shared_dict.get(c,0) +1
-    num_shared_labels = sorted([k for k in shared_dict.keys()])
-    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    plt.xlabel("shared label counts")
-    plt.ylabel("Percent of sample pairs")
-    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    plt.close()    
+
+    # # get the number of shared labels
+    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # # only store the up triangle area to reduce computing
+    # shared_dict ={}
+    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    # for c in shared_info:
+    #     shared_dict[c]= shared_dict.get(c,0) +1
+    # num_shared_labels = sorted([k for k in shared_dict.keys()])
+    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    # plt.xlabel("shared label counts")
+    # plt.ylabel("Percent of sample pairs")
+    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    # plt.close()    
 
 def check_recall_histogram(T, T_pred,save_path,bins=10):
     """
@@ -475,7 +477,7 @@ def check_recall_histogram(T, T_pred,save_path,bins=10):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
     # store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
@@ -498,14 +500,15 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
 
     #plot and save the distribution of intra distance and inter distance for each class
     for i in range(len(labels)):
-        label = labels[i]
-        dist_intra = intra_dist[i]
-        dist_inter = inter_dist[i]
-        class_name = conversion[str(label)] if conversion !=None else str(label)
         ax = temp_axes[i]
+        label = labels[i]
+        class_name = conversion[str(label)] if conversion !=None else str(label)
         ax.set_title('class_'+class_name)
-        sns.kdeplot(np.array(dist_intra), bw=0.5, label ='Intra',ax = ax).set(xlim=(0))
-        sns.kdeplot(np.array(dist_inter), bw=0.5, label= 'Inter',ax = ax).set(xlim=(0))
+        dist_df = pd.DataFrame(data = {'distance':intra_dist[i]+inter_dist[i], 'dist_type':['intra']*len(intra_dist[i])+['inter']*len(inter_dist[i])})
+        sns.kdeplot(dist_df,x="distance", hue="dist_type",
+                    fill=True, common_norm=True, palette="crest",
+                    alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
+        ax.legend()
     fig.suptitle("Embedding distance distribution")
     fig.set_size_inches(10,20)
     fig.tight_layout()
@@ -513,25 +516,28 @@ def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,
     plt.close()
 
     #Plot the dist distribution for shared labels
+    temp_list = [[[d,key] for d in shared_info[key]] for key in shared_info.keys()]
+    temp_list = np.array([item for sublist in temp_list for item in sublist])
+    shared_df = pd.DataFrame(data={'distance':temp_list[:,0],'shared_label_counts':temp_list[:,1]})
     plt.figure()
-    for num_shared in shared_info.keys():
-        dist = shared_info[num_shared]
-        sns.kdeplot(np.array(dist), bw=0.5, label =str(num_shared) +'_labels_shared').set(xlim=(0))
-    plt.xlabel("Distance")
-    plt.ylabel("Percent of embedding pairs")
-    plt.title("Distance distribution of embedding pairs")
+    sns.kdeplot(shared_df, x="distance", hue="shared_label_counts",
+                fill=True, common_norm=True, palette="crest",bw_adjust=0.5,
+                alpha=.5, linewidth=0, cut =0)
+    plt.title("Distribution of embedding pairs among shared labels")
+    plt.legend(loc="upper right")
     plt.savefig(save_path + '/dist_shared.png',format='png')
     plt.close()
 
     # save the distribution of all the intra and inter distance
     all_intra = [item for sublist in intra_dist for item in sublist]
     all_inter = [item for sublist in inter_dist for item in sublist]
+    dist_df = pd.DataFrame(data = {'distance':all_intra+all_inter, 'dist_type':['intra']*len(all_intra)+['inter']*len(all_inter)})
     plt.figure()
-    sns.kdeplot(np.array(all_intra), bw=0.5, label ='Intra-class').set(xlim=(0))
-    sns.kdeplot(np.array(all_inter), bw=0.5, label= 'Inter-class').set(xlim=(0))
-    plt.xlabel("Distance")
-    plt.ylabel("Percent of embedding pairs")
+    sns.kdeplot(dist_df,x="distance", hue="dist_type",
+                    fill=True, common_norm=True, palette="crest",
+                    alpha=.5, linewidth=0, cut =0,bw_adjust=0.5)
     plt.title("Distance distribution of embedding pairs")
+    plt.legend(loc="upper right")
     plt.savefig(save_path + '/dist_all.png',format='png')
     plt.close()
     print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))

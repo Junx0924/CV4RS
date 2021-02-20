@@ -166,11 +166,19 @@ def main():
     start_new = True
     if os.path.exists(config['load_from_checkpoint']):
         start_new = False
-        config['checkfolder'] = config['load_from_checkpoint']
-        checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
-        with open(config['checkfolder'] +"/hypa.pkl","rb") as f:
-            config = pkl.load(f)
-
+        checkfolder = config['load_from_checkpoint']
+        checkpoint = torch.load(checkfolder +"/checkpoint_recall@1.pth.tar")
+        with open(checkfolder +"/hypa.pkl","rb") as f:
+            config_new = pkl.load(f)
+        # update the absolute path
+        config_new['checkfolder'] = checkfolder
+        ds_selected = config['dataset_selected']
+        config_new['dataset'][ds_selected]['root'] = config['dataset'][ds_selected]['root']
+        config_new['pretrained_weights_file'] =config['pretrained_weights_file']
+        config_new['pj_base_path'] = config['pj_base_path']
+        config_new['log']['save_path'] = config['log']['save_path']
+        config = config_new
+        
     # set random seed for all gpus
     seed = config['random_seed']
     random.seed(seed)
