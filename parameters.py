@@ -16,7 +16,7 @@ def basic_training_parameters(parser):
     ### General Training Parameters
     parser.add_argument('--frozen',   action='store_true',help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthNet frozen the backbone except the first layer')
     parser.add_argument('--cuda_device', default = 0, type = int)
-    parser.add_argument('--num-workers', default=4, type=int)
+    parser.add_argument('--num-workers', default=8, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
     parser.add_argument('--nb_epochs', default=120, type = int)
     parser.add_argument('--sz_embedding', default=512, type=int, help='the dimension of final embedding')
