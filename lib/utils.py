@@ -144,8 +144,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         check_tsne_plot(np.vstack((X_query,X_gallery)), tsne_save_path)  
         
         if 'Mirco_F1' in metrics:
-            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
+            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
             save_path = config['result_path']+'/confussionMatrix.csv'
             with open(save_path,'w',newline='') as csv_file:
                 writer = csv.writer(csv_file)
