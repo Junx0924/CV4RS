@@ -17,6 +17,7 @@ import time
 import random
 import csv
 import pandas as pd
+import seaborn as sns
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -122,15 +123,16 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
+    df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,conversion=dl_query.dataset.conversion)
+    
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
 
-        # check the intra and inter dist distribution
-        intra_dist, inter_dist, labels, shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)))
-        plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
+        # plot intra and inter dist distribution
+        plot_intra_inter_dist(df,shared_info, config['result_path'])
 
         ## recover n_closest images
         n_img_samples = 10
@@ -187,15 +189,16 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
+    df,shared_info = check_distance_ratio(X, T,LOG,log_key,conversion=dl.dataset.conversion)
+
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
 
-        # check the intra and inter dist distribution
-        intra_dist, inter_dist, labels, shared_info = check_distance_ratio(X, T,LOG,log_key)
-        plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info, config['result_path'])
+        # plot the intra and inter dist distribution
+        plot_intra_inter_dist(df,shared_info, config['result_path'])
     
         ## recover n_closest images
         n_img_samples = 10
@@ -322,7 +325,7 @@ def classBalancedSamper(T,num_samples_per_class=2):
     return np.array(new_T_list)
 
 
-def check_distance_ratio(X, T, LOG=None, log_key="Val"):
+def check_distance_ratio(X, T, LOG=None, log_key="Val",conversion=None):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
@@ -350,27 +353,34 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val"):
     [embed_dict[str(c)].append(ind) for ind,c in T_list]
 
     # Compute average intra and inter l2 distance
-    all_intra, all_inter, all_labels =[],[],[]
+    all_dist,all_labels,dist_type =[],[],[]
     for label in labels:
         intra_inds = embed_dict[str(label)]
         if len(intra_inds)<2: continue
         intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
         intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
         intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
-        all_intra.append(list(intra_dist))
         mean_intra = np.mean(intra_dist) 
 
         other_inds = list(set(range(len(X))) - set(intra_inds))
         inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
         inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
         inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
-        all_inter.append(list(inter_dist))
         mean_inter = np.mean(inter_dist)
-        all_labels.append(label)
+
+        all_dist += list(intra_dist) + list(inter_dist)
+        dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
+        label_name =  conversion[str(label)] if conversion !=None else str(label)
+        all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
+        
         if LOG !=None:
             LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
+    
+    df = pd.DataFrame({'Distance': np.array(all_dist) ,
+                'class':  np.array(all_labels) ,
+                "dist_type":np.array(dist_type)})
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-    return all_intra, all_inter,all_labels,shared_info
+    return df,shared_info
 
 def check_gradient(model,LOG,log_key):
     """
@@ -387,7 +397,7 @@ def check_gradient(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
 
-def check_tsne_plot(X,T,conversion,save_path,n_components=2):
+def check_tsne_plot(X,T,save_path,n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
@@ -494,55 +504,39 @@ def start_wandb(config):
     wandb.config.update(config, allow_val_change= True)
     return config
 
-def plot_intra_inter_dist(intra_dist, inter_dist, labels, shared_info,save_path,conversion= None):
-    import seaborn as sns
+def plot_intra_inter_dist(df, shared_info,save_path):
     sns.set_style('whitegrid')
     print('Start to plot intra and inter dist')
     start_time = time.time()
-    
-    n = 4
-    m = len(labels)//n if len(labels)%n ==0 else len(labels)//n+1
-    plt.figure()
-    fig, axes = plt.subplots(m, n, sharex='row', sharey='col')
-    temp_axes = axes.flatten()
 
     #plot and save the distribution of intra distance and inter distance for each class
-    for i in range(len(labels)):
-        ax = temp_axes[i]
-        label = labels[i]
-        class_name = conversion[str(label)] if conversion !=None else str(label)
-        ax.set_title('class_'+class_name)
-        dist_df = pd.DataFrame(data = {"distance":intra_dist[i]+inter_dist[i], "type":['intra']*len(intra_dist[i])+['inter']*len(inter_dist[i])})
-        sns.kdeplot(dist_df, x="distance", hue="type", common_norm = True,cut=0,ax=ax)
-        ax.legend()
-    fig.suptitle("Embedding distance distribution")
-    fig.set_size_inches(10,20)
-    fig.tight_layout()
-    fig.savefig(save_path + '/dist_per_class.png',format='png')
+    plt.figure()
+    grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
+    grid.map(sns.kdeplot, 'Distance')
+    grid.add_legend()
+    grid.savefig(save_path + '/dist_per_class.png',format='png')
+    plt.close()
+
+    # save the distribution of all the intra and inter distance
+    plt.figure()
+    grid = sns.FacetGrid(df, hue="dist_type")
+    grid.map(sns.kdeplot, 'Distance')
+    grid.add_legend()
+    plt.title("Distance distribution")
+    grid.savefig(save_path + '/dist_all.png',format='png')
     plt.close()
 
     #Plot the dist distribution for shared labels
     temp_list = [[[d,key] for d in shared_info[key]] for key in shared_info.keys()]
     temp_list = np.array([item for sublist in temp_list for item in sublist])
-    shared_df = pd.DataFrame(data={"distance":temp_list[:,0],"labelShared":temp_list[:,1]})
+    shared_df = pd.DataFrame({"Distance":temp_list[:,0],
+                             "labelShared":temp_list[:,1]})
     plt.figure()
-    sns.kdeplot(shared_df, x="distance", hue="labelShared", common_norm = True,cut=0)
-    #sns.kdeplot(shared_df, x="distance", hue="labelShared",
-    #            fill=True, common_norm=True, palette="crest",bw_adjust=0.5,
-    #            alpha=.5, linewidth=0, cut =0)
-    plt.title("Distribution of embedding pairs among shared labels")
-    plt.legend(loc="upper right")
-    plt.savefig(save_path + '/dist_shared.png',format='png')
+    grid = sns.FacetGrid(shared_df, hue="labelShared")
+    grid.map(sns.kdeplot, 'Distance')
+    grid.add_legend()
+    plt.title("Distance distribution of embedding pairs")
+    grid.savefig(save_path + '/dist_shared.png',format='png')
     plt.close()
 
-    # save the distribution of all the intra and inter distance
-    all_intra = [item for sublist in intra_dist for item in sublist]
-    all_inter = [item for sublist in inter_dist for item in sublist]
-    dist_df = pd.DataFrame(data = {"distance":all_intra+all_inter, "type":['intra']*len(all_intra)+['inter']*len(all_inter)})
-    plt.figure()
-    sns.kdeplot(dist_df, x="distance", hue="type", common_norm = True,cut=0)
-    plt.title("Distance distribution of embedding pairs")
-    plt.legend(loc="upper right")
-    plt.savefig(save_path + '/dist_all.png',format='png')
-    plt.close()
-    print('Plot done! Time elapsed: {:.2f} seconds'.format(time.time()-start_time))
+    print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
