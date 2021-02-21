@@ -164,9 +164,10 @@ class LOGGER():
                 self.csv_writer[sub_logger].log(group, segments, tupled_seg_content)
                 self.graph_writer[sub_logger].make_plot(sub_logger, group, segments, per_seg_contents_all)
                 
-                if group in ["distRatio","intraStd","interStd"]:
+                if group in ["distRatio"]:
                     name = sub_logger+': mean_'+group
-                    online_content.append((name,np.mean(per_seg_contents)))
+                    mean_distRatio = np.mean(per_seg_contents) if len(per_seg_contents)>0 else 0
+                    online_content.append((name,mean_distRatio))
                 else:
                     for i,segment in enumerate(segments):
                         if group == segment:

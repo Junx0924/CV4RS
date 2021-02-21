@@ -356,22 +356,22 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val",conversion=None):
     all_dist,all_labels,dist_type =[],[],[]
     for label in labels:
         intra_inds = embed_dict[str(label)]
-        if len(intra_inds)<2: continue
-        intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
-        intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
-        intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
-        mean_intra = np.mean(intra_dist) 
+        if len(intra_inds)>=2:
+            intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
+            intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
+            intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
+            mean_intra = np.mean(intra_dist) 
 
-        other_inds = list(set(range(len(X))) - set(intra_inds))
-        inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
-        inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
-        inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
-        mean_inter = np.mean(inter_dist)
+            other_inds = list(set(range(len(X))) - set(intra_inds))
+            inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
+            inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
+            inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
+            mean_inter = np.mean(inter_dist)
 
-        all_dist += list(intra_dist) + list(inter_dist)
-        dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
-        label_name =  conversion[str(label)] if conversion !=None else str(label)
-        all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
+            all_dist += list(intra_dist) + list(inter_dist)
+            dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
+            label_name =  conversion[str(label)] if conversion !=None else str(label)
+            all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
         
         if LOG !=None:
             LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
