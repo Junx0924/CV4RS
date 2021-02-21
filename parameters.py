@@ -134,7 +134,7 @@ def load_common_config():
     config['use_hdf5'] = args.pop('use_hdf5')
     config['eval_epoch'] = args.pop('eval_epoch')
     config['eval_metric'] = args.pop('eval_metric')
-    config['gpu_id']= args.pop('cuda_device')
+    config['cuda_device']= args.pop('cuda_device')
     config['device'] = torch.device("cuda:"+str(config['gpu_id']))
 
     ### Update wandb config  ###########
