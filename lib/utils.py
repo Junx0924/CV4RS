@@ -144,15 +144,14 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         check_tsne_plot(np.vstack((X_query,X_gallery)), tsne_save_path)  
         
         if 'Mirco_F1' in metrics:
-            y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
-            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-            save_path =config['result_path']+'/confussionMatrix.csv'
+            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+            save_path = config['result_path']+'/confussionMatrix.csv'
             with open(save_path,'w',newline='') as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerow(['TP']+list([int(i) for i in TP]))
-                writer.writerow(['FP']+list([int(i) for i in FP]))
-                writer.writerow(['TN']+list([int(i) for i in TN]))
-                writer.writerow(['FN']+list([int(i) for i in FN]))
+                writer.writerows(['TP','FP','TN','FN'])
+                for i in range(len(TP)):
+                    writer.writerows([int(TP[i]),int(FP[i]),int(TN[i]),int(FN[i])])
     return scores
 
 
@@ -214,10 +213,9 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             save_path = config['result_path']+'/confussionMatrix.csv'
             with open(save_path,'w',newline='') as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerows(['TP']+list(TP))
-                writer.writerows(['FP']+list(FP))
-                writer.writerows(['TN']+list(TN))
-                writer.writerows(['FN']+list(FN))  
+                writer.writerows(['TP','FP','TN','FN'])
+                for i in range(len(TP)):
+                    writer.writerows([int(TP[i]),int(FP[i]),int(TN[i]),int(FN[i])])
     return scores
 
 
@@ -524,7 +522,7 @@ def plot_intra_inter_dist(df, shared_info,save_path):
     temp_list = [[[d,key] for d in shared_info[key]] for key in shared_info.keys()]
     temp_list = np.array([item for sublist in temp_list for item in sublist])
     shared_df = pd.DataFrame({"Distance":temp_list[:,0],
-                             "labelShared":temp_list[:,1]})
+                             "labelShared":np.array([int(i) for i in temp_list[:,1]])})
     plt.figure()
     grid = sns.FacetGrid(shared_df, hue="labelShared")
     grid.map_dataframe(sns.kdeplot, 'Distance')
