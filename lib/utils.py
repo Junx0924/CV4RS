@@ -214,9 +214,10 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             save_path = config['result_path']+'/confussionMatrix.csv'
             with open(save_path,'w',newline='') as csv_file:
                 writer = csv.writer(csv_file)
-                writer.writerows(['TP','FP','TN','FN'])
-                for i in range(len(TP)):
-                    writer.writerows([int(TP[i]),int(FP[i]),int(TN[i]),int(FN[i])])
+                writer.writerow(['TP','FP','TN','FN'])
+                for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+                    s =[int(tp),int(fp),int(tn),int(fn)]
+                    writer.writerow(s)
     return scores
 
 
