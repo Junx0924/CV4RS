@@ -123,7 +123,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,conversion=dl_query.dataset.conversion)
+    df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -189,7 +189,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
-    df,shared_info = check_distance_ratio(X, T,LOG,log_key,conversion=dl.dataset.conversion)
+    df,shared_info = check_distance_ratio(X, T,LOG,log_key)
 
     if not is_validation:
         if 'result_path' not in config.keys():

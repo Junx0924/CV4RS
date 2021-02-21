@@ -113,6 +113,6 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
                 # assign to cluster -1 if only one sample from class
                 C[(T == t) & (C == c)] = -1
 
-    dls = data.loader.make_from_clusters(C = C, subset_indices = I, model = model, config = config)
+    dls = data.loader.make_from_clusters(C = C, subset_indices = I, config = config)
 
     return dls, C, T, I
