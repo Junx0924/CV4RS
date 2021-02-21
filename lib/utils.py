@@ -14,7 +14,7 @@ import os
 from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
-import random
+import json
 import csv
 import pandas as pd
 import seaborn as sns
@@ -132,7 +132,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
-        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)))
+        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),save_path=config['result_path'])
         plot_intra_inter_dist(df,shared_info, config['result_path'])
 
         ## recover n_closest images
@@ -198,7 +198,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
-        df,shared_info = check_distance_ratio(X, T)
+        df,shared_info = check_distance_ratio(X, T,save_path=config['result_path'])
         plot_intra_inter_dist(df,shared_info, config['result_path'])
     
         ## recover n_closest images
@@ -326,7 +326,7 @@ def classBalancedSamper(T,num_samples_per_class=2):
     return np.array(new_T_list)
 
 
-def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None):
+def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None,save_path=None):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
@@ -380,6 +380,10 @@ def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None):
         df = pd.DataFrame({'Distance': np.array(all_dist) ,
                     'class':  np.array(all_labels) ,
                     "dist_type":np.array(dist_type)})
+        if os.path.exists(save_path):
+            df.to_csv(save_path+ '/inter_intra_dist.csv', index = False, header=True)
+            with open(save_path+ '/shared_label_dist.json', 'w') as json_f:
+                json.dump(shared_info, json_f,separators=(",", ":"),allow_nan=False,indent=4)
         return df,shared_info
 
 def check_gradient(model,LOG,log_key):
