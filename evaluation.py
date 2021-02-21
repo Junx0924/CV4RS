@@ -27,6 +27,7 @@ with open(checkpoint_folder +"/hypa.pkl","rb") as f:
 config['checkfolder'] = checkpoint_folder
 ds_selected = config['dataset_selected']
 config['dataset'][ds_selected]['root'] = source_path +'/'+ds_selected
+if 'gpu_id' not in config.keys(): config['gpu_id'] = config['cuda_device']
 
 if 'result_path' not in config.keys():
     result_path = config['checkfolder'] +'/evaluation_results'
