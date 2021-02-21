@@ -123,7 +123,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),dl_query.dataset.image_dict,LOG=LOG,log_key=log_key)
+    check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -132,7 +132,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
-        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),dl_query.dataset.image_dict)
+        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)))
         plot_intra_inter_dist(df,shared_info, config['result_path'])
 
         ## recover n_closest images
@@ -190,7 +190,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_distance_ratio(X, T,dl.dataset.image_dict,LOG,log_key)
+    check_distance_ratio(X, T,LOG,log_key)
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -198,7 +198,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
-        df,shared_info = check_distance_ratio(X, T,dl.dataset.image_dict)
+        df,shared_info = check_distance_ratio(X, T)
         plot_intra_inter_dist(df,shared_info, config['result_path'])
     
         ## recover n_closest images
@@ -326,7 +326,7 @@ def classBalancedSamper(T,num_samples_per_class=2):
     return np.array(new_T_list)
 
 
-def check_distance_ratio(X, T,image_dict, LOG=None, log_key="Val",conversion=None):
+def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
@@ -345,6 +345,13 @@ def check_distance_ratio(X, T,image_dict, LOG=None, log_key="Val",conversion=Non
     shared_info_keys = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
     shared_info ={int(key):[] for key in shared_info_keys}
     {shared_info[int(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
+
+    # get the labels for each embedding
+    T_list = [ np.where(t==1)[0] for t in T] 
+    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
+    labels = np.unique(T_list[:,1])
+    image_dict = {str(c):[] for c in labels}
+    [image_dict[str(c)].append(ind) for ind,c in T_list]
 
     # Compute average intra and inter l2 distance
     all_dist,all_labels,dist_type =[],[],[]

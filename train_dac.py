@@ -165,7 +165,7 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         
     ## optional, check the image distribution for train dataset
-    lib.utils.check_image_label(dataloaders['init'].dataset,save_path= config['checkfolder'], dset_type = 'train')
+    #lib.utils.check_image_label(dataloaders['init'].dataset,save_path= config['checkfolder'], dset_type = 'train')
 
     #################### START TRAINING ###############
     history_recall = 0

@@ -179,8 +179,9 @@ class LOGGER():
         if self.log_online:
             import wandb
             for i,item in enumerate(online_content):
-                if isinstance(item[1], list):
-                    wandb.log({item[0]:np.mean(item[1])}, step=self.config['epoch'])
+                if isinstance(item[1], list) :
+                    mean_item = np.mean(item[1]) if len(item[1])>0 else 0 
+                    wandb.log({item[0]:mean_item}, step=self.config['epoch'])
                 else:
                     wandb.log({item[0]:item[1]}, step=self.config['epoch'])
             
