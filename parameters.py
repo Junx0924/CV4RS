@@ -135,7 +135,7 @@ def load_common_config():
     config['eval_epoch'] = args.pop('eval_epoch')
     config['eval_metric'] = args.pop('eval_metric')
     config['cuda_device']= args.pop('cuda_device')
-    config['device'] = torch.device("cuda:"+str(config['gpu_id']))
+    config['device'] = torch.device("cuda:"+str(config['cuda_device']))
 
     ### Update wandb config  ###########
     if config['log_online']:

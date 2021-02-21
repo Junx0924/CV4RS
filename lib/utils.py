@@ -123,7 +123,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
+    check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),dl_query.dataset.image_dict,LOG=LOG,log_key=log_key)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -132,6 +132,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
+        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),dl_query.dataset.image_dict)
         plot_intra_inter_dist(df,shared_info, config['result_path'])
 
         ## recover n_closest images
@@ -140,7 +141,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         recover_save_path = config['result_path']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['cuda_device'])
         tsne_save_path =  config['result_path']+'/tsne.png'
-        check_tsne_plot(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)), dl_query.dataset.conversion, tsne_save_path)  
+        check_tsne_plot(np.vstack((X_query,X_gallery)), tsne_save_path)  
         
         if 'Mirco_F1' in metrics:
             y_pred = np.array([ np.sum(y[:1], axis =0) for y in T_query_pred])
@@ -188,9 +189,8 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-
-    df,shared_info = check_distance_ratio(X, T,LOG,log_key)
-
+    
+    check_distance_ratio(X, T,dl.dataset.image_dict,LOG,log_key)
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -198,6 +198,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
+        df,shared_info = check_distance_ratio(X, T,dl.dataset.image_dict)
         plot_intra_inter_dist(df,shared_info, config['result_path'])
     
         ## recover n_closest images
@@ -205,7 +206,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         n_closest = 4
         save_path = config['result_path']+'/sample_recoveries.png'
         recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['cuda_device'])
-        check_tsne_plot(X,T, dl.dataset.conversion, config['result_path']+'/tsne.png') 
+        check_tsne_plot(X, config['result_path']+'/tsne.png') 
 
         if 'Mirco_F1' in metrics:
             y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
@@ -325,7 +326,7 @@ def classBalancedSamper(T,num_samples_per_class=2):
     return np.array(new_T_list)
 
 
-def check_distance_ratio(X, T, LOG=None, log_key="Val",conversion=None):
+def check_distance_ratio(X, T,image_dict, LOG=None, log_key="Val",conversion=None):
     """
     log the distance ratios between intra-class and inter-class.
         Args:
@@ -342,20 +343,13 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val",conversion=None):
     ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(X))]
     ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
     shared_info_keys = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
-    shared_info ={key:[] for key in shared_info_keys}
-    {shared_info[shared[p[0],p[1]]].append(dist[p[0],p[1]]) for p in ind_pairs}
-
-    # get the labels for each embedding
-    T_list = [ np.where(t==1)[0] for t in T] 
-    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    labels = np.unique(T_list[:,1])
-    embed_dict = {str(c):[] for c in labels}
-    [embed_dict[str(c)].append(ind) for ind,c in T_list]
+    shared_info ={int(key):[] for key in shared_info_keys}
+    {shared_info[int(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
 
     # Compute average intra and inter l2 distance
     all_dist,all_labels,dist_type =[],[],[]
-    for label in labels:
-        intra_inds = embed_dict[str(label)]
+    for label in image_dict.keys():
+        intra_inds = image_dict[str(label)]
         if len(intra_inds)>=2:
             intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
             intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
@@ -367,20 +361,19 @@ def check_distance_ratio(X, T, LOG=None, log_key="Val",conversion=None):
             inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
             inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
             mean_inter = np.mean(inter_dist)
-
-            all_dist += list(intra_dist) + list(inter_dist)
-            dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
-            label_name =  conversion[str(label)] if conversion !=None else str(label)
-            all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
-        
-        if LOG !=None:
-            LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-    
-    df = pd.DataFrame({'Distance': np.array(all_dist) ,
-                'class':  np.array(all_labels) ,
-                "dist_type":np.array(dist_type)})
+            if LOG !=None:
+                LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
+            else:
+                all_dist += list(intra_dist) + list(inter_dist)
+                dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
+                label_name =  conversion[str(label)] if conversion !=None else str(label)
+                all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-    return df,shared_info
+    if len(all_dist) >0:   
+        df = pd.DataFrame({'Distance': np.array(all_dist) ,
+                    'class':  np.array(all_labels) ,
+                    "dist_type":np.array(dist_type)})
+        return df,shared_info
 
 def check_gradient(model,LOG,log_key):
     """
@@ -397,7 +390,7 @@ def check_gradient(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
 
-def check_tsne_plot(X,T,save_path,n_components=2):
+def check_tsne_plot(X,save_path,n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
@@ -505,14 +498,14 @@ def start_wandb(config):
     return config
 
 def plot_intra_inter_dist(df, shared_info,save_path):
-    sns.set_style('whitegrid')
     print('Start to plot intra and inter dist')
     start_time = time.time()
 
     #plot and save the distribution of intra distance and inter distance for each class
     plt.figure()
     grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
-    grid.map(sns.kdeplot, 'Distance')
+    grid.map_dataframe(sns.kdeplot, 'Distance')
+    grid.set_axis_labels('distance','density')
     grid.add_legend()
     grid.savefig(save_path + '/dist_per_class.png',format='png')
     plt.close()
@@ -520,7 +513,8 @@ def plot_intra_inter_dist(df, shared_info,save_path):
     # save the distribution of all the intra and inter distance
     plt.figure()
     grid = sns.FacetGrid(df, hue="dist_type")
-    grid.map(sns.kdeplot, 'Distance')
+    grid.map_dataframe(sns.kdeplot, 'Distance')
+    grid.set_axis_labels('distance','density')
     grid.add_legend()
     plt.title("Distance distribution")
     grid.savefig(save_path + '/dist_all.png',format='png')
@@ -533,7 +527,8 @@ def plot_intra_inter_dist(df, shared_info,save_path):
                              "labelShared":temp_list[:,1]})
     plt.figure()
     grid = sns.FacetGrid(shared_df, hue="labelShared")
-    grid.map(sns.kdeplot, 'Distance')
+    grid.map_dataframe(sns.kdeplot, 'Distance')
+    grid.set_axis_labels('distance','density')
     grid.add_legend()
     plt.title("Distance distribution of embedding pairs")
     grid.savefig(save_path + '/dist_shared.png',format='png')
