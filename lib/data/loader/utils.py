@@ -25,7 +25,7 @@ def make(config, type, subset_indices = None, dset_type = None,include_aux_augme
         use_hdf5 = config['use_hdf5']
     )
     if type == 'train':
-        if config['project']=='sndl':
+        if 'num_samples_per_class' not in config.keys():
             dl = torch.utils.data.DataLoader(
                 ds,
                 num_workers= config['dataloader']["num_workers"],
@@ -35,11 +35,10 @@ def make(config, type, subset_indices = None, dset_type = None,include_aux_augme
                 )
         else:
             ds.set_subset(subset_indices)
-            train_data_sampler= ClassBalancedSampler(len(ds),ds.image_dict, config['num_samples_per_class'])
             dl = torch.utils.data.DataLoader(
                 ds,
                 num_workers= config['dataloader']["num_workers"],
-                batch_sampler= train_data_sampler
+                batch_sampler= ClassBalancedSampler(len(ds),ds.image_dict, config['num_samples_per_class'])
                 )
     else:
         # else init or eval loader (shuffle = false)
