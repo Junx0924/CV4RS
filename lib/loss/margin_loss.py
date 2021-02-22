@@ -33,17 +33,16 @@ class MarginLoss(torch.nn.Module):
         self.class_specific_beta = class_specific_beta
         if class_specific_beta:
             assert nb_classes is not None
-            beta = torch.ones(nb_classes, dtype=torch.float32) * beta
+            # make beta trainable
+            self.beta = torch.nn.Parameter(torch.ones(nb_classes)*beta)
+            # Learning Rate for class margin parameters in MarginLoss
+            self.beta_lr = beta_lr 
         else:
-            beta = torch.tensor([beta], dtype=torch.float32)
-        # make beta trainable
-        self.beta = torch.nn.Parameter(beta)
+            self.beta = torch.tensor([beta], dtype=torch.float32)
+
         self.margin = margin
         self.nu = nu
-       
         self.batchminner = batchminner
-        # Learning Rate for class margin parameters in MarginLoss
-        self.beta_lr = beta_lr 
 
     def forward(self, feature, labels):
         """

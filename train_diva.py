@@ -209,6 +209,7 @@ def main():
    
     # define loss function for each feature
     to_optim = get_optim(config, model)
+    config['class_specific_beta'] =True
     criterion_dict, to_optim = get_criterion(config, to_optim)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
