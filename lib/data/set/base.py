@@ -86,7 +86,7 @@ class BaseDataset(torch.utils.data.Dataset):
         self.dataset_name = dataset_name
         self.transform = transform
         self.is_training = is_training
-        
+        self.npmem_file = npmem_file
         self.include_aux_augmentations = include_aux_augmentations
         self.conversion = conversion
         self.im_paths, self.I, self.ys = [], [], []
@@ -95,13 +95,6 @@ class BaseDataset(torch.utils.data.Dataset):
             self.im_paths.append(item[0])
             self.ys.append(item[1]) # muti hot label
         
-        if os.path.exists(npmem_file):
-            n= len(self.I)
-            s = transform['input_shape']
-            self.npmem_file =np.memmap(npmem_file, dtype='float32', mode='r', shape=(n,s[0]*s[1]*s[2]))
-        else:
-            self.npmem_file = None
-
         category_labels = [np.where(label ==1)[0] for label in self.ys]
         unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
         self.image_dict ={str(key):[] for key in unique_labels}
@@ -116,8 +109,12 @@ class BaseDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         label = torch.tensor(self.ys[index], dtype=int)
         img_path = self.im_paths[index]
-        if self.npmem_file !=None:
-             im = np.array(self.npmem_file[index])
+        if os.path.exists(self.npmem_file):
+            n= len(self.im_paths)
+            s = self.transform['input_shape']
+            npmem_file =np.memmap(self.npmem_file, dtype='float32', mode='r', shape=(n,s[0]*s[1]*s[2]))
+            im = np.array(npmem_file[index])
+            del npmem_file
         else:
             if self.dataset_name =='BigEarthNet':
                 im = get_BigEarthNet(img_path)
@@ -142,11 +139,11 @@ class BaseDataset(torch.utils.data.Dataset):
 
     def set_subset(self, subset_indices):
         if subset_indices is not None:
-            self.ys =[self.ys[i] for i in subset_indices]
-            self.I = [i for i in  subset_indices ]
-            self.im_paths = [self.im_paths[i] for i in subset_indices]
-            # update image_dict
-            category_labels = [np.where(label ==1)[0] for label in self.ys]
+            # need to update self.I
+            self.I = [ self.I[i]  for i in subset_indices]
+            # ned to update self.image_dict
+            ys =[ self.ys[i] for i in subset_indices]
+            category_labels = [np.where(label ==1)[0] for label in ys]
             unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
             self.image_dict ={str(key):[] for key in unique_labels}
             [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in zip(self.I,category_labels)]
