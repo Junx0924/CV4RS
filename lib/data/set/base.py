@@ -110,11 +110,9 @@ class BaseDataset(torch.utils.data.Dataset):
         label = torch.tensor(self.ys[index], dtype=int)
         img_path = self.im_paths[index]
         if os.path.exists(self.npmem_file):
-            n= len(self.im_paths)
             s = self.transform['input_shape']
-            npmem_file =np.memmap(self.npmem_file, dtype='float32', mode='r', shape=(n,s[0]*s[1]*s[2]))
-            im = np.array(npmem_file[index])
-            del npmem_file
+            count = s[0]*s[1]*s[2]
+            im =np.fromfile(self.npmem_file,count= count,dtype='float32',offset = index*4*count)
         else:
             if self.dataset_name =='BigEarthNet':
                 im = get_BigEarthNet(img_path)

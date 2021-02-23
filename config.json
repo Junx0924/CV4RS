@@ -23,7 +23,7 @@
         "num_workers": 8,
         "drop_last": false,
         "shuffle": false,
-        "pin_memory": true,
+        "pin_memory": false,
         "batch_size": 128
     },
     "opt": {
