@@ -15,8 +15,6 @@ import os
 from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
-import json
-import csv
 import pandas as pd
 import seaborn as sns
 
@@ -124,8 +122,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
 
-    check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
-    check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+    #check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+    #check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -183,8 +181,8 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-    check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    #check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -495,22 +493,22 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     plt.close()
 
     # # get the number of shared labels
-    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
-    # # only store the up triangle area to reduce computing
-    # shared_dict ={}
-    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
-    # for c in shared_info:
-    #     shared_dict[c]= shared_dict.get(c,0) +1
-    # num_shared_labels = sorted([k for k in shared_dict.keys()])
-    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of sample pairs")
-    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    # plt.close()    
+    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # only store the up triangle area to reduce computing
+    shared_dict ={}
+    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    for c in shared_info:
+        shared_dict[c]= shared_dict.get(c,0) +1
+    num_shared_labels = sorted([k for k in shared_dict.keys()])
+    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    plt.xlabel("shared label counts")
+    plt.ylabel("Percent of sample pairs")
+    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    plt.close()    
 
 def plot_recall_for_class(T ,T_pred, K,save_path,project_name=""):
     assert len(T_pred[0]) ==max(K)
@@ -595,9 +593,9 @@ def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-    # store this id to use it later when resuming
+    #store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
         config['wandb']['wandb_id']= wandb.util.generate_id()
     wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
