@@ -2,3 +2,7 @@ __pycache__/
 .vscode/
 bak/
 
+lib/data/set/BigEarthNet_split/new_bak/new_labels.json
+lib/data/set/BigEarthNet_split/new_bak/test.csv
+lib/data/set/BigEarthNet_split/new_bak/train.csv
+lib/data/set/BigEarthNet_split/new_bak/val.csv
