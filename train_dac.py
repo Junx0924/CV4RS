@@ -70,8 +70,7 @@ def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
         M_sub = M[cluster_id]
 
     M_sub = torch.nn.functional.normalize(M_sub, p=2, dim=1)
-    #loss = criterion[cluster_id](M_sub, T)
-    loss = criterion(M_sub, T)
+    loss = criterion[cluster_id](M_sub, T)
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
@@ -134,10 +133,10 @@ def main():
     # config loss function and optimizer
     to_optim = get_optim(config, model)
     config['class_specific_beta'] =True
-    #criterion = [] 
-    #for i in range(config['nb_clusters']):
-    criterion, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
-    #criterion.append(criterion_i)
+    criterion = [] 
+    for i in range(config['nb_clusters']):
+        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
+        criterion.append(criterion_i)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -167,7 +166,7 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
         
     ## optional, check the image distribution for train dataset
-    #lib.utils.check_image_label(dataloaders['init'].dataset,save_path= config['checkfolder'], dset_type = 'train')
+    #lib.utils.plot_dataset_stat(dataloaders['init'].dataset,save_path= config['checkfolder'], dset_type = 'train')
 
     #################### START TRAINING ###############
     history_recall = 0

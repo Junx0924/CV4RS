@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import division
+from lib.evaluation.examplebasedclassification import precision
 
 from . import evaluation
 from . import similarity
@@ -34,13 +35,10 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
     # list with N lists, where N = |{image, label, index}|
     model_is_training = model.training
     model.eval()
-    ds = dataloader.dataset
-    A = [[] for i in range(len(ds[0]))]
+    A = [[],[],[]]
     if desc =='': desc ='Filling memory queue'
     with torch.no_grad():
         # use tqdm when the dataset is large (SOProducts)
-        #is_verbose = len(dataloader.dataset) > 0
-
         # extract batches (A becomes list of samples)
         for batch in tqdm(dataloader, desc= desc):
             img_data, labels, indices = batch
@@ -123,7 +121,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
+    #check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -133,26 +131,17 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
         # plot intra and inter dist distribution
         df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),save_path=config['result_path'])
-        plot_intra_inter_dist(df,shared_info, config['result_path'])
+        plot_intra_inter_dist(df,shared_info, config['result_path'],config['project'])
 
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
         recover_save_path = config['result_path']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['cuda_device'])
-        tsne_save_path =  config['result_path']+'/tsne.png'
-        check_tsne_plot(np.vstack((X_query,X_gallery)), tsne_save_path)  
+        plot_tsne(np.vstack((X_query,X_gallery)), config['result_path'],config['project'])  
         
-        if 'Mirco_F1' in metrics:
-            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
-            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-            save_path = config['result_path']+'/confussionMatrix.csv'
-            with open(save_path,'w',newline='') as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow(['TP','FP','TN','FN'])
-                for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-                    s =[int(tp),int(fp),int(tn),int(fn)]
-                    writer.writerow(s)
+        plot_recall_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
+        plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
     return scores
 
 
@@ -190,7 +179,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_distance_ratio(X, T,LOG,log_key)
+    #check_distance_ratio(X, T,LOG,log_key)
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -199,25 +188,19 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
 
         # plot the intra and inter dist distribution
         df,shared_info = check_distance_ratio(X, T,save_path=config['result_path'])
-        plot_intra_inter_dist(df,shared_info, config['result_path'])
+        plot_intra_inter_dist(df,shared_info, config['result_path'],config['project'])
     
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
         save_path = config['result_path']+'/sample_recoveries.png'
         recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['cuda_device'])
-        check_tsne_plot(X, config['result_path']+'/tsne.png') 
+        plot_tsne(X, config['result_path'], config['project']) 
 
-        if 'Mirco_F1' in metrics:
-            y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-            TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-            save_path = config['result_path']+'/confussionMatrix.csv'
-            with open(save_path,'w',newline='') as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow(['TP','FP','TN','FN'])
-                for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-                    s =[int(tp),int(fp),int(tn),int(fn)]
-                    writer.writerow(s)
+        # plot recall based on class
+        plot_recall_for_class(T ,T_pred,K,config['result_path'],config['project'])
+        # plot recall based on samples
+        plot_recall_for_sample(T, T_pred,K, config['result_path'],10,config['project'])
     return scores
 
 
@@ -380,10 +363,6 @@ def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None,save_path=
         df = pd.DataFrame({'Distance': np.array(all_dist) ,
                     'class':  np.array(all_labels) ,
                     "dist_type":np.array(dist_type)})
-        if os.path.exists(save_path):
-            df.to_csv(save_path+ '/inter_intra_dist.csv', index = False, header=True)
-            with open(save_path+ '/shared_label_dist.json', 'w') as json_f:
-                json.dump(shared_info, json_f,separators=(",", ":"),allow_nan=False,indent=4)
         return df,shared_info
 
 def check_gradient(model,LOG,log_key):
@@ -401,7 +380,7 @@ def check_gradient(model,LOG,log_key):
             LOG.progress_saver[log_key].log(name+'_max',grad_max)
 
 
-def check_tsne_plot(X,save_path,n_components=2):
+def plot_tsne(X,save_path,project_name="",n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
@@ -417,10 +396,11 @@ def check_tsne_plot(X,save_path,n_components=2):
     print('t-SNE done! Time elapsed: {:.2f} seconds'.format(time.time()-time_start))
     plt.figure(figsize=(16,10))
     plt.scatter(tsne_results[:,0], tsne_results[:,1])
-    plt.savefig(save_path, format='png')
+    plt.title(project_name + ' tsne of embeddings')
+    plt.savefig(save_path +'/tsne.png', format='png')
     plt.close()
 
-def check_image_label(dataset,save_path, dset_type='train'):
+def plot_dataset_stat(dataset,save_path, dset_type='train'):
     """
     Generally check if the datasets have similar distribution
      Check Avg. num labels per image
@@ -457,43 +437,101 @@ def check_image_label(dataset,save_path, dset_type='train'):
     plt.close()
 
     # # get the number of shared labels
-    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
-    # only store the up triangle area to reduce computing
-    shared_dict ={}
-    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
-    for c in shared_info:
-        shared_dict[c]= shared_dict.get(c,0) +1
-    num_shared_labels = sorted([k for k in shared_dict.keys()])
-    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    plt.xlabel("shared label counts")
-    plt.ylabel("Percent of sample pairs")
-    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    plt.close()    
+    # shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
+    # # only store the up triangle area to reduce computing
+    # shared_dict ={}
+    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    # shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    # for c in shared_info:
+    #     shared_dict[c]= shared_dict.get(c,0) +1
+    # num_shared_labels = sorted([k for k in shared_dict.keys()])
+    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    # plt.xlabel("shared label counts")
+    # plt.ylabel("Percent of sample pairs")
+    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    # plt.close()    
 
-def check_recall_histogram(T, T_pred,save_path,bins=10):
+def plot_recall_for_class(T ,T_pred, K,save_path,project_name=""):
+    assert len(T_pred[0]) ==max(K)
+    assert len(K) <=4
+    re =[]
+    for k in K:
+        y_pred = np.array([np.sum(y[:k], axis =0) for y in T_pred])
+        y_pred[np.where(y_pred>1)]= 1
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+        recall= []
+        for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+            r = tp/(tp + fn) if (tp+fn)>0 else 0
+            recall.append(r*100)
+        re.append(recall)
+    classes = np.arange(len(TP))
+    width =0.5/len(K)
+    color =['g','c','b','r']
+    # plot recall for each class
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    axes =[]
+    locs = classes -0.1
+    for recall in re:
+        axes.append(ax.bar(locs ,recall,width=width,color=color.pop()))
+        locs = locs + width
+    ax.set_ylabel('Scores')
+    ax.set_xlabel('Class')
+    ax.set_xticks(classes+width)
+    ax.set_xticklabels(classes)
+    ax.legend( axes, ['recall@'+str(k) for k in K] )
+    def autolabel(rects):
+        for rect in rects:
+            h = rect.get_height()
+            ax.text(rect.get_x()+rect.get_width()/2., 1.05*h, '%d'%int(h),
+                    ha='center', va='bottom')
+    [autolabel(r) for r in axes ]
+    plt.title(project_name + ' recall per class')
+    plt.savefig(save_path +'/recall_per_class.png')
+    plt.close()
+
+def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
     """
     Split the scores of recall into bins, check the frequency for each score interval
     Args:
-        score_per_sample: np array, flatten, length: total sample number
         T: original
     """
-    y_true = [np.where(multi_hot==1)[0] for multi_hot in T]
-    y_pred = [np.where(multi_hot==1)[0] for multi_hot in T_pred]
-    score_per_sample = [evaluation.classification.recall(y_t, y_p) for y_t,y_p in zip(y_true,y_pred)]
-    
-    count,bin_edges = np.histogram(score_per_sample, bins=1.0/bins*np.arange(bins+1))
+    assert len(T_pred[0]) ==max(K)
+    assert len(K) <=4
+    hist_score =[]
+    for k in K:
+        y_pred = np.array([np.sum(y[:k], axis =0) for y in T_pred])
+        y_pred[np.where(y_pred>1)]= 1
+        score_per_sample = [evaluation.examplebasedclassification.recall(np.expand_dims(y_t, axis=0), np.expand_dims(y_p, axis=0)) for y_t,y_p in zip(T,y_pred)]
+        count,bin_edges = np.histogram(score_per_sample, bins=1.0/bins*np.arange(bins+1))
+        hist_score.append(count/sum(count))
+    width =0.5/len(K)
+    color =['g','c','b','r']
+    # plot recall 
     fig = plt.figure()
-    ax = fig.add_axes([0,0,1.5,1.5])
+    ax = fig.add_subplot(111)
+    axes =[]
+    locs = np.arange(bins) -0.1
+    for recall in hist_score:
+        axes.append(ax.bar(locs ,recall,width=width,color=color.pop()))
+        locs = locs + width
+    ax.set_ylabel('Percent of samples')
+    ax.set_xlabel('Recall')
     langs = [ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))]
-    ax.bar(langs,count/sum(count),edgecolor='w')
-    plt.xlabel("recall")
-    plt.ylabel("Percent of eval data")
-    plt.title("recall@1 histogram of eval data")
-    plt.savefig(save_path, format='png')
+    ax.set_xticks(np.arange(bins)+width)
+    ax.set_xticklabels(langs)
+    ax.legend( axes, ['recall@'+str(k) for k in K] )
+    def autolabel(rects):
+        for rect in rects:
+            h = rect.get_height()
+            ax.text(rect.get_x()+rect.get_width()/2., 1.05*h, '%d'%int(h),
+                    ha='center', va='bottom')
+    [autolabel(r) for r in axes ]
+    plt.title(project_name + ' recall histgram')
+    plt.savefig(save_path +'/recall_for_sample.png')
     plt.close()
 
 def start_wandb(config):
@@ -508,7 +546,7 @@ def start_wandb(config):
     wandb.config.update(config, allow_val_change= True)
     return config
 
-def plot_intra_inter_dist(df, shared_info,save_path):
+def plot_intra_inter_dist(df, shared_info,save_path, project_name=""):
     print('Start to plot intra and inter dist')
     start_time = time.time()
 
@@ -516,7 +554,7 @@ def plot_intra_inter_dist(df, shared_info,save_path):
     plt.figure()
     grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
     grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('distance','density')
+    grid.set_axis_labels('embedding pair distance','density')
     grid.add_legend()
     grid.savefig(save_path + '/dist_per_class.png',format='png')
     plt.close()
@@ -525,9 +563,9 @@ def plot_intra_inter_dist(df, shared_info,save_path):
     plt.figure()
     grid = sns.FacetGrid(df, hue="dist_type")
     grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('distance','density')
+    grid.set_axis_labels('embedding pair distance','density')
     grid.add_legend()
-    plt.title("Distance distribution")
+    plt.title(project_name +" Distance distribution")
     grid.savefig(save_path + '/dist_all.png',format='png')
     plt.close()
 
@@ -539,9 +577,9 @@ def plot_intra_inter_dist(df, shared_info,save_path):
     plt.figure()
     grid = sns.FacetGrid(shared_df, hue="labelShared")
     grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('distance','density')
+    grid.set_axis_labels('embedding pair distance','density')
     grid.add_legend()
-    plt.title("Distance distribution of embedding pairs")
+    plt.title(project_name +" Distance distribution")
     grid.savefig(save_path + '/dist_shared.png',format='png')
     plt.close()
 

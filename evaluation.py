@@ -42,13 +42,13 @@ _  = model.to(config['device'])
 # create dataloader for evaluation
 dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
 ## optional, check the image distribution for each dataset
-lib.utils.check_image_label(dl_test.dataset,save_path= config['result_path'], dset_type = 'test')
+lib.utils.plot_dataset_stat(dl_test.dataset,save_path= config['result_path'], dset_type = 'test')
 
 print("Evaluate final model")    
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model\n"
-scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1],metrics=config['eval_metric']) 
+scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1,2,4,8],metrics=config['eval_metric']) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
   with open(config['result_path']+'/evaluate_final_model.txt','w+') as summary_file:
