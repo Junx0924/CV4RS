@@ -120,8 +120,12 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-    
-    #check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),LOG=LOG,log_key=log_key)
+
+    X_stack = np.vstack((X_query,X_gallery))
+    T_stack = np.vstack((T_query,T_gallery))
+
+    check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+    check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
     
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -130,15 +134,15 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
-        df,shared_info = check_distance_ratio(np.vstack((X_query,X_gallery)), np.vstack((T_query,T_gallery)),save_path=config['result_path'])
-        plot_intra_inter_dist(df,shared_info, config['result_path'],config['project'])
+        check_inter_intra_dist(X_stack, T_stack,  is_plot=False, project_name=config['project'], save_path=config['result_path'])
+        check_shared_label_dist(X_stack, T_stack,  is_plot=False, project_name=config['project'], save_path=config['result_path'])
 
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
         recover_save_path = config['result_path']+'/sample_recoveries.png'
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['cuda_device'])
-        plot_tsne(np.vstack((X_query,X_gallery)), config['result_path'],config['project'])  
+        plot_tsne(X_stack, config['result_path'],config['project'])  
         
         plot_recall_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
         plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
@@ -179,7 +183,8 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    #check_distance_ratio(X, T,LOG,log_key)
+    check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     if not is_validation:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -187,8 +192,8 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
-        df,shared_info = check_distance_ratio(X, T,save_path=config['result_path'])
-        plot_intra_inter_dist(df,shared_info, config['result_path'],config['project'])
+        check_inter_intra_dist(X, T,is_plot= True,project_name =config['project'],save_path=config['result_path'])
+        check_shared_label_dist(X, T,is_plot= True,project_name =config['project'],save_path=config['result_path'])
     
         ## recover n_closest images
         n_img_samples = 10
@@ -308,16 +313,15 @@ def classBalancedSamper(T,num_samples_per_class=2):
         new_T_list.append([inds[1],int(c)])
     return np.array(new_T_list)
 
-
-def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None,save_path=None):
+def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_name="",save_path=""):
     """
-    log the distance ratios between intra-class and inter-class.
+    log the distance of embbeding pair which have shared labels.
         Args:
             X: embeddings
             T: multi-hot labels
     """
     start_time = time.time()
-    print('Start to calculate intra and inter dist ratio')
+    print('Start to calculate the embedding distance for shared labels')
     # compute the l2 distance for each embedding
     dist = similarity.pairwise_distance(X)
     # get the number of shared labels
@@ -325,45 +329,99 @@ def check_distance_ratio(X, T,LOG=None, log_key="Val",conversion=None,save_path=
     # only store the up triangle area to reduce computing
     ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(X))]
     ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_info_keys = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
-    shared_info ={int(key):[] for key in shared_info_keys}
-    {shared_info[int(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
+    shared_label_counts = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
+    shared_labels_dist ={int(key):[] for key in shared_label_counts}
+    {shared_labels_dist[str(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
+    print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
 
-    # get the labels for each embedding
+    if LOG != None:
+        for label_count in shared_label_counts:
+            LOG.progress_saver[log_key].log('shared_labels@'+str(label_count),np.mean(shared_labels_dist[str(label_count)]), group ='dist')
+
+    if is_plot:
+        #Plot the dist distribution for shared labels
+        start_time = time.time()
+        temp_list = [[[d,key] for d in shared_labels_dist[key]] for key in shared_labels_dist.keys()]
+        temp_list = np.array([item for sublist in temp_list for item in sublist])
+        shared_df = pd.DataFrame({"Distance":temp_list[:,0],
+                                "labelShared":np.array([int(i) for i in temp_list[:,1]])})
+        plt.figure()
+        grid = sns.FacetGrid(shared_df, hue="labelShared")
+        grid.map_dataframe(sns.kdeplot, 'Distance')
+        grid.set_axis_labels('embedding pair distance','density')
+        grid.add_legend()
+        plt.title(project_name +" Distance distribution")
+        grid.savefig(save_path + '/dist_shared.png',format='png')
+        plt.close()
+        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+
+def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_name="",save_path=""):
+    """
+    Check the distance of embbeding pair.
+        Args:
+            X: embeddings
+            T: multi-hot labels
+    """
+    start_time = time.time()
+    # compute the l2 distance for each embedding
+    dist = similarity.pairwise_distance(X)
+    # get the category labels for each embedding
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
     labels = np.unique(T_list[:,1])
     image_dict = {str(c):[] for c in labels}
     [image_dict[str(c)].append(ind) for ind,c in T_list]
 
-    # Compute average intra and inter l2 distance
-    all_dist,all_labels,dist_type =[],[],[]
+    # Compute distance for embedding pairs in each class
+    all_dist, all_labels, dist_type =[],[],[]
     for label in image_dict.keys():
-        intra_inds = image_dict[str(label)]
-        if len(intra_inds)>=2:
-            intra_pairs = [[[i,j] for j in range(i)] for i in range(1,len(intra_inds))]
-            intra_pairs = np.array([item for sublist in intra_pairs for item in sublist])
+        inds= image_dict[str(label)]
+        # check if the number of samples in one class is more than 10% of the average number
+        if len(inds)>= (len(X)/len(labels))*0.1:
+            # only count the up triangle area
+            intra_pair_ind = [[[i,j] for j in range(i)] for i in range(1,len(inds))]
+            intra_pair_ind = np.array([item for sublist in intra_pair_ind for item in sublist])
+            intra_pairs = np.array([[inds[i],inds[j]] for i,j in intra_pair_ind])
             intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
-            mean_intra = np.mean(intra_dist) 
 
-            other_inds = list(set(range(len(X))) - set(intra_inds))
-            inter_pairs = [[[i,j] for j in other_inds] for i in intra_inds]
+            other_inds = list(set(range(len(X))) - set(inds))
+            inter_pairs = [[[i,j] for j in other_inds] for i in inds]
             inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
-            inter_dist =  dist[inter_pairs[:,0],inter_pairs[:,1]]
-            mean_inter = np.mean(inter_dist)
+            inter_dist  =  dist[inter_pairs[:,0],inter_pairs[:,1]]
+            
             if LOG !=None:
-                LOG.progress_saver[log_key].log('distRatio@'+str(label),mean_intra/mean_inter, group ='distRatio')
-            else:
+                LOG.progress_saver[log_key].log('class@'+str(label),np.mean(intra_dist)/np.mean(inter_dist), group ='distRatio')
+            if is_plot:
                 all_dist += list(intra_dist) + list(inter_dist)
-                dist_type +=['intra']*len(intra_dist) +['inter']*len(inter_dist)
-                label_name =  conversion[str(label)] if conversion !=None else str(label)
-                all_labels +=[label_name]*(len(intra_dist)+len(inter_dist))
+                all_labels += [str(label)]*(len(intra_dist)+ len(inter_dist))
+                dist_type += ['intra']*len(intra_dist) + ['inter']*len(inter_dist)
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-    if len(all_dist) >0:   
+    
+    if is_plot:
+        start_time = time.time()
         df = pd.DataFrame({'Distance': np.array(all_dist) ,
                     'class':  np.array(all_labels) ,
                     "dist_type":np.array(dist_type)})
-        return df,shared_info
+        print('Start to plot intra and inter dist')
+        #plot and save the distribution of intra distance and inter distance for each class
+        plt.figure()
+        grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
+        grid.map_dataframe(sns.kdeplot, 'Distance')
+        grid.set_axis_labels('embedding pair distance','density')
+        grid.add_legend()
+        grid.savefig(save_path + '/dist_per_class.png',format='png')
+        plt.close()
+
+        # save the distribution of all the intra and inter distance
+        plt.figure()
+        grid = sns.FacetGrid(df, hue="dist_type")
+        grid.map_dataframe(sns.kdeplot, 'Distance')
+        grid.set_axis_labels('embedding pair distance','density')
+        grid.add_legend()
+        plt.title(project_name +" Distance distribution")
+        grid.savefig(save_path + '/dist_all.png',format='png')
+        plt.close()
+        
 
 def check_gradient(model,LOG,log_key):
     """
@@ -546,41 +604,5 @@ def start_wandb(config):
     wandb.config.update(config, allow_val_change= True)
     return config
 
-def plot_intra_inter_dist(df, shared_info,save_path, project_name=""):
-    print('Start to plot intra and inter dist')
-    start_time = time.time()
+    
 
-    #plot and save the distribution of intra distance and inter distance for each class
-    plt.figure()
-    grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
-    grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('embedding pair distance','density')
-    grid.add_legend()
-    grid.savefig(save_path + '/dist_per_class.png',format='png')
-    plt.close()
-
-    # save the distribution of all the intra and inter distance
-    plt.figure()
-    grid = sns.FacetGrid(df, hue="dist_type")
-    grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('embedding pair distance','density')
-    grid.add_legend()
-    plt.title(project_name +" Distance distribution")
-    grid.savefig(save_path + '/dist_all.png',format='png')
-    plt.close()
-
-    #Plot the dist distribution for shared labels
-    temp_list = [[[d,key] for d in shared_info[key]] for key in shared_info.keys()]
-    temp_list = np.array([item for sublist in temp_list for item in sublist])
-    shared_df = pd.DataFrame({"Distance":temp_list[:,0],
-                             "labelShared":np.array([int(i) for i in temp_list[:,1]])})
-    plt.figure()
-    grid = sns.FacetGrid(shared_df, hue="labelShared")
-    grid.map_dataframe(sns.kdeplot, 'Distance')
-    grid.set_axis_labels('embedding pair distance','density')
-    grid.add_legend()
-    plt.title(project_name +" Distance distribution")
-    grid.savefig(save_path + '/dist_shared.png',format='png')
-    plt.close()
-
-    print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
