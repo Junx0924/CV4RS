@@ -2,9 +2,9 @@
 from __future__ import print_function
 from __future__ import division
 
-import random
 import torch
 import numpy as np
+from math import ceil
 import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
@@ -22,7 +22,7 @@ def make(config, type, subset_indices = None, dset_type = None,include_aux_augme
         transform = config['transform_parameters'][ds_name],
         is_training = type == 'train',
         include_aux_augmentations = include_aux_augmentations,
-        use_hdf5 = config['use_hdf5']
+        use_npmem = config['use_npmem']
     )
     if type == 'train':
         if config['project']=='sndl':
@@ -55,8 +55,7 @@ def make_from_clusters(C, subset_indices, config):
             C: cluster labels
             subset_indices: original data indexs for each cluster
     """
-    import numpy as np
-    from math import ceil
+    
     dataloaders = [[None] for c in range(config['nb_clusters'])]
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(

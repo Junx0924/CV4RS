@@ -70,13 +70,13 @@ def get_MLRSNet(img_path):
     return img_data.reshape(-1)
     
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, image_list, dataset_name, hdf_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
+    def __init__(self, image_list, dataset_name, npmem_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
         """
         The train data is randomly flip and cropped, the eval data is center cropped
         Args:
             image_list: contains file_paths and multi-hot labels
             dataset_name: choose from {"MLRSNet", "BigEarthNet}
-            hdf_file: the path of hdf_file, if set use_hdf true, it will be automatically generated
+            npmem_file: the path of npmem_file, if set use_npmem true, it will be automatically generated
             conversion: dictionary, {'label': label_name}
             transform: dictonary, keys: sz_crop, input_shape
             is_training: if set true, apply random flip and crop for training, else apply center crop
@@ -86,26 +86,21 @@ class BaseDataset(torch.utils.data.Dataset):
         self.dataset_name = dataset_name
         self.transform = transform
         self.is_training = is_training
-        self.hdf_file = hdf_file
+        
         self.include_aux_augmentations = include_aux_augmentations
         self.conversion = conversion
         self.im_paths, self.I, self.ys = [], [], []
         for i,item in enumerate(image_list):
-            self.im_paths.append(item[0])
             self.I.append(i) # counter
+            self.im_paths.append(item[0])
             self.ys.append(item[1]) # muti hot label
         
-        # in case of incomplete data
-        # get rid of class which has only 1 sample
-        # num_samples = np.sum(self.ys,axis=0)
-        # class_ind = np.where(num_samples==1)[0]
-        # if len(class_ind)>0:  
-        #     self.ys[:,class_ind]= 0
-        #     del_inds= np.unique(np.where(self.ys==0)[0])
-        #     keep_inds = list(set(self.I) - set(del_inds))
-        #     self.ys = self.ys[keep_inds]
-        #     self.im_paths =self.im_paths[keep_inds]
-        #     self.I = np.arange(len(self.ys))
+        if os.path.exists(npmem_file):
+            n= len(self.I)
+            s = transform['input_shape']
+            self.npmem_file =np.memmap(npmem_file, dtype='float32', mode='r', shape=(n,s[0]*s[1]*s[2]))
+        else:
+            self.npmem_file = None
 
         category_labels = [np.where(label ==1)[0] for label in self.ys]
         unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
@@ -113,7 +108,7 @@ class BaseDataset(torch.utils.data.Dataset):
         [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in enumerate(category_labels)]
 
     def __len__(self):
-        return len(self.im_paths)
+        return len(self.I)
 
     def nb_classes(self):
         return len([key for key in self.image_dict.keys()])
@@ -121,11 +116,8 @@ class BaseDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         label = torch.tensor(self.ys[index], dtype=int)
         img_path = self.im_paths[index]
-        if os.path.exists(self.hdf_file):
-            patch_name = img_path.split('/')[-1]
-            f = h5py.File(self.hdf_file, 'r')
-            im = np.array(f[patch_name][()], dtype=float)
-            f.close()
+        if self.npmem_file !=None:
+             im = np.array(self.npmem_file[index])
         else:
             if self.dataset_name =='BigEarthNet':
                 im = get_BigEarthNet(img_path)
@@ -151,13 +143,13 @@ class BaseDataset(torch.utils.data.Dataset):
     def set_subset(self, subset_indices):
         if subset_indices is not None:
             self.ys =[self.ys[i] for i in subset_indices]
-            self.I = [i for i in range(len(subset_indices))]
+            self.I = [i for i in  subset_indices ]
             self.im_paths = [self.im_paths[i] for i in subset_indices]
             # update image_dict
             category_labels = [np.where(label ==1)[0] for label in self.ys]
             unique_labels = np.unique(list(itertools.chain.from_iterable(category_labels)))
             self.image_dict ={str(key):[] for key in unique_labels}
-            [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in enumerate(category_labels)]
+            [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in zip(self.I,category_labels)]
 
     def process_image(self, img):
         """
