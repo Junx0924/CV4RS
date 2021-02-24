@@ -15,7 +15,7 @@ def setup_parameters(parser):
 def basic_training_parameters(parser):
     ### General Training Parameters
     parser.add_argument('--frozen',   action='store_true',help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthNet frozen the backbone except the first layer')
-    parser.add_argument('--gpu_id', default=[0], nargs='+', type=int)
+    parser.add_argument('--gpu_ids', default=[0], nargs='+', type=int)
     parser.add_argument('--num-workers', default=8, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
     parser.add_argument('--nb_epochs', default=120, type = int)
@@ -135,8 +135,8 @@ def load_common_config():
     config['use_npmem'] = args.pop('use_npmem')
     config['eval_epoch'] = args.pop('eval_epoch')
     config['eval_metric'] = args.pop('eval_metric')
-    config['gpu_id']= args.pop('gpu_id')
-    config['device'] = torch.device("cuda") if len(config['gpu_id'])>0 else torch.device("cpu")
+    config['gpu_ids']= args.pop('gpu_ids')
+    config['device'] = torch.device("cuda") if len(config['gpu_ids'])>0 else torch.device("cpu")
 
     ### Update wandb config  ###########
     if config['log_online']:

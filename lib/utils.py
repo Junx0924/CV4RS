@@ -105,7 +105,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     # make sure the query and the gallery has same number of classes
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
-    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= config['gpu_id'])
+    k_closest_points, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query,k= max(K),gpu_id= config['gpu_ids'][0])
     T_query_pred   = T_gallery[k_closest_points]
 
     scores={}
@@ -139,7 +139,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         n_img_samples = 10
         n_closest = 4
         recover_save_path = config['result_path']+'/sample_recoveries.png'
-        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_id'])
+        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X_stack, config['result_path'],config['project'])  
         
         plot_recall_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
@@ -166,7 +166,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     if 'evaluation_weight' in config.keys() and not is_init:
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     
-    k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_id'])
+    k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_ids'][0])
     # leave itself out
     T_pred = T[k_closest_points[:,1:]]
 
@@ -181,7 +181,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     #check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -197,7 +197,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         n_img_samples = 10
         n_closest = 4
         save_path = config['result_path']+'/sample_recoveries.png'
-        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['gpu_id'])
+        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X, config['result_path'], config['project']) 
 
         # plot recall based on class

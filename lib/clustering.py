@@ -73,7 +73,7 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
             dataloader_init,
             use_penultimate = True,
             nb_clusters = config['nb_clusters'],
-            gpu_ids= config['gpu_id'],
+            gpu_ids= config['gpu_ids'],
             backend=config['backend']
         )
     else:

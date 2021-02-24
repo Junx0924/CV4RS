@@ -8,6 +8,8 @@ import time
 import warnings
 import logging
 
+from numpy.lib.arraysetops import isin
+
 
 if not sys.warnoptions:
     # suppress pesky PIL EXIF warnings
@@ -181,8 +183,8 @@ def find_nearest_neighbors(x, queries=None, k=5, gpu_id=None):
         distances (ndarray): Distances to the nearest neighbors. [M x k]
 
     """
-    if gpu_id is not None and not isinstance(gpu_id, int):
-        raise ValueError('gpu_id must be None or int')
+    if isinstance(gpu_id, list):
+        gpu_id = gpu_id[0]
     x = np.asarray(x.reshape(x.shape[0], -1), dtype=np.float32)
     remove_self = False # will we have queries in the search results?
     if queries is None:
