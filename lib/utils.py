@@ -181,7 +181,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     #check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     if not is_validation:
         if 'result_path' not in config.keys():
