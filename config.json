@@ -3,7 +3,7 @@
     "log_online": true,
     "random_seed": 0,
     "save_model": true,
-    "cuda_device": 0,
+    "gpu_id": [0],
     "sz_embedding": 512,
     "backend": "faiss-gpu",
     "nb_epochs": 120,
