@@ -189,12 +189,16 @@ def main():
     # get model
     model = lib.multifeature_resnet50.Network(config)
     if not start_new:
-        model.load_state_dict(checkpoint['state_dict'])  
+        model.load_state_dict(checkpoint['state_dict'])
+    if len(config['gpu_id'])>1:
+        model = torch.nn.DataParallel(model)  
     _  = model.to(config['device'])
     if 'selfsimilarity' in config['diva_features']:
         selfsim_model = lib.multifeature_resnet50.Network(config)
         if not start_new:
             selfsim_model.load_state_dict(checkpoint['state_dict'])  
+        if len(config['gpu_id'])>1:
+            selfsim_model = torch.nn.DataParallel(selfsim_model)
         _  = selfsim_model.to(config['device'])
     
     # create dataset

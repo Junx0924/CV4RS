@@ -25,7 +25,7 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids
             I_all: index of original embeddings
     """
     is_dry_run = (nb_clusters == 1)
-    device = torch.device("cuda:0") if gpu_ids ==0 else torch.device("cpu") 
+    device = torch.device("cuda") if len(gpu_ids)>0 else torch.device("cpu") 
     if not is_dry_run:
         if not use_penultimate:
             print('Using the final layer for clustering')
@@ -73,7 +73,7 @@ def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, 
             dataloader_init,
             use_penultimate = True,
             nb_clusters = config['nb_clusters'],
-            gpu_ids= config['cuda_device'],
+            gpu_ids= config['gpu_id'],
             backend=config['backend']
         )
     else:

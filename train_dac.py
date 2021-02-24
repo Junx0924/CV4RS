@@ -115,7 +115,9 @@ def main():
     # load model
     model = lib.multifeature_resnet50.Network(config)
     if not start_new:
-        model.load_state_dict(checkpoint['state_dict'])  
+        model.load_state_dict(checkpoint['state_dict']) 
+    if len(config['gpu_id'])>1:
+        model = torch.nn.DataParallel(model) 
     _  = model.to(config['device'])
     
     # create dataset
