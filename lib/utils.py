@@ -594,7 +594,8 @@ def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
 def start_wandb(config):
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    #os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    if config['wandb']['dry_run']:
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
     #store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():

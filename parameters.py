@@ -86,7 +86,8 @@ def wandb_parameters(parser):
     parser.add_argument('--wandb_key',       default='3e2d26edd7a78aa9e725fbed6f42cfdda1cbcfeb',  type=str,   help='API key for W&B.')
     parser.add_argument('--project',         default='DAC_Sample_Runs',  type=str,   help='Name of the project - relates to W&B project names. In --savename default setting part of the savename.')
     parser.add_argument('--group',           default='Sample_Run',  type=str,   help='Name of the group - relates to W&B group names - all runs with same setup but different seeds are logged into one group. \
-                                                                                               In --savename default setting part of the savename.')
+                                                                                              In --savename default setting part of the savename.')
+    parser.add_argument('--wandb_dry_run',     action='store_true')
     return parser 
 
 def load_common_config():
@@ -139,6 +140,7 @@ def load_common_config():
 
     ### Update wandb config  ###########
     if config['log_online']:
+        config['wandb']['dry_run'] = args.pop('wandb_dry_run')
         config['wandb']['wandb_key'] = args.pop('wandb_key')
         config['wandb']['project'] =args.pop('project')
         config['wandb']['group'] =args.pop('group')
