@@ -136,7 +136,7 @@ def main():
         # recover the memory bank
         X, _, _ = lib.utils.predict_batchwise(model,dl_train,config['device'], desc='recover memory bank')
         stdv = 1. / math.sqrt(config['sz_embedding']/3)
-        memory_bank = torch.from_numpy(X).mul_(2*stdv).add_(-stdv)
+        memory_bank = torch.from_numpy(X).mul(2*stdv).add(-stdv)
         lemniscate.memory = memory_bank.to(config['device'])
     
     # config learning scheduler
