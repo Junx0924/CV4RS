@@ -127,16 +127,7 @@ def main():
         start_new = False
         checkfolder = config['load_from_checkpoint']
         checkpoint = torch.load(checkfolder +"/checkpoint_recall@1.pth.tar")
-        with open(checkfolder +"/hypa.pkl","rb") as f:
-            config_new = pkl.load(f)
-        # update the absolute path
-        config_new['checkfolder'] = checkfolder
-        ds_selected = config['dataset_selected']
-        config_new['dataset'][ds_selected]['root'] = config['dataset'][ds_selected]['root']
-        config_new['pretrained_weights_file'] =config['pretrained_weights_file']
-        config_new['pj_base_path'] = config['pj_base_path']
-        config_new['log']['save_path'] = config['log']['save_path']
-        config = config_new
+        config['checkfolder'] = checkfolder
 
     # set random seed for all gpus
     seed = config['random_seed']

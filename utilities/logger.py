@@ -69,28 +69,27 @@ class InfoPlotter():
 
 ################## GENERATE LOGGING FOLDER/FILES #######################
 def set_logging(config):
-    if not os.path.exists(config['load_from_checkpoint']):
-        dataset_name = config['dataset_selected']
-        save_path =  config['log']['save_path']
-        save_name =  config['log']['save_name']
+    dataset_name = config['dataset_selected']
+    save_path =  config['log']['save_path']
+    save_name =  config['log']['save_name']
 
-        checkfolder = save_path+'/'+save_name
-        if save_name == '':
-            date = datetime.datetime.now()
-            time_string = '{}-{}-{}-{}-{}-{}'.format(date.year, date.month, date.day, date.hour, date.minute, date.second)
-            checkfolder = save_path+'/{}_'.format(dataset_name.upper())+time_string
-        counter     = 1
-        while os.path.exists(checkfolder):
-            checkfolder = save_path+'/'+ save_name +'_'+str(counter)
-            counter += 1
-        config['log']['save_name'] = checkfolder.split('/')[-1]
-        config['checkfolder'] = checkfolder
+    checkfolder = save_path+'/'+save_name
+    if save_name == '':
+        date = datetime.datetime.now()
+        time_string = '{}-{}-{}-{}-{}-{}'.format(date.year, date.month, date.day, date.hour, date.minute, date.second)
+        checkfolder = save_path+'/{}_'.format(dataset_name.upper())+time_string
+    counter     = 1
+    while os.path.exists(checkfolder):
+        checkfolder = save_path+'/'+ save_name +'_'+str(counter)
+        counter += 1
+    config['log']['save_name'] = checkfolder.split('/')[-1]
+    config['checkfolder'] = checkfolder
 
-        os.makedirs(checkfolder)
-        with open(checkfolder+'/Parameter_Info.txt','w') as f:
-            f.write(gimme_save_string(config))
-        with open(checkfolder+"/hypa.pkl","wb") as f:
-            pkl.dump(config,f)
+    os.makedirs(checkfolder)
+    with open(checkfolder+'/Parameter_Info.txt','w') as f:
+        f.write(gimme_save_string(config))
+    with open(checkfolder+"/hypa.pkl","wb") as f:
+        pkl.dump(config,f)
     return config
     
 class Progress_Saver():
