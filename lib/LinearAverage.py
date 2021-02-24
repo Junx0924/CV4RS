@@ -62,9 +62,7 @@ class LinearAverage(nn.Module):
                 momentum: momentum for non-parametric updates
         """
         super(LinearAverage, self).__init__()
-        stdv = 1 / math.sqrt(embed_dim)
         self.nLem = N
-
         self.register_buffer('params',torch.tensor([T, momentum]))
         stdv = 1. / math.sqrt(embed_dim/3)
         self.register_buffer('memory', torch.rand(N, embed_dim).mul_(2*stdv).add_(-stdv))

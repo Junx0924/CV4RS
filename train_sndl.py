@@ -9,6 +9,7 @@ import time
 import json
 import random
 from tqdm import tqdm
+import math
 
 import warnings
 import parameters as par
@@ -132,6 +133,11 @@ def main():
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
         optimizer.load_state_dict(checkpoint['optimizer'])
+        # recover the memory bank
+        X, _, _ = lib.utils.predict_batchwise(model,dl_train,config['device'], desc='recover memory bank')
+        stdv = 1. / math.sqrt(config['sz_embedding']/3)
+        memory_bank = torch.from_numpy(X).mul_(2*stdv).add_(-stdv)
+        lemniscate.memory = memory_bank.to(config['device'])
     
     # config learning scheduler
     if config['scheduler']=='exp':
