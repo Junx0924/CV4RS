@@ -29,6 +29,7 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
         npmem_file =  datapath + '/'+ dset_type +'.dat'
         if os.path.exists(npmem_file) == False:
             # create npmem file
+            print("Start to create " + npmem_file +"\n")
             s = transform['input_shape']
             dataset = BaseDataset(image_list,dataset_name)
             dl = torch.utils.data.DataLoader(
@@ -36,7 +37,7 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
                 num_workers= 8,
                 shuffle= False,
                 pin_memory= True,
-                batch_size= 256
+                batch_size= 400
                 )
             n = len(dl.dataset.im_paths)
             fp = np.memmap(npmem_file, dtype='float32', mode='w+', shape=(n,s[0]*s[1]*s[2]))
@@ -44,8 +45,7 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
                 img_data, labels, indices = batch 
                 for cur_i,i in enumerate(indices):
                     fp[i,:]=img_data[cur_i].reshape(-1)
-            fp.flush()
-            fp.close()
+                fp.flush()
             print("Create " + npmem_file +" success!\n")
     else:
         npmem_file = ""
