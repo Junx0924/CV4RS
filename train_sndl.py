@@ -18,11 +18,11 @@ import lib
 from lib.LinearAverage import LinearAverage
 import pickle as pkl
 
-warnings.simplefilter("ignore", category=PendingDeprecationWarning)
+warnings.simplefilter("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 os.putenv("OMP_NUM_THREADS", "8")
-pj_base_path= os.path.dirname(os.path.realpath(__file__))
-os.environ['TORCH_HOME'] = pj_base_path + "/pretrained_weights"
+ 
 
 def load_sndl_config(config, args):
     #### UPdate sndl parameter 
@@ -91,6 +91,9 @@ def main():
         checkfolder = config['load_from_checkpoint']
         checkpoint = torch.load(checkfolder +"/checkpoint_recall@1.pth.tar")
         config['checkfolder'] = checkfolder
+        with open(checkfolder +"/hypa.pkl","rb") as f:
+            config_old = pkl.load(f)
+            config['wandb']['wandb_id'] = config_old['wandb']['wandb_id']
 
     # set random seed for all gpus
     seed = config['random_seed']

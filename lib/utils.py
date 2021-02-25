@@ -181,7 +181,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     #check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
     if not is_validation:
         if 'result_path' not in config.keys():
@@ -329,12 +329,12 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
     ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
     shared_label_counts = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
     shared_labels_dist ={int(key):[] for key in shared_label_counts}
-    {shared_labels_dist[str(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
+    {shared_labels_dist[int(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
 
     if LOG != None:
         for label_count in shared_label_counts:
-            LOG.progress_saver[log_key].log('shared_labels@'+str(label_count),np.mean(shared_labels_dist[str(label_count)]), group ='dist')
+            LOG.progress_saver[log_key].log('shared_labels@'+str(label_count),np.mean(shared_labels_dist[int(label_count)]), group ='dist')
 
     if is_plot:
         #Plot the dist distribution for shared labels
@@ -342,7 +342,7 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
         temp_list = [[[d,key] for d in shared_labels_dist[key]] for key in shared_labels_dist.keys()]
         temp_list = np.array([item for sublist in temp_list for item in sublist])
         shared_df = pd.DataFrame({"Distance":temp_list[:,0],
-                                "labelShared":np.array([int(i) for i in temp_list[:,1]])})
+                                "labelShared": temp_list[:,1]})
         plt.figure()
         grid = sns.FacetGrid(shared_df, hue="labelShared")
         grid.map_dataframe(sns.kdeplot, 'Distance')
@@ -361,6 +361,7 @@ def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_
             T: multi-hot labels
     """
     start_time = time.time()
+    print('Start to calculate the intra and inter distance')
     # compute the l2 distance for each embedding
     dist = similarity.pairwise_distance(X)
     # get the category labels for each embedding

@@ -37,7 +37,7 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
                 num_workers= 8,
                 shuffle= False,
                 pin_memory= True,
-                batch_size= 400
+                batch_size= 256
                 )
             n = len(dl.dataset.im_paths)
             fp = np.memmap(npmem_file, dtype='float32', mode='w+', shape=(n,s[0]*s[1]*s[2]))
