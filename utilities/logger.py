@@ -167,7 +167,7 @@ class LOGGER():
                     name = sub_logger+': mean_'+group
                     mean_distRatio = np.mean(per_seg_contents) if len(per_seg_contents)>0 else 0
                     online_content.append((name,mean_distRatio))
-                else:
+                elif group not in ['dist']:
                     for i,segment in enumerate(segments):
                         if group == segment:
                             name = sub_logger+': '+group

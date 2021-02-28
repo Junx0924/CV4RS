@@ -18,7 +18,7 @@ import lib
 from lib.LinearAverage import LinearAverage
 import pickle as pkl
 
-warnings.simplefilter("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 os.environ['PYTHONWARNINGS'] = 'ignore:semaphore_tracker:UserWarning'
 os.putenv("OMP_NUM_THREADS", "8")

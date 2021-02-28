@@ -5,9 +5,13 @@ import torch
 from utilities import misc
 from utilities import logger
 import lib
+import warnings
 import argparse
 import matplotlib.pyplot as plt
 import pickle as pkl
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 def setup_parameters(parser):
     parser.add_argument('--load_from_checkpoint',  default='../',  type=str,  help='the checkpoint folder from training')

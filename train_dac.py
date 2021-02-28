@@ -15,7 +15,7 @@ from utilities import logger
 import lib
 from lib.clustering import make_clustered_dataloaders
 
-warnings.simplefilter("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 os.putenv("OMP_NUM_THREADS", "8")
  
