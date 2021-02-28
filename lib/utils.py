@@ -80,7 +80,7 @@ def get_weighted_embed(X,weights,sub_dim):
 
 
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
-                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_validation= False):
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_validation= False, is_plot= False):
     """
     Evaluate the retrieve performance
     Args:
@@ -125,15 +125,16 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     if is_validation:
         check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
         check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
-    else: 
+        
+    if is_plot:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
-        check_inter_intra_dist(X_stack, T_stack,  is_plot=False, project_name=config['project'], save_path=config['result_path'])
-        check_shared_label_dist(X_stack, T_stack,  is_plot=False, project_name=config['project'], save_path=config['result_path'])
+        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
+        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
 
         ## recover n_closest images
         n_img_samples = 10
