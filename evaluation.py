@@ -53,7 +53,7 @@ lib.utils.evaluate_standard(model, config, dl_val, False, K=[1,2,4,8],metrics=co
 print("Evaluate final model on test dataset") 
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
-summary_text += "Evaluate final model\n"
+summary_text += "Evaluate final model on test dataset\n"
 scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1,2,4,8],metrics=config['eval_metric']) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
