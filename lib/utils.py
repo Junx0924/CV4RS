@@ -122,10 +122,10 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
 
-    #check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
-    #check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
-    
-    if not is_validation:
+    if is_validation:
+        check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+        check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+    else: 
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
@@ -142,7 +142,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X_stack, config['result_path'],config['project'])  
         
-        plot_recall_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
+        plot_precision_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
         plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
     return scores
 
@@ -181,9 +181,10 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
     
-    #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-    #check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-    if not is_validation:
+    if is_validation:
+        check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+        check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+    else:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
@@ -201,7 +202,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         plot_tsne(X, config['result_path'], config['project']) 
 
         # plot recall based on class
-        plot_recall_for_class(T ,T_pred,K,config['result_path'],config['project'])
+        plot_precision_for_class(T ,T_pred,K,config['result_path'],config['project'])
         # plot recall based on samples
         plot_recall_for_sample(T, T_pred,K, config['result_path'],10,config['project'])
     return scores
@@ -494,13 +495,11 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     plt.savefig(save_path+'/statistic_labels.png')
     plt.close()
 
-    # # get the number of shared labels
-    shared = np.matmul(dataset.ys,np.transpose(dataset.ys))
     # only store the up triangle area to reduce computing
     shared_dict ={}
     ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
     ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_info = shared[ind_pairs[:,0],ind_pairs[:,1]]
+    shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
     for c in shared_info:
         shared_dict[c]= shared_dict.get(c,0) +1
     num_shared_labels = sorted([k for k in shared_dict.keys()])
@@ -512,45 +511,36 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
     plt.close()    
 
-def plot_recall_for_class(T ,T_pred, K,save_path,project_name=""):
+def plot_precision_for_class(T ,T_pred, K,save_path,project_name=""):
     assert len(T_pred[0]) ==max(K)
     assert len(K) <=4
-    re =[]
+    re=[]
     for k in K:
         y_pred = np.array([np.sum(y[:k], axis =0) for y in T_pred])
         y_pred[np.where(y_pred>1)]= 1
         TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
         recall= []
         for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-            r = tp/(tp + fn) if (tp+fn)>0 else 0
+            r = tp/(tp + fp) if (tp+fp)>0 else 0
             recall.append(r*100)
         re.append(recall)
-    classes = np.arange(len(TP))
-    width =0.5/len(K)
-    color =['g','c','b','r']
-    # plot recall for each class
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    axes =[]
-    locs = classes -0.1
-    for recall in re:
-        axes.append(ax.bar(locs ,recall,width=width,color=color.pop()))
-        locs = locs + width
-    ax.set_ylabel('Scores')
-    ax.set_xlabel('Class')
-    ax.set_xticks(classes+width)
-    ax.set_xticklabels(classes)
-    ax.legend( axes, ['recall@'+str(k) for k in K] )
-    def autolabel(rects):
-        for rect in rects:
-            h = rect.get_height()
-            ax.text(rect.get_x()+rect.get_width()/2., 1.05*h, '%d'%int(h),
-                    ha='center', va='bottom')
-    [autolabel(r) for r in axes ]
-    plt.title(project_name + ' recall per class')
-    plt.savefig(save_path +'/recall_per_class.png')
+    title = project_name +" precision based on class"
+    save_path = save_path + '/precision_per_class'
+    plt.figure(figsize=(20, 10))
+    plot_stacked_bar(
+    re, 
+    series_labels = ["precision@"+str(k) for k in K], 
+    category_labels=range(len(T[0])), 
+    show_values=True, 
+    value_format="{:.0f}",
+    y_label="precision",
+    )
+    plt.xlabel('class')
+    plt.title(title)
+    plt.savefig(save_path,format='png')
     plt.close()
 
+    
 def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
     """
     Split the scores of recall into bins, check the frequency for each score interval
@@ -565,31 +555,22 @@ def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
         y_pred[np.where(y_pred>1)]= 1
         score_per_sample = [evaluation.examplebasedclassification.recall(np.expand_dims(y_t, axis=0), np.expand_dims(y_p, axis=0)) for y_t,y_p in zip(T,y_pred)]
         count,bin_edges = np.histogram(score_per_sample, bins=1.0/bins*np.arange(bins+1))
-        hist_score.append(count/sum(count))
-    width =0.5/len(K)
-    color =['g','c','b','r']
-    # plot recall 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    axes =[]
-    locs = np.arange(bins) -0.1
-    for recall in hist_score:
-        axes.append(ax.bar(locs ,recall,width=width,color=color.pop()))
-        locs = locs + width
-    ax.set_ylabel('Percent of samples')
-    ax.set_xlabel('Recall')
-    langs = [ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))]
-    ax.set_xticks(np.arange(bins)+width)
-    ax.set_xticklabels(langs)
-    ax.legend( axes, ['recall@'+str(k) for k in K] )
-    def autolabel(rects):
-        for rect in rects:
-            h = rect.get_height()
-            ax.text(rect.get_x()+rect.get_width()/2., 1.05*h, '%d'%int(h),
-                    ha='center', va='bottom')
-    [autolabel(r) for r in axes ]
-    plt.title(project_name + ' recall histgram')
-    plt.savefig(save_path +'/recall_for_sample.png')
+        hist_score.append(count/sum(count)*100)
+    
+    title = project_name + " recall based on samples"
+    save_path = save_path + '/recall_histogram'
+    plt.figure(figsize=(20, 10))
+    plot_stacked_bar(
+    hist_score, 
+    series_labels = ["recall@"+str(k) for k in K], 
+    category_labels=[ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))], 
+    show_values=True, 
+    value_format="{:.0f}",
+    y_label="Percent of samples",
+    )
+    plt.title(title)
+    plt.xlabel('recall interval')
+    plt.savefig(save_path,format='png')
     plt.close()
 
 def start_wandb(config):
@@ -607,3 +588,62 @@ def start_wandb(config):
 
     
 
+def plot_stacked_bar(data, series_labels, category_labels=None, 
+                     show_values=False, value_format="{}", y_label=None, 
+                     colors=None, grid=True, reverse=False):
+    """Plots a stacked bar chart with the data and labels provided.
+
+    Keyword arguments:
+    data            -- 2-dimensional numpy array or nested list
+                       containing data for each series in rows
+    series_labels   -- list of series labels (these appear in
+                       the legend)
+    category_labels -- list of category labels (these appear
+                       on the x-axis)
+    show_values     -- If True then numeric value labels will 
+                       be shown on each bar
+    value_format    -- Format string for numeric value labels
+                       (default is "{}")
+    y_label         -- Label for y-axis (str)
+    colors          -- List of color labels
+    grid            -- If True display grid
+    reverse         -- If True reverse the order that the
+                       series are displayed (left-to-right
+                       or right-to-left)
+    """
+    ny = len(data[0])
+    ind = list(range(ny))
+
+    axes = []
+    cum_size = np.zeros(ny)
+
+    data = np.array(data)
+
+    if reverse:
+        data = np.flip(data, axis=1)
+        category_labels = reversed(category_labels)
+
+    for i, row_data in enumerate(data):
+        color = colors[i] if colors is not None else None
+        axes.append(plt.bar(ind, row_data, bottom=cum_size, 
+                            label=series_labels[i], color=color))
+        cum_size += row_data
+
+    if category_labels:
+        plt.xticks(ind, category_labels)
+
+    if y_label:
+        plt.ylabel(y_label)
+
+    plt.legend()
+
+    if grid:
+        plt.grid()
+
+    if show_values:
+        for axis in axes:
+            for bar in axis:
+                w, h = bar.get_width(), bar.get_height()
+                plt.text(bar.get_x() + w/2, bar.get_y() + h/2, 
+                         value_format.format(h), ha="center", 
+                         va="center")
