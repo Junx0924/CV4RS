@@ -148,7 +148,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_validation= False):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_validation= False, is_plot= False):
     """
     Evaluate the retrieve performance
         Args:
@@ -184,15 +184,16 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     if is_validation:
         check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
         check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-    else:
+        
+    if is_plot:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
-        check_inter_intra_dist(X, T,is_plot= True,project_name =config['project'],save_path=config['result_path'])
-        check_shared_label_dist(X, T,is_plot= True,project_name =config['project'],save_path=config['result_path'])
+        check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
+        check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
     
         ## recover n_closest images
         n_img_samples = 10
@@ -496,20 +497,20 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     plt.close()
 
     # only store the up triangle area to reduce computing
-    shared_dict ={}
-    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
-    for c in shared_info:
-        shared_dict[c]= shared_dict.get(c,0) +1
-    num_shared_labels = sorted([k for k in shared_dict.keys()])
-    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    plt.xlabel("shared label counts")
-    plt.ylabel("Percent of sample pairs")
-    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    plt.close()    
+    # shared_dict ={}
+    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    # shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
+    # for c in shared_info:
+    #     shared_dict[c]= shared_dict.get(c,0) +1
+    # num_shared_labels = sorted([k for k in shared_dict.keys()])
+    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    # plt.xlabel("shared label counts")
+    # plt.ylabel("Percent of sample pairs")
+    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    # plt.close()    
 
 def plot_precision_for_class(T ,T_pred, K,save_path,project_name=""):
     assert len(T_pred[0]) ==max(K)

@@ -45,10 +45,12 @@ _  = model.to(config['device'])
 
 # create dataloader for evaluation
 dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
+dl_val= lib.data.loader.make(config, 'eval', dset_type = 'val')
 ## optional, check the image distribution for each dataset
-lib.utils.plot_dataset_stat(dl_test.dataset,save_path= config['result_path'], dset_type = 'test')
+lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'], dset_type = 'test')
+lib.utils.evaluate_standard(model, config, dl_val, False, K=[1,2,4,8],metrics=config['eval_metric'],is_plot=True)
 
-print("Evaluate final model")    
+print("Evaluate final model on test dataset") 
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model\n"
