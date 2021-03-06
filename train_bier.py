@@ -95,14 +95,8 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
                     adv_weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
         adv_weight_loss = adv_weight_loss / len(criterion_dict['adversarial'].regressors)
         loss['adv_weight'] = adv_weight_loss.item()
-        for item in model.last_linear.values():
-            W = item.weight
-            B = item.bias
-            embed_weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B * B) - 1.0]))
-        embed_weight_loss = embed_weight_loss / len(model.last_linear)
-        loss['embed_weight'] = embed_weight_loss.item()
     
-    total_loss = bin_loss + (adv_loss + config['lambda_weight']* (adv_weight_loss + embed_weight_loss)) * config['lambda_div']
+    total_loss = bin_loss + config['lambda_div']*( adv_loss + config['lambda_weight']* adv_weight_loss ) 
     loss['Train'] = total_loss.item()
     opt.zero_grad()
     total_loss.backward()
@@ -199,7 +193,7 @@ def main():
         
         time_per_epoch_1 = time.time()
         if config['lambda_div'] > 0.0:
-            losses ={key:[] for key in ['Train','adv_weight','embed_weight','binominal','adversarial']}
+            losses ={key:[] for key in ['Train','adv_weight','binominal','adversarial']}
         else:
             losses ={key:[] for key in ['Train','binominal']}
 
