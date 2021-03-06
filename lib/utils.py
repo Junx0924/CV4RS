@@ -10,6 +10,7 @@ import torch
 from tqdm import tqdm
 from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import (OffsetImage,AnnotationBbox)
 import PIL
 import os
 from osgeo import gdal
@@ -123,7 +124,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     T_stack = np.vstack((T_query,T_gallery))
 
     if is_validation:
-        check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
+        #check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
         check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
         
     if is_plot:
@@ -133,14 +134,14 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             config['result_path'] = result_path
 
         # plot intra and inter dist distribution
-        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
+        #check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
         check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
 
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
         recover_save_path = config['result_path']+'/sample_recoveries.png'
-        recover_query_gallery(X_query,X_gallery,dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
+        recover_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X_stack, config['result_path'],config['project'])  
         
         plot_precision_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
@@ -170,7 +171,6 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_ids'][0])
     # leave itself out
     T_pred = T[k_closest_points[:,1:]]
-
     scores={}
     for k in K:
         y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_pred])
@@ -181,9 +181,9 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-    
+                
     if is_validation:
-        check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
+        #check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
         check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
         
     if is_plot:
@@ -193,14 +193,14 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             config['result_path'] = result_path
 
         # plot the intra and inter dist distribution
-        check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
+        #check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
         check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
     
         ## recover n_closest images
-        n_img_samples = 10
+        n_img_samples = 4
         n_closest = 4
         save_path = config['result_path']+'/sample_recoveries.png'
-        recover_standard(X,dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
+        recover_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X, config['result_path'], config['project']) 
 
         # plot recall based on class
@@ -210,7 +210,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     return scores
 
 
-def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
+def recover_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_closest = 4,gpu_id=None):
     """
     Recover the n closest similar images for sampled images
         Args:
@@ -219,17 +219,23 @@ def recover_standard(X, img_paths,save_path, n_img_samples = 10, n_closest = 4,g
     """
     print('Start to recover {} similar images for each sampled image'.format(n_closest))
     start_time = time.time()
+    np.random.seed(0)
     sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
                                                 k=n_closest+1,
                                                 gpu_id= gpu_id)
     pred_img_paths = np.array([[img_paths[i] for i in ii] for ii in nns[:,1:]])
     sample_paths = [img_paths[i] for i in sample_idxs]
+    
+    pred_img_labels = np.array([[T[i] for i in ii] for ii in nns[:,1:]])
+    sample_labels = [T[i] for i in sample_idxs]
+    
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-    plot_recovered_images(image_paths,save_path)
+    image_labels = np.concatenate([np.expand_dims(sample_labels,axis=1),pred_img_labels],axis=1)
+    plot_recovered_images(image_paths,image_labels,save_path,conversion)
     print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
 
-def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
+def recover_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
     """
     Recover the n closest similar gallery images for sampled query images
         Args:
@@ -241,6 +247,7 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
     print('Start to recover {} similar gallery images for each sampled query image'.format(n_closest))
     start_time = time.time()
     assert X_gallery.shape[1] == X_gallery.shape[1]
+    np.random.seed(0)
     sample_idxs = np.random.choice(np.arange(len(X_query)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X_gallery, queries= X_query[sample_idxs],
                                                  k=n_closest,
@@ -248,11 +255,16 @@ def recover_query_gallery(X_query, X_gallery,query_img_paths,gallery_img_path, s
         )
     pred_img_paths = np.array([[gallery_img_path[i] for i in ii] for ii in nns])
     sample_paths = [query_img_paths[i] for i in sample_idxs]
+    
+    pred_img_labels = np.array([[T_gallery[i] for i in ii] for ii in nns[:,1:]])
+    sample_labels = [T_query[i] for i in sample_idxs]
+    
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
-    plot_recovered_images(image_paths,save_path)
+    image_labels = np.concatenate([np.expand_dims(sample_labels,axis=1),pred_img_labels],axis=1)
+    plot_recovered_images(image_paths,image_labels,save_path,conversion)
     print("Recover done! Time elapsed: {:.2f} seconds.\n".format(time.time()- start_time))
 
-def plot_recovered_images(image_paths,save_path):
+def plot_recovered_images(image_paths,image_labels,save_path,conversion=None):
     """
     Plot images and save them
         Args:
@@ -260,14 +272,17 @@ def plot_recovered_images(image_paths,save_path):
             save_path
     """
     width = image_paths.shape[1]
-    f,axes = plt.subplots(image_paths.shape[0],image_paths.shape[1])
+    f,axes = plt.subplots(nrows =image_paths.shape[0],ncols=image_paths.shape[1])
     temp_sample_paths = image_paths.flatten()
+    temp_sample_labels = [item for sublist in image_labels for item in sublist]
     temp_axes = axes.flatten()
     for i in range(len(temp_sample_paths)):
         plot_path = temp_sample_paths[i]
         ax = temp_axes[i]
+        zoom = 1
         if ".png" in plot_path or ".jpg" in plot_path:
             img_data = np.array(PIL.Image.open(plot_path))
+            zoom = 0.95
         else:
             # get RGB channels from the band data of BigEarthNet
             tif_img =[]
@@ -280,14 +295,26 @@ def plot_recovered_images(image_paths,save_path):
                 band_data = normalize(band_data,norm="max")*255
                 tif_img.append(band_data)
             img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
-        ax.imshow(img_data)
+            zoom = 2
+        # plot the text
+        labels =  np.where(temp_sample_labels[i]==1)[0] 
+        query_labels =  np.where(temp_sample_labels[int(i/width)*width]==1)[0]
+        for j in range(len(labels)): 
+            color='black' if labels[j] in query_labels else 'red'
+            label_name = conversion[str(labels[j])] 
+            ax.text(0.01, 0.9-j*0.1,str(label_name),fontsize=15, color = color) 
+        # plot the image
+        imagebox = OffsetImage(img_data, zoom=zoom)
+        xy = (0.5, 0.7)
+        ab = AnnotationBbox(imagebox, xy,
+                            xybox=(0.7, 0.5),
+                            xycoords='data')
+        ax.add_artist(ab)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
         ax.set_xticks([])
         ax.set_yticks([])
-        if i%width:
-            ax.axvline(x=0, color='g', linewidth=13)
-        else:
-            ax.axvline(x=0, color='r', linewidth=13)
-    f.set_size_inches(10,20)
+    f.set_size_inches(30,15)
     f.tight_layout()
     f.savefig(save_path)
     plt.close()
@@ -345,7 +372,7 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
         temp_list = [[[d,key] for d in shared_labels_dist[key]] for key in shared_labels_dist.keys()]
         temp_list = np.array([item for sublist in temp_list for item in sublist])
         shared_df = pd.DataFrame({"Distance":temp_list[:,0],
-                                "labelShared": temp_list[:,1]})
+                                "labelShared": [int(i) for i in temp_list[:,1]]})
         plt.figure()
         grid = sns.FacetGrid(shared_df, hue="labelShared")
         grid.map_dataframe(sns.kdeplot, 'Distance')
@@ -463,7 +490,7 @@ def plot_tsne(X,save_path,project_name="",n_components=2):
 
 def plot_dataset_stat(dataset,save_path, dset_type='train'):
     """
-    Generally check if the datasets have similar distribution
+    Generally check the statistic of the dataset
      Check Avg. num labels per image
      Check Avg. num of labels shared per image
      Args:
@@ -497,21 +524,21 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     plt.savefig(save_path+'/statistic_labels.png')
     plt.close()
 
-    # only store the up triangle area to reduce computing
-    # shared_dict ={}
-    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    # shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
-    # for c in shared_info:
-    #     shared_dict[c]= shared_dict.get(c,0) +1
-    # num_shared_labels = sorted([k for k in shared_dict.keys()])
-    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of sample pairs")
-    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    # plt.close()    
+    #only store the up triangle area to reduce computing
+    shared_dict ={}
+    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
+    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
+    shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
+    for c in shared_info:
+        shared_dict[c]= shared_dict.get(c,0) +1
+    num_shared_labels = sorted([k for k in shared_dict.keys()])
+    counts = np.array([ shared_dict[k]  for k in num_shared_labels])
+    plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
+    plt.xlabel("shared label counts")
+    plt.ylabel("Percent of sample pairs")
+    plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    plt.close()    
 
 def plot_precision_for_class(T ,T_pred, K,save_path,project_name=""):
     assert len(T_pred[0]) ==max(K)
@@ -581,7 +608,7 @@ def start_wandb(config):
     if config['wandb']['dry_run']:
         os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
     _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-    #store this id to use it later when resuming
+    # store this id to use it later when resuming
     if 'wandb_id' not in config['wandb'].keys():
         config['wandb']['wandb_id']= wandb.util.generate_id()
     wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
@@ -615,33 +642,24 @@ def plot_stacked_bar(data, series_labels, category_labels=None,
     """
     ny = len(data[0])
     ind = list(range(ny))
-
     axes = []
     cum_size = np.zeros(ny)
-
     data = np.array(data)
-
     if reverse:
         data = np.flip(data, axis=1)
         category_labels = reversed(category_labels)
-
     for i, row_data in enumerate(data):
         color = colors[i] if colors is not None else None
         axes.append(plt.bar(ind, row_data, bottom=cum_size, 
                             label=series_labels[i], color=color))
         cum_size += row_data
-
     if category_labels:
         plt.xticks(ind, category_labels)
-
     if y_label:
         plt.ylabel(y_label)
-
     plt.legend()
-
     if grid:
         plt.grid()
-
     if show_values:
         for axis in axes:
             for bar in axis:
