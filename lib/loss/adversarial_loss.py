@@ -48,8 +48,6 @@ class Adversarial(torch.nn.Module):
             sim_loss += -1.*weight*torch.mean(torch.mean((target_data*torch.nn.functional.normalize(regressor(source_data),dim=-1))**2,dim=-1))
         return sim_loss
 
-
-
 ### Gradient Reversal Layer
 class GradRev(torch.autograd.Function):
     """

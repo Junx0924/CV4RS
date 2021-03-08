@@ -19,8 +19,8 @@ class MarginLoss(torch.nn.Module):
         Are class-specific boundaries beind used
     batchminer: return semihard triplets
     Inputs:
-       E: embeddings, shape (batch_size, embedding dim)
-       T: labels, shape (batch_size,1)
+        feature: embeddings, tensor, shape(batchsize, embed_dim)
+        labels: category labels, tensor, shape (batchsize,1)
     Outputs:
         Loss value.
     """
@@ -45,11 +45,6 @@ class MarginLoss(torch.nn.Module):
         self.batchminner = batchminner
 
     def forward(self, feature, labels):
-        """
-        Args:
-            feature: embeddings, tensor, shape(batchsize, embed_dim)
-            labels: category labels, tensor, shape (batchsize,1)
-        """
         anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
         anchors = feature[anchor_idx] 
         positives = feature[pos_idx]

@@ -29,6 +29,7 @@ class BinomialLoss(nn.Module):
             normed_fvecs: multi-feature dictionary, each value contains sub embeddings [batchsize x sub embedding size]
             T: tensor, category labels, shape(batchsize, )
         """
+        if isinstance( T, torch.Tensor):  T =  T.detach()
         n = len(T)
         # init boosting_weights for each label pair
         boosting_weights = torch.ones(n*n).cuda()
@@ -48,6 +49,7 @@ class BinomialLoss(nn.Module):
         for fvec in normed_fvecs.values():
             Ds.append(torch.matmul(fvec, fvec.t()))
             D = torch.flatten(Ds[-1])
+            # similarity matrix
             my_act = self.alpha* (D - self.beta)* m
             my_loss = torch.log(1.0 + torch.exp(-1.0*my_act))
             tmp = torch.sum(my_loss* boosting_weights * W)/ len(normed_fvecs)

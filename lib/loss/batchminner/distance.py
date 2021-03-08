@@ -7,6 +7,15 @@ class Distance():
         self.upper_cutoff =  upper_cutoff
 
     def __call__(self, batch, labels):
+        """ Generate tripets based on category labels
+
+        Args:
+            batch (tensor):  dim [batchsize,embedding dim]
+            labels (tensor): category labels, dim [batchsize,1]
+
+        Returns:
+            [tuple]: index [anchor, positive, negative]
+        """
         if isinstance(labels, torch.Tensor): labels = labels.detach().cpu().numpy()
         bs = batch.shape[0]
         distances = self.pdist(batch.detach()).clamp(min=self.lower_cutoff)
