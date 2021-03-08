@@ -186,7 +186,7 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(epoch,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if e % config['eval_epoch'] ==0:
+        if epoch % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
             scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val') 

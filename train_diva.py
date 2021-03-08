@@ -241,6 +241,8 @@ def main():
     #lib.utils.plot_dataset_stat(dl_train.dataset,save_path= config['checkfolder'], dset_type = 'train')
     #################### START TRAINING ###############
     history_recall = 0
+    if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
+        history_recall = np.max(LOG.progress_saver["Val"].groups['recall']["recall@1"]['content'])
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
