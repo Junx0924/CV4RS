@@ -1,13 +1,8 @@
 import os
-import matplotlib
-import numpy as np
 import torch
-from utilities import misc
-from utilities import logger
 import lib
 import warnings
 import argparse
-import matplotlib.pyplot as plt
 import pickle as pkl
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -43,18 +38,24 @@ model = lib.multifeature_resnet50.Network(config)
 model.load_state_dict(checkpoint['state_dict'])
 _  = model.to(config['device'])
 
+if  'diva_features' in config.keys() and len(config['diva_features']) ==1:
+    config['project'] ='Baseline'
+if config['project']=='bier': config['project']='Bier'
+if config['project']=='dac': config['project']='D&C'
+if config['project']=='diva': config['project']='Diva'
+
 # create dataloader for evaluation
-dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
 dl_val= lib.data.loader.make(config, 'eval', dset_type = 'val')
-## optional, check the image distribution for each dataset
-lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'], dset_type = 'test')
-lib.utils.evaluate_standard(model, config, dl_val, False, K=[1,2,4,8],metrics=config['eval_metric'],is_plot=True)
+dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
+## optional, check the image distribution for val dataset
+#lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'], dset_type = 'val')
+lib.utils.evaluate_standard(model, config, dl_val, False, K=[1,2,4,8],metrics=['recall'],is_plot=True)
 
 print("Evaluate final model on test dataset") 
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model on test dataset\n"
-scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1,2,4,8],metrics=config['eval_metric']) 
+scores = lib.utils.evaluate_standard(model, config, dl_test, False, K=[1,2,4,8],metrics=['recall']) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
   with open(config['result_path']+'/evaluate_final_model.txt','w+') as summary_file:
