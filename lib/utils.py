@@ -300,7 +300,8 @@ def plot_recovered_images(image_paths,image_labels,save_path,conversion=None):
         for j in range(len(labels)): 
             color='black' if labels[j] in query_labels else 'red'
             label_name = conversion[str(labels[j])] 
-            ax.text(0.01, 0.9-j*0.1,str(label_name),fontsize=15, color = color) 
+            if len(label_name)>19: label_name = label_name[:19]+'\n'+label_name[19:]
+            ax.text(0.01, 0.85-j*0.1,str(label_name),fontsize=15, color = color) 
         # plot the image
         imagebox = OffsetImage(img_data, zoom=zoom)
         xy = (0.5, 0.7)
