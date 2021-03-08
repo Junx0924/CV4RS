@@ -28,7 +28,7 @@ def basic_training_parameters(parser):
     parser.add_argument('--scheduler',         default='step',   type=str,   help='Type of learning rate scheduling. Currently: step & exp.')
     parser.add_argument('--gamma',             default=0.3,      type=float, help='Learning rate reduction after tau epochs.')
     parser.add_argument('--decay',             default=0.0004,   type=float, help='Weight decay for optimizer.')
-    parser.add_argument('--tau',               default=[30,55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
+    parser.add_argument('--tau',               default=[55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
     parser.add_argument('--use_npmem',   action='store_true',help='Flag. If set, create npmem file and read data from npmem during training')
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--num_samples_per_class',type=int, default=2)
@@ -47,7 +47,8 @@ def divide_and_conquer(parser):
 
 def bier(parser):
     ## for Method Boosting Independent Embeddings (BIER)
-    parser.add_argument('--bier_lambda_weight', type=float, default=1000.0, help='weight for decorrelation')
+    parser.add_argument('--bier_lambda_weight', type=float, default=1e5, help='the regularization parameter for the weights of embedding layer and adversarial layer')
+    parser.add_argument('--bier_adversarial_weight', default=[1e5,1e5,1e5], nargs='+', type=float, help= 'Weights for adversarial Separation of embeddings.')
     parser.add_argument('--bier_lambda_div', type=float, default=5e-5, help ='regularization parameter')
     parser.add_argument('--bier_sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')
     parser.add_argument('--bier_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
@@ -70,7 +71,7 @@ def diva(parser):
 
     ### Adversarial loss for decorrelating features
     parser.add_argument('--diva_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
-    parser.add_argument('--diva_adversarial_weight',      default=[150,150,150], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
+    parser.add_argument('--diva_adversarial_weight',      default=[1500,1500,1500], nargs='+', type=int, help= 'Weights for adversarial Separation of embeddings.')
     return parser 
 
 def sndl(parser):
