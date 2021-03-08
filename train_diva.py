@@ -23,8 +23,8 @@ os.putenv("OMP_NUM_THREADS", "8")
 
 def load_diva_config(config,args):
     #### Update Diva parameter  ###########
-    config['project'] = 'diva'
     config['diva_features'] = args.pop('diva_features')
+    config['project'] = 'Diva' if len(config['diva_features'])>1 else 'Baseline' 
     if 'sub_embed_sizes' not in config.keys():
         num_feature =  len(config['diva_features'])
         config['sub_embed_sizes'] =[config['sz_embedding'] //num_feature]*num_feature
@@ -241,8 +241,6 @@ def main():
     #lib.utils.plot_dataset_stat(dl_train.dataset,save_path= config['checkfolder'], dset_type = 'train')
     #################### START TRAINING ###############
     history_recall = 0
-    if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
-        history_recall = np.max(LOG.progress_saver["Val"].groups['recall']["recall@1"]['content'])
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
@@ -275,16 +273,16 @@ def main():
         if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
-            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
-            _ = model.train()
-
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val') 
             if scores['recall@1'] >history_recall:
                 ### save checkpoint #####
+                history_recall = scores['recall@1']
                 print("Best epoch! save to checkpoint")
                 savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
                 torch.save({'state_dict':model.state_dict(), 'epoch':e, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
-        
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
+            
         LOG.update(all=True)
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()

@@ -26,7 +26,7 @@ os.putenv("OMP_NUM_THREADS", "8")
 
 def load_sndl_config(config, args):
     #### UPdate sndl parameter 
-    config['project'] = 'sndl'
+    config['project'] = 'SNDL'
     config['margin'] = args.pop('sndl_margin')
     config['temperature']= args.pop('sndl_temperature')
     config['memory_momentum'] = args.pop('sndl_memory_momentum')
@@ -186,20 +186,19 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(epoch,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if epoch % config['eval_epoch'] ==0:
+        if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
-            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
-            _ = model.train()
-
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val') 
             if scores['recall@1'] >history_recall:
                 ### save checkpoint #####
+                history_recall = scores['recall@1']
                 print("Best epoch! save to checkpoint")
                 savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
                 torch.save({'state_dict':model.state_dict(), 'epoch':epoch, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
-        
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
+            
         LOG.update(all=True)
         ### Learning Rate Scheduling Step
         if config['scheduler'] != 'none':  scheduler.step()

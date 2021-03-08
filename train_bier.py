@@ -25,18 +25,19 @@ os.putenv("OMP_NUM_THREADS", "8")
 
 def load_bier_config(config, args):
     #### UPdate Bier parameter 
-    config['project'] = 'bier'
+    config['project'] = 'Bier'
     config['lambda_weight'] = args.pop('bier_lambda_weight')
     config['lambda_div']= args.pop('bier_lambda_div')
+    config['adversarial_weight']= args.pop('bier_adversarial_weight')
     config['sub_embed_sizes'] = args.pop('bier_sub_embed_sizes')
     assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     
     # config the decorrelation between features
     decorrelation = list(itertools.combinations(config['sub_embed_sizes'],2))
     config['decorrelation'] = {}
-    for item in decorrelation:
+    for item,weight in zip(decorrelation,config['adversarial_weight']):
         direction_name = str(item[0])+ '-' + str(item[1])
-        config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':config['lambda_weight']}
+        config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':weight}
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
@@ -95,8 +96,13 @@ def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
                     adv_weight_loss += torch.mean((torch.sum(W_hat * W_hat, axis=1) - 1)**2) + torch.max(torch.tensor([0.0,torch.sum(B_hat * B_hat) - 1.0])) 
         adv_weight_loss = adv_weight_loss / len(criterion_dict['adversarial'].regressors)
         loss['adv_weight'] = adv_weight_loss.item()
+        for item in model.last_linear.values():
+            W = item.weight
+            embed_weight_loss += torch.mean((torch.sum(W * W, axis=1) - 1)**2)
+        embed_weight_loss = embed_weight_loss / len(model.last_linear)
+        loss['embed_weight'] = embed_weight_loss.item()
     
-    total_loss = bin_loss + config['lambda_div']*( adv_loss + config['lambda_weight']* adv_weight_loss ) 
+    total_loss = bin_loss + config['lambda_div']*(adv_loss + config['lambda_weight']* (adv_weight_loss + embed_weight_loss))
     loss['Train'] = total_loss.item()
     opt.zero_grad()
     total_loss.backward()
@@ -182,8 +188,6 @@ def main():
     #lib.utils.plot_dataset_stat(dl_train.dataset,save_path= config['checkfolder'], dset_type = 'train')
     #################### START TRAINING ###############
     history_recall = 0
-    if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
-        history_recall = np.max(LOG.progress_saver["Val"].groups['recall']["recall@1"]['content'])
     print("Training for {} epochs.".format(config['nb_epochs']))
     t1 = time.time()
 
@@ -193,7 +197,7 @@ def main():
         
         time_per_epoch_1 = time.time()
         if config['lambda_div'] > 0.0:
-            losses ={key:[] for key in ['Train','adv_weight','binominal','adversarial']}
+            losses ={key:[] for key in ['Train','adv_weight','embed_weight','binominal','adversarial']}
         else:
             losses ={key:[] for key in ['Train','binominal']}
 
@@ -209,19 +213,18 @@ def main():
         print("\nEpoch: {}, loss: {}, time (seconds): {:.2f}.".format(e,current_loss,time_per_epoch_2 - time_per_epoch_1))
 
         # evaluate
-        if e % config['eval_epoch'] == 0:
+        if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
-            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
-            _ = model.train()
-
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val') 
             if scores['recall@1'] >history_recall:
                 ### save checkpoint #####
+                history_recall = scores['recall@1']
                 print("Best epoch! save to checkpoint")
                 savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
                 torch.save({'state_dict':model.state_dict(), 'epoch':e, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
         
         LOG.update(all=True)
         ### Learning Rate Scheduling Step

@@ -22,7 +22,7 @@ os.putenv("OMP_NUM_THREADS", "8")
 
 def load_dac_config(config, args):
     #### Update divide and conquer parameters ###
-    config['project'] = 'dac'
+    config['project'] = 'D&C'
     config['recluster']['mod_epoch'] = args.pop('dac_mod_epoch')
     config['finetune_epoch'] = args.pop('dac_finetune_epoch')
     config['nb_clusters'] = args.pop('dac_nb_clusters')
@@ -213,20 +213,19 @@ def main():
         faiss_reserver.release()
 
         # evaluate
-        if e% config['eval_epoch'] ==0:
+        if e % config['eval_epoch'] ==0:
             _ = model.eval()
             tic = time.time()
-            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val',is_validation=True) 
-            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
-            print('Evaluation total elapsed time: {:.2f} s'.format(time.time() - tic))
-            _ = model.train()
-
+            scores =lib.utils.evaluate_standard(model, config, dl_val, False, LOG, 'Val') 
             if scores['recall@1'] >history_recall:
                 ### save checkpoint #####
+                history_recall = scores['recall@1']
                 print("Best epoch! save to checkpoint")
                 savepath = config['checkfolder']+'/checkpoint_{}.pth.tar'.format("recall@1")
                 torch.save({'state_dict':model.state_dict(), 'epoch':e, 'progress': LOG.progress_saver, 'optimizer':optimizer.state_dict()}, savepath)
-
+            LOG.progress_saver['Val'].log('Val_time', np.round(time.time() - tic, 4))
+            _ = model.train()
+            
         LOG.update(all=True)
         faiss_reserver.lock(config['backend'])
         model.current_epoch = e
