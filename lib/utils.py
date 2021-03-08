@@ -18,6 +18,7 @@ from sklearn.manifold import TSNE
 import time
 import pandas as pd
 import seaborn as sns
+import csv
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -143,8 +144,17 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         recover_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
         plot_tsne(X_stack, config['result_path'],config['project'])  
         
-        plot_precision_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
-        plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
+        #plot_precision_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
+        #plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
+        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
+        save_path = config['result_path']+'/confussionMatrix.csv'
+        with open(save_path,'w',newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['TP','FP','TN','FN'])
+            for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+                s =[int(tp),int(fp),int(tn),int(fn)]
+                writer.writerow(s)
     return scores
 
 
@@ -202,9 +212,19 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         plot_tsne(X, config['result_path'], config['project']) 
 
         # plot recall based on class
-        plot_precision_for_class(T ,T_pred,K,config['result_path'],config['project'])
+        #plot_precision_for_class(T ,T_pred,K,config['result_path'],config['project'])
         # plot recall based on samples
-        plot_recall_for_sample(T, T_pred,K, config['result_path'],10,config['project'])
+        #plot_recall_for_sample(T, T_pred,K, config['result_path'],10,config['project'])
+        # save the confussionMatrix based on labels
+        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+        save_path = config['result_path']+'/confussionMatrix.csv'
+        with open(save_path,'w',newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['TP','FP','TN','FN'])
+            for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+                s =[int(tp),int(fp),int(tn),int(fn)]
+                writer.writerow(s)
     return scores
 
 
