@@ -128,7 +128,7 @@ def main():
 
     # config loss function and optimizer
     to_optim = get_optim(config, model)
-    config['class_specific_beta'] =True
+    config['class_specific_beta'] =False
     criterion = [] 
     for i in range(config['nb_clusters']):
         criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
