@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 
 class BinomialLoss(nn.Module):
-    def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,**kwargs):
+    def __init__(self, nb_classes,C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,class_specific_beta=False,**kwargs):
         """
         Boosted bionminal loss
         Implement according to paper: https://arxiv.org/abs/1801.04815
@@ -16,12 +16,22 @@ class BinomialLoss(nn.Module):
             beta: margin for binomial deviance.
         """
         super(BinomialLoss, self).__init__()
-        self.C = 25
+        self.C = C
         self.alpha = alpha
-        self.beta = beta
         self.eta_style = eta_style
         self.initial_acts =0.0 if eta_style == True else 0.5
         self.shrinkage = 1.0 if eta_style == True else 0.06
+        
+         # beta is trainable
+        if class_specific_beta:
+            assert nb_classes is not None
+            beta = torch.ones(nb_classes,dtype=torch.float32)*beta
+        else:
+            beta = torch.tensor([beta], dtype=torch.float32)
+        
+        self.beta = torch.nn.Parameter(beta)
+        # Learning Rate for class margin parameters in MarginLoss
+        self.beta_lr = beta_lr 
     
     def forward(self,normed_fvecs, T):
         """
