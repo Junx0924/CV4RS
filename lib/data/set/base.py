@@ -70,7 +70,7 @@ def get_MLRSNet(img_path):
     return img_data.reshape(-1)
     
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, image_list, dataset_name, npmem_file="", conversion = None,transform = None, is_training = False, include_aux_augmentations= False):
+    def __init__(self, image_list, dataset_name, npmem_file="", conversion = None,transform = None, is_training=False,dset_type = 'train', include_aux_augmentations= False):
         """
         The train data is randomly flip and cropped, the eval data is center cropped
         Args:
@@ -79,12 +79,14 @@ class BaseDataset(torch.utils.data.Dataset):
             npmem_file: the path of npmem_file, if set use_npmem true, it will be automatically generated
             conversion: dictionary, {'label': label_name}
             transform: dictonary, keys: sz_crop, input_shape
-            is_training: if set true, apply random flip and crop for training, else apply center crop
+            is_training: if it is 'train', apply random flip and crop for the data split, else apply center crop
+            dset_type: dataset split (train/val/test), for saving the evaluation plots of each data split
             include_aux_augmentations: if set true, apply rotation to get augumented image data
         """
         torch.utils.data.Dataset.__init__(self)
         self.dataset_name = dataset_name
         self.transform = transform
+        self.dset_type = dset_type
         self.is_training = is_training
         self.npmem_file = npmem_file
         self.include_aux_augmentations = include_aux_augmentations

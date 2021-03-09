@@ -50,4 +50,4 @@ def select(datapath,dset_type,transform,is_training = False,include_aux_augmenta
     else:
         npmem_file = ""
     
-    return BaseDataset(image_list,dataset_name,npmem_file,conversion,transform,is_training,include_aux_augmentations)
+    return BaseDataset(image_list,dataset_name,npmem_file,conversion,transform,is_training,dset_type,include_aux_augmentations)
