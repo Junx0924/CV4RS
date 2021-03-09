@@ -23,8 +23,9 @@ def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
         criterion = Adversarial(config['hidden_adversarial_size'],config['decorrelation']) 
         to_optim    += [{'params':criterion.parameters(), 'lr':criterion.lr}]
     elif 'binominal' in loss_name : 
-        criterion = BinomialLoss(num_classes,class_specific_beta=config['class_specific_beta'])
-        to_optim    += [{'params':criterion.parameters(), 'lr':criterion.beta_lr}]
+        criterion = BinomialLoss(is_beta_trainable=config['is_beta_trainable'])
+        if config['is_beta_trainable']:
+            to_optim    += [{'params':criterion.parameters(), 'lr':criterion.beta_lr}]
     elif 'nca' in loss_name:
         criterion = NCACrossEntropy(multi_hot,config['margin'] / config['temperature'])
     elif 'bce' in loss_name:
