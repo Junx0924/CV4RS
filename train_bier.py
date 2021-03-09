@@ -148,7 +148,7 @@ def main():
 
     # define loss function (criterion)
     to_optim = get_optim(config, model)
-    config['class_specific_beta'] =False
+    config['is_beta_trainable'] =True
     criterion_dict ={} 
     criterion_dict['binominal'],to_optim = lib.loss.select(config,to_optim,'binominal')
     criterion_dict['adversarial'],to_optim = lib.loss.select(config,to_optim,'adversarial')

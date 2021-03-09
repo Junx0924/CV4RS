@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 
 class BinomialLoss(nn.Module):
-    def __init__(self, nb_classes,C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,class_specific_beta=False,**kwargs):
+    def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,is_beta_trainable= False,**kwargs):
         """
         Boosted bionminal loss
         Implement according to paper: https://arxiv.org/abs/1801.04815
@@ -22,16 +22,16 @@ class BinomialLoss(nn.Module):
         self.initial_acts =0.0 if eta_style == True else 0.5
         self.shrinkage = 1.0 if eta_style == True else 0.06
         
-         # beta is trainable
-        if class_specific_beta:
-            assert nb_classes is not None
-            beta = torch.ones(nb_classes,dtype=torch.float32)*beta
-        else:
+        self.is_beta_trainable = is_beta_trainable
+        if is_beta_trainable:
+            # beta is trainable
             beta = torch.tensor([beta], dtype=torch.float32)
-        
-        self.beta = torch.nn.Parameter(beta)
-        # Learning Rate for class margin parameters in MarginLoss
-        self.beta_lr = beta_lr 
+            self.beta = torch.nn.Parameter(beta)
+            # Learning Rate for class margin parameters
+            self.beta_lr = beta_lr 
+            self.nu = 0.1
+        else:
+            self.beta = beta
     
     def forward(self,normed_fvecs, T):
         """
@@ -62,8 +62,9 @@ class BinomialLoss(nn.Module):
             # similarity matrix
             my_act = self.alpha* (D - self.beta)* m
             my_loss = torch.log(1.0 + torch.exp(-1.0*my_act))
+            beta_regularization_loss = torch.norm(self.beta, p=1) * self.nu if self.is_beta_trainable else 0.0
             tmp = torch.sum(my_loss* boosting_weights * W)/ len(normed_fvecs)
-            loss +=tmp
+            loss +=tmp + beta_regularization_loss
             if self.eta_style:
                 nu = 2.0/( 1.0 + 1.0 + i)
                 if self.shrinkage != 1.0:
