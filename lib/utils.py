@@ -81,8 +81,22 @@ def get_weighted_embed(X,weights,sub_dim):
     return X
 
 
+def start_wandb(config):
+    import wandb
+    os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
+    if config['wandb']['dry_run']:
+        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
+    _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
+    # store this id to use it later when resuming
+    if 'wandb_id' not in config['wandb'].keys():
+        config['wandb']['wandb_id']= wandb.util.generate_id()
+    wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
+    wandb.config.update(config, allow_val_change= True)
+    return config
+
+
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
-                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_log_dist= False, is_plot= False):
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_log_dist= False, is_plot= False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
     Args:
@@ -132,23 +146,24 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
+        dset_type = 'init_' + dl_query.dataset.dset_type  if is_init else 'final_' + dl_query.dataset.dset_type
+        result_path = config['result_path']+'/'+dset_type
+        if not os.path.exists(result_path): os.makedirs(result_path)
 
         # plot intra and inter dist distribution
-        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
-        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=config['result_path'])
+        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=result_path)
+        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=result_path)
 
         ## recover n_closest images
         n_img_samples = 10
         n_closest = 4
-        recover_save_path = config['result_path']+'/sample_recoveries.png'
-        recover_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, recover_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        plot_tsne(X_stack, config['result_path'],config['project'])  
+        retrieve_save_path = result_path+'/'+ str(n_img_samples) +'_samples_'+ str(n_closest) + '_recoveries.png'
+        retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
+        plot_tsne(X_stack, result_path,config['project'])  
         
-        #plot_precision_for_class(T_query,T_query_pred,K,config['result_path'],config['project'])
-        #plot_recall_for_sample(T_query,T_query_pred,K,config['result_path'],10,config['project'])
         y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
         TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-        save_path = config['result_path']+'/confussionMatrix.csv'
+        save_path = result_path+'/confussionMatrix.csv'
         with open(save_path,'w',newline='') as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['TP','FP','TN','FN'])
@@ -159,7 +174,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_log_dist= False, is_plot= False):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_log_dist= False, is_plot= False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
         Args:
@@ -199,26 +214,23 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
             config['result_path'] = result_path
+        dset_type = 'init_' + dl.dataset.dset_type  if is_init else 'final_' + dl.dataset.dset_type
+        result_path = config['result_path']+'/'+dset_type
+        if not os.path.exists(result_path): os.makedirs(result_path)
 
         # plot the intra and inter dist distribution
-        check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
-        check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=config['result_path'])
+        #check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=result_path)
+        check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=result_path)
     
         ## recover n_closest images
-        n_img_samples = 4
-        n_closest = 4
-        save_path = config['result_path']+'/sample_recoveries.png'
-        recover_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        plot_tsne(X, config['result_path'], config['project']) 
+        retrieve_save_path = result_path+'/'+ str(n_img_samples) +'_samples_'+ str(n_closest) + '_recoveries.png'
+        retrieve_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
+        plot_tsne(X, result_path, config['project']) 
 
-        # plot recall based on class
-        #plot_precision_for_class(T ,T_pred,K,config['result_path'],config['project'])
-        # plot recall based on samples
-        #plot_recall_for_sample(T, T_pred,K, config['result_path'],10,config['project'])
         # save the confussionMatrix based on labels
         y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
         TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        save_path = config['result_path']+'/confussionMatrix.csv'
+        save_path = result_path+'/confussionMatrix.csv'
         with open(save_path,'w',newline='') as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['TP','FP','TN','FN'])
@@ -228,7 +240,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     return scores
 
 
-def recover_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_closest = 4,gpu_id=None):
+def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_closest = 4,gpu_id=None):
     """
     Recover the n closest similar images for sampled images
         Args:
@@ -237,7 +249,7 @@ def recover_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_
     """
     print('Start to recover {} similar images for each sampled image'.format(n_closest))
     start_time = time.time()
-    np.random.seed(0)
+    np.random.seed(1)
     sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
                                                 k=n_closest+1,
@@ -253,7 +265,8 @@ def recover_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_
     plot_retrieved_images(image_paths,image_labels,save_path,conversion)
     print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
 
-def recover_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
+
+def retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
     """
     Recover the n closest similar gallery images for sampled query images
         Args:
@@ -281,6 +294,7 @@ def recover_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,quer
     image_labels = np.concatenate([np.expand_dims(sample_labels,axis=1),pred_img_labels],axis=1)
     plot_retrieved_images(image_paths,image_labels,save_path,conversion)
     print("Recover done! Time elapsed: {:.2f} seconds.\n".format(time.time()- start_time))
+
 
 def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
     """
@@ -317,11 +331,12 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
         # plot the text
         labels =  np.where(temp_sample_labels[i]==1)[0] 
         query_labels =  np.where(temp_sample_labels[int(i/width)*width]==1)[0]
+        if i != int(i/width)*width: ax.text(0.01,0.9,str(len(set(labels).intersection(query_labels))) +' correct labels',fontsize=18,color = 'blue')
         for j in range(len(labels)): 
             color='blue' if labels[j] in query_labels else 'black'
             label_name = conversion[str(labels[j])] 
             if len(label_name)>19: label_name = label_name[:19]+'\n'+label_name[19:]
-            ax.text(0.01, 0.85-j*0.1,str(label_name),fontsize=15, color = color) 
+            ax.text(0.01, 0.8-j*0.1,str(label_name),fontsize=15, color = color) 
         # plot the image
         imagebox = OffsetImage(img_data, zoom=zoom)
         xy = (0.5, 0.7)
@@ -333,10 +348,13 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
         ax.set_ylim(0, 1)
         ax.set_xticks([])
         ax.set_yticks([])
-    f.set_size_inches(30,15)
+    w_size = 30
+    if width ==9: w_size = 55
+    f.set_size_inches(w_size,15)
     f.tight_layout()
     f.savefig(save_path)
     plt.close()
+
 
 def classBalancedSamper(T,num_samples_per_class=2):
     """
@@ -510,6 +528,7 @@ def plot_tsne(X,save_path,project_name="",n_components=2):
     plt.savefig(save_path +'/tsne.png', format='png')
     plt.close()
 
+
 def plot_dataset_stat(dataset,save_path, dset_type='train'):
     """
     Generally check the statistic of the dataset
@@ -561,6 +580,7 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
     # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
     # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
     # plt.close()    
+
 
 def plot_precision_for_class(T ,T_pred, K,save_path,project_name=""):
     assert len(T_pred[0]) ==max(K)
@@ -624,20 +644,6 @@ def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
     plt.savefig(save_path,format='png')
     plt.close()
 
-def start_wandb(config):
-    import wandb
-    os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
-    if config['wandb']['dry_run']:
-        os.environ["WANDB_MODE"] = "dryrun" # for wandb logging on HPC
-    _ = os.system('wandb login --relogin {}'.format(config['wandb']['wandb_key']))
-    # store this id to use it later when resuming
-    if 'wandb_id' not in config['wandb'].keys():
-        config['wandb']['wandb_id']= wandb.util.generate_id()
-    wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
-    wandb.config.update(config, allow_val_change= True)
-    return config
-
-    
 
 def plot_stacked_bar(data, series_labels, category_labels=None, 
                      show_values=False, value_format="{}", y_label=None, 
