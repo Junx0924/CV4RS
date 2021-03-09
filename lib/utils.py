@@ -250,7 +250,7 @@ def recover_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_
     
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     image_labels = np.concatenate([np.expand_dims(sample_labels,axis=1),pred_img_labels],axis=1)
-    plot_recovered_images(image_paths,image_labels,save_path,conversion)
+    plot_retrieved_images(image_paths,image_labels,save_path,conversion)
     print("Recover similar images done! it takes: {:.2f} s.\n".format(time.time()- start_time))
 
 def recover_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
@@ -279,10 +279,10 @@ def recover_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,quer
     
     image_paths = np.concatenate([np.expand_dims(sample_paths,axis=1),pred_img_paths],axis=1)
     image_labels = np.concatenate([np.expand_dims(sample_labels,axis=1),pred_img_labels],axis=1)
-    plot_recovered_images(image_paths,image_labels,save_path,conversion)
+    plot_retrieved_images(image_paths,image_labels,save_path,conversion)
     print("Recover done! Time elapsed: {:.2f} seconds.\n".format(time.time()- start_time))
 
-def plot_recovered_images(image_paths,image_labels,save_path,conversion=None):
+def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
     """
     Plot images and save them
         Args:
@@ -318,7 +318,7 @@ def plot_recovered_images(image_paths,image_labels,save_path,conversion=None):
         labels =  np.where(temp_sample_labels[i]==1)[0] 
         query_labels =  np.where(temp_sample_labels[int(i/width)*width]==1)[0]
         for j in range(len(labels)): 
-            color='black' if labels[j] in query_labels else 'red'
+            color='blue' if labels[j] in query_labels else 'black'
             label_name = conversion[str(labels[j])] 
             if len(label_name)>19: label_name = label_name[:19]+'\n'+label_name[19:]
             ax.text(0.01, 0.85-j*0.1,str(label_name),fontsize=15, color = color) 
