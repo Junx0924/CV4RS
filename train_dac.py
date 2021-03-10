@@ -131,7 +131,7 @@ def main():
     config['class_specific_beta'] =False
     criterion = [] 
     for i in range(config['nb_clusters']):
-        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','semihard')
+        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','distance')
         criterion.append(criterion_i)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
