@@ -43,7 +43,7 @@ class InfoPlotter():
         else:
             x_data = range(sub_plots_data[np.where(np.array(sub_plots)=='epochs')[0][0]][-1]+1)
         
-        if  '@' in sub_plots[0] and sub_plots[0].split('@') in ['recall']:
+        if  '@' in sub_plots[0] and sub_plots[0].split('@') in ['recall','map']:
             self.ov_title = [(sub_plot,sub_plot_data) for sub_plot, sub_plot_data in zip(sub_plots,sub_plots_data)]
             self.ov_title = [(x[0],np.max(x[1])) if 'loss' not in x[0] else (x[0],np.min(x[1])) for x in self.ov_title]
             self.ov_title = title_append +': '+ '  |  '.join('{0}: {1:.4f}'.format(x[0],x[1]) for x in self.ov_title)
@@ -163,17 +163,12 @@ class LOGGER():
                 self.csv_writer[sub_logger].log(group, segments, tupled_seg_content)
                 self.graph_writer[sub_logger].make_plot(sub_logger, group, segments, per_seg_contents_all)
                 
-                if group in ["distRatio"]:
-                    name = sub_logger+': mean_'+group
-                    mean_distRatio = np.mean(per_seg_contents) if len(per_seg_contents)>0 else 0
-                    online_content.append((name,mean_distRatio))
-                elif group not in ['dist']:
-                    for i,segment in enumerate(segments):
-                        if group == segment:
-                            name = sub_logger+': '+group
-                        else:
-                            name = sub_logger+': '+group+': '+segment
-                        online_content.append((name,per_seg_contents[i]))
+                for i,segment in enumerate(segments):
+                    if group == segment:
+                        name = sub_logger+': '+group
+                    else:
+                        name = sub_logger+': '+group+': '+segment
+                    online_content.append((name,per_seg_contents[i]))
 
         if self.log_online:
             import wandb
