@@ -96,7 +96,7 @@ def start_wandb(config):
 
 
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
-                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_log_dist= False, is_plot= False,n_img_samples=4,n_closest=4):
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot= False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
     Args:
@@ -128,18 +128,26 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_query_pred])
         y_pred[np.where(y_pred>1)]= 1
         for metric in metrics:
-            s = evaluation.select(metric,T_query,y_pred)
-            print("{}@{} : {:.3f}".format(metric, k, s))
-            scores[metric+ '@'+str(k)] = s
-            if LOG !=None:
-                LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
+            if metric !='map':
+                s = evaluation.select(metric,T_query,y_pred)
+                print("{}@{} : {:.3f}".format(metric, k, s))
+                scores[metric+ '@'+str(k)] = s
+                if LOG !=None:
+                    LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
+    if 'map' in metrics:
+        R = max[K]
+        precision=[]
+        for k in range(1,R+1):
+            y_pred = np.array([y[:k] for y in T_query_pred])
+            y_pred_k = np.array([y[k] for y in T_query_pred])
+            precision_k = [[evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1)) for y in yy ] for t,yy in zip(T_query,y_pred)]
+            relevant = np.array([1 if evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1))>0 else 0 for t,y in zip(T_query,y_pred_k) ])
+            precision.append(np.mean(np.array(precision_k),axis = 1)*relevant)
+        scores['map'+ '@'+str(R)] = np.mean(np.mean(np.array(precision),axis=0),axis=1)
+            
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
-
-    if is_log_dist:
-        check_inter_intra_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
-        check_shared_label_dist(X_stack, T_stack, LOG=LOG, log_key='Val',is_plot=False)
         
     if is_plot:
         if 'result_path' not in config.keys():
@@ -174,7 +182,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'],is_log_dist= False, is_plot= False,n_img_samples=4,n_closest=4):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot= False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
         Args:
@@ -199,16 +207,24 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_pred])
         y_pred[np.where(y_pred>1)]= 1
         for metric in metrics:
-            s = evaluation.select(metric,T,y_pred)
-            print("{}@{} : {:.3f}".format(metric, k, s))
-            scores[metric+ '@'+str(k)] = s
+            if metric !='map':
+                s = evaluation.select(metric,T,y_pred)
+                print("{}@{} : {:.3f}".format(metric, k, s))
+                scores[metric+ '@'+str(k)] = s
             if LOG !=None:
                 LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-                
-    if is_log_dist:
-        check_inter_intra_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-        check_shared_label_dist(X, T, LOG=LOG, log_key='Val',is_plot=False)
-        
+    
+    if 'map' in metrics:
+        R = max[K]
+        precision=[]
+        for k in range(1,R+1):
+            y_pred = np.array([y[:k] for y in T_pred])
+            y_pred_k = np.array([y[k] for y in T_pred])
+            precision_k = [[evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1)) for y in yy ] for t,yy in zip(T,y_pred)]
+            relevant = np.array([1 if evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1))>0 else 0 for t,y in zip(T,y_pred_k) ])
+            precision.append(np.mean(np.array(precision_k),axis = 1)*relevant)
+        scores['map'+ '@'+str(R)] = np.mean(np.mean(np.array(precision),axis=0),axis=1)
+                  
     if is_plot:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -218,8 +234,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
 
-        # plot the intra and inter dist distribution
-        #check_inter_intra_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=result_path)
+        # plot the distance density of embedding pairs
         check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=result_path)
     
         ## recover n_closest images

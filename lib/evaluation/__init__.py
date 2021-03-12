@@ -23,14 +23,14 @@ def select(metric,y_true, y_pred):
         s = examplebasedclassification.subsetAccuracy(y_true,y_pred)
     elif metric =='F_Measure':
         s = examplebasedclassification.fbeta(y_true,y_pred)
-
+   
     # label based metric
     elif metric =='Mirco_F1':
         s = labelbasedclassification.fbetaMicro(y_true,y_pred)
     elif metric =='Macro_F1':
         s = labelbasedclassification.fbetaMacro(y_true,y_pred)
     else:
-        raise Exception('Loss {} not available!'.format(loss_name))
+        raise Exception('Loss {} not available!'.format(metric))
     return s
 
 
