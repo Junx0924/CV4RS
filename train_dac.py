@@ -5,7 +5,6 @@ import os
 import numpy as np
 import torch
 import time
-import json
 import random
 from tqdm import tqdm
 import pickle as pkl
@@ -31,23 +30,8 @@ def load_dac_config(config, args):
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    config['class_specific_beta'] = args.pop('dac_class_specific_beta')
     return config
-
-
-def json_dumps(**kwargs):
-    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
-    return json.dumps(**kwargs).replace('\\n', '\n    ')
-
-
-class JSONEncoder(json.JSONEncoder):
-    def default(self, x):
-        # add encoding for other types if necessary
-        if isinstance(x, range):
-            return 'range({}, {})'.format(x.start, x.stop)
-        if not isinstance(x, (int, str, list, float, bool)):
-            return repr(x)
-        return json.JSONEncoder.default(self, x)
-
 
 
 def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
@@ -128,7 +112,6 @@ def main():
 
     # config loss function and optimizer
     to_optim = get_optim(config, model)
-    config['class_specific_beta'] =False
     criterion = [] 
     for i in range(config['nb_clusters']):
         criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','distance')

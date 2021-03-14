@@ -7,7 +7,6 @@ import torch
 import pickle as pkl
 import torch.nn.functional as F
 import time
-import json
 import random
 from tqdm import tqdm
 
@@ -58,22 +57,9 @@ def load_diva_config(config,args):
 
     config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    
+    config['class_specific_beta'] = args.pop('diva_class_specific_beta')
     return config
-
-
-def json_dumps(**kwargs):
-    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
-    return json.dumps(**kwargs).replace('\\n', '\n    ')
-
-
-class JSONEncoder(json.JSONEncoder):
-    def default(self, x):
-        # add encoding for other types if necessary
-        if isinstance(x, range):
-            return 'range({}, {})'.format(x.start, x.stop)
-        if not isinstance(x, (int, str, list, float, bool)):
-            return repr(x)
-        return json.JSONEncoder.default(self, x)
 
 def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):
     if len(batch) ==4:
@@ -207,7 +193,6 @@ def main():
    
     # define loss function for each feature
     to_optim = get_optim(config, model)
-    config['class_specific_beta'] =False
     criterion_dict, to_optim = get_criterion(config, to_optim)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:

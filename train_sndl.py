@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import time
-import json
 import random
 from tqdm import tqdm
 import math
@@ -32,21 +31,6 @@ def load_sndl_config(config, args):
     config['memory_momentum'] = args.pop('sndl_memory_momentum')
     config['sub_embed_sizes'] = [config['sz_embedding']]
     return config
-
-
-def json_dumps(**kwargs):
-    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
-    return json.dumps(**kwargs).replace('\\n', '\n    ')
-
-
-class JSONEncoder(json.JSONEncoder):
-    def default(self, x):
-        # add encoding for other types if necessary
-        if isinstance(x, range):
-            return 'range({}, {})'.format(x.start, x.stop)
-        if not isinstance(x, (int, str, list, float, bool)):
-            return repr(x)
-        return json.JSONEncoder.default(self, x)
 
 def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=None, log_key =''):
     X = batch[0].to(config['device']) # images

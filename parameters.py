@@ -40,9 +40,10 @@ def basic_training_parameters(parser):
 
 def divide_and_conquer(parser):
     ### for Method Divide and conquer
-    parser.add_argument('--dac_mod_epoch', default=2, type = int, help = 'the steps for reclustering train dataset')
-    parser.add_argument('--dac_nb_clusters', default=4, type = int, help='the number of learners')
+    parser.add_argument('--dac_mod_epoch', default=10, type = int, help = 'the steps for reclustering train dataset')
+    parser.add_argument('--dac_nb_clusters', default=8, type = int, help='the number of learners')
     parser.add_argument('--dac_finetune_epoch', default=110, type = int)
+    parser.add_argument('--dac_class_specific_beta',   action='store_true',help='Flag. If set, the margin beta for margin loss will be trainable and class-specific')
     return parser
 
 def bier(parser):
@@ -52,6 +53,8 @@ def bier(parser):
     parser.add_argument('--bier_lambda_div', type=float, default=5e-5, help ='regularization parameter')
     parser.add_argument('--bier_sub_embed_sizes', default=[96,160,256], nargs='+',type=int, help= 'the dimension of features')
     parser.add_argument('--bier_hidden_adversarial_size',type=int, default=512, help='the hidden dimension for adversarial loss')
+    ## Binomial loss
+    parser.add_argument('--bier_beta_trainable',   action='store_true',help='Flag. If set, the margin beta for binomial loss will be trainable')
     return parser 
 
 def diva(parser):
@@ -61,6 +64,9 @@ def diva(parser):
     parser.add_argument('--diva_alpha_shared',   default=0.3,  type=float, help='weight for Class-shared feature') 
     parser.add_argument('--diva_alpha_intra',    default=0.3,  type=float, help='weight for Intra-class feature') 
     parser.add_argument('--diva_evaluation_weight', nargs='+', default=[0.5,1,1,1], type=float, help='to compute evaluation metrics on weighted (normalized) combinations')
+    
+    ## Margin loss
+    parser.add_argument('--diva_class_specific_beta',   action='store_true',help='Flag. If set, the margin beta for margin loss will be trainable and class-specific')
     
     ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
     parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')

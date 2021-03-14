@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import pickle as pkl
 import time
-import json
 import random
 from tqdm import tqdm
 import itertools
@@ -41,24 +40,8 @@ def load_bier_config(config, args):
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
+    config['is_beta_trainable'] = args.pop('bier_beta_trainable')
     return config
-
-
-def json_dumps(**kwargs):
-    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
-    return json.dumps(**kwargs).replace('\\n', '\n    ')
-
-
-class JSONEncoder(json.JSONEncoder):
-    def default(self, x):
-        # add encoding for other types if necessary
-        if isinstance(x, range):
-            return 'range({}, {})'.format(x.start, x.stop)
-        if not isinstance(x, (int, str, list, float, bool)):
-            return repr(x)
-        return json.JSONEncoder.default(self, x)
-
-
 
 def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
     X = batch[0] # images
@@ -148,7 +131,6 @@ def main():
 
     # define loss function (criterion)
     to_optim = get_optim(config, model)
-    config['is_beta_trainable'] =True
     criterion_dict ={} 
     criterion_dict['binominal'],to_optim = lib.loss.select(config,to_optim,'binominal')
     criterion_dict['adversarial'],to_optim = lib.loss.select(config,to_optim,'adversarial')
