@@ -18,7 +18,7 @@ from sklearn.manifold import TSNE
 import time
 import pandas as pd
 import seaborn as sns
-import csv
+import csv,json
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -94,9 +94,22 @@ def start_wandb(config):
     wandb.config.update(config, allow_val_change= True)
     return config
 
+def json_dumps(**kwargs):
+    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
+    return json.dumps(**kwargs).replace('\\n', '\n    ')
 
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, x):
+        # add encoding for other types if necessary
+        if isinstance(x, range):
+            return 'range({}, {})'.format(x.start, x.stop)
+        if not isinstance(x, (int, str, list, float, bool)):
+            return repr(x)
+        return json.JSONEncoder.default(self, x)
+    
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
-                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot= False,n_img_samples=4,n_closest=4):
+                          LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot_dist= False,is_recover=  False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
     Args:
@@ -136,22 +149,34 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
                     LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
     if 'map' in metrics:
-       for R in K:
+        for R in K:
+            map=[]
             precision=[]
-            for k in range(1,R+1):
-                y_pred = np.array([y[:k] for y in T_query_pred])
-                y_pred_k = np.array([y[k-1] for y in T_query_pred])
-                precision_k = [[evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1)) for y in yy ] for t,yy in zip(T_query,y_pred)]
-                relevant = np.array([1 if evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1))>0 else 0 for t,y in zip(T_query,y_pred_k) ])
-                precision.append(np.mean(np.array(precision_k),axis = 1)*relevant)
-            scores['map'+ '@'+str(R)] = np.mean(np.mean(np.array(precision),axis=0),axis=1)
+            for i in range(len(T_query)):
+                relevant=[]
+                precision_r =[]
+                s =0.0
+                for j in range(R):
+                    a = 1 if evaluation.select('precision',T_query[i].reshape(1,-1),T_query_pred[i,j].reshape(1,-1))==1 else 0
+                    s += a
+                    precision_r.append(s/(j+1))
+                    relevant.append(a)
+                map.append(np.mean(np.array(relevant)*np.array(precision_r)))
+                precision.append(np.sum(relevant)/R)
+            m = np.mean(map)
+            p = np.mean(precision)
+            scores['map'+ '@'+str(R)] = m
+            scores['r_precision'+ '@'+str(R)] = p
+            print("{}@{} : {:.3f}".format('map', R, m))
+            print("{}@{} : {:.3f}".format('r_precision', R, p))
             if LOG !=None:
-                LOG.progress_saver[log_key].log('map'+ '@'+str(R),s,group='map')
+                LOG.progress_saver[log_key].log('map'+ '@'+str(R),m,group='map')
+                LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
             
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
         
-    if is_plot:
+    if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
@@ -159,32 +184,35 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         dset_type = 'init_' + dl_query.dataset.dset_type  if is_init else 'final_' + dl_query.dataset.dset_type
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
-
-        # plot intra and inter dist distribution
-        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=result_path)
-        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot, project_name=config['project'], save_path=result_path)
-
-        ## recover n_closest images
-        n_img_samples = 10
-        n_closest = 4
-        retrieve_save_path = result_path+'/'+ str(n_img_samples) +'_samples_'+ str(n_closest) + '_recoveries.png'
-        retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        plot_tsne(X_stack, result_path,config['project'])  
         
-        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-        save_path = result_path+'/confussionMatrix.csv'
-        with open(save_path,'w',newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(['TP','FP','TN','FN'])
-            for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-                s =[int(tp),int(fp),int(tn),int(fn)]
-                writer.writerow(s)
+    if is_plot_dist:
+        # plot intra and inter dist distribution
+        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot_dist, project_name=config['project'], save_path=result_path)
+
+    if is_recover:
+        ## recover n_closest images
+        retrieve_save_path = result_path+'/recoveries.png'
+        counter = 1
+        while os.path.exists(retrieve_save_path):
+            retrieve_save_path = result_path+'/recoveries_'+str(counter)+'.png'
+            counter += 1
+        retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
+        #plot_tsne(X_stack, result_path,config['project'])  
+        
+        # y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
+        # TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
+        # save_path = result_path+'/confussionMatrix.csv'
+        # with open(save_path,'w',newline='') as csv_file:
+        #     writer = csv.writer(csv_file)
+        #     writer.writerow(['TP','FP','TN','FN'])
+        #     for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+        #         s =[int(tp),int(fp),int(tn),int(fn)]
+        #         writer.writerow(s)
     return scores
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot= False,n_img_samples=4,n_closest=4):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1],metrics=['recall'], is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
     """
     Evaluate the retrieve performance
         Args:
@@ -204,7 +232,8 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_ids'][0])
     # leave itself out
     T_pred = T[k_closest_points[:,1:]]
-    scores={}
+
+    scores ={}
     for k in K:
         y_pred = np.array([ np.sum(y[:k],axis=0) for y in T_pred])
         y_pred[np.where(y_pred>1)]= 1
@@ -215,21 +244,33 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
                 scores[metric+ '@'+str(k)] = s
                 if LOG !=None:
                     LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
-    
+
     if 'map' in metrics:
         for R in K:
+            map=[]
             precision=[]
-            for k in range(1,R+1):
-                y_pred = np.array([y[:k] for y in T_pred])
-                y_pred_k = np.array([y[k-1] for y in T_pred])
-                precision_k = [[evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1)) for y in yy ] for t,yy in zip(T,y_pred)]
-                relevant = np.array([1 if evaluation.select('precision',t.reshape(1,-1),y.reshape(1,-1))>0 else 0 for t,y in zip(T,y_pred_k) ])
-                precision.append(np.mean(np.array(precision_k),axis = 1)*relevant)
-            scores['map'+ '@'+str(R)] = np.mean(np.mean(np.array(precision),axis=0),axis=1)
+            for i in range(len(T)):
+                relevant=[]
+                precision_r =[]
+                s =0.0
+                for j in range(R):
+                    a = 1 if evaluation.select('precision',T[i].reshape(1,-1),T_pred[i,j].reshape(1,-1))==1 else 0
+                    s += a
+                    precision_r.append(s/(j+1))
+                    relevant.append(a)
+                map.append(np.mean(np.array(relevant)*np.array(precision_r)))
+                precision.append(np.sum(relevant)/R)
+            m = np.mean(map)
+            p = np.mean(precision)
+            scores['map'+ '@'+str(R)] = m
+            scores['r_precision'+ '@'+str(R)] = p
+            print("{}@{} : {:.3f}".format('map', R, m))
+            print("{}@{} : {:.3f}".format('r_precision', R, p))
             if LOG !=None:
-                LOG.progress_saver[log_key].log('map'+ '@'+str(R),s,group='map')
-                  
-    if is_plot:
+                LOG.progress_saver[log_key].log('map'+ '@'+str(R),m,group='map')
+                LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
+                
+    if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
             if not os.path.exists(result_path): os.makedirs(result_path)
@@ -237,25 +278,31 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         dset_type = 'init_' + dl.dataset.dset_type  if is_init else 'final_' + dl.dataset.dset_type
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
-
+        
+    if is_plot_dist:
         # plot the distance density of embedding pairs
-        check_shared_label_dist(X, T,is_plot= is_plot,project_name =config['project'],save_path=result_path)
+        check_shared_label_dist(X, T, is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
     
+    if is_recover:
         ## recover n_closest images
-        retrieve_save_path = result_path+'/'+ str(n_img_samples) +'_samples_'+ str(n_closest) + '_recoveries.png'
+        retrieve_save_path = result_path+'/recoveries_0.png'
+        counter = 1
+        while os.path.exists(retrieve_save_path):
+            retrieve_save_path = result_path+'/recoveries_'+str(counter)+'.png'
+            counter += 1
         retrieve_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        plot_tsne(X, result_path, config['project']) 
+        #plot_tsne(X, result_path, config['project']) 
 
         # save the confussionMatrix based on labels
-        y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        save_path = result_path+'/confussionMatrix.csv'
-        with open(save_path,'w',newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(['TP','FP','TN','FN'])
-            for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-                s =[int(tp),int(fp),int(tn),int(fn)]
-                writer.writerow(s)
+        # y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
+        # TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
+        # save_path = result_path+'/confussionMatrix.csv'
+        # with open(save_path,'w',newline='') as csv_file:
+        #     writer = csv.writer(csv_file)
+        #     writer.writerow(['TP','FP','TN','FN'])
+        #     for tp,fp,tn,fn in zip(TP,FP,TN,FN):
+        #         s =[int(tp),int(fp),int(tn),int(fn)]
+        #         writer.writerow(s)
     return scores
 
 
@@ -266,9 +313,9 @@ def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n
             X: embeddings
             img_paths: the original image paths of embeddings
     """
-    print('Start to recover {} similar images for each sampled image'.format(n_closest))
+    print('Start to recover {} similar images for {} sampled image'.format(n_closest,n_img_samples))
     start_time = time.time()
-    np.random.seed(1)
+    np.random.seed(0)
     sample_idxs = np.random.choice(np.arange(len(X)), n_img_samples)
     nns, _ = faissext.find_nearest_neighbors(X, queries= X[sample_idxs],
                                                 k=n_closest+1,
@@ -346,13 +393,13 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
                 band_data = normalize(band_data,norm="max")*255
                 tif_img.append(band_data)
             img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
-            zoom = 2
+            zoom = 1.8
         # plot the text
         labels =  np.where(temp_sample_labels[i]==1)[0] 
         query_labels =  np.where(temp_sample_labels[int(i/width)*width]==1)[0]
-        if i != int(i/width)*width: ax.text(0.01,0.9,str(len(set(labels).intersection(query_labels))) +' correct labels',fontsize=18,color = 'blue')
+        if i != int(i/width)*width: ax.text(0.01,0.9,str(len(set(labels).intersection(query_labels))) +' correct labels',fontsize=18,color = 'black')
         for j in range(len(labels)): 
-            color='blue' if labels[j] in query_labels else 'black'
+            color='black' if labels[j] in query_labels else 'red'
             label_name = conversion[str(labels[j])] 
             if len(label_name)>19: label_name = label_name[:19]+'\n'+label_name[19:]
             ax.text(0.01, 0.8-j*0.1,str(label_name),fontsize=15, color = color) 
@@ -424,6 +471,7 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
 
     if is_plot:
         #Plot the dist distribution for shared labels
+        print('Start to plot the distance density for shared labels')
         start_time = time.time()
         temp_list = [[[d,key] for d in shared_labels_dist[key]] for key in shared_labels_dist.keys()]
         temp_list = np.array([item for sublist in temp_list for item in sublist])
@@ -439,20 +487,6 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
         plt.close()
         print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
         
-        # Plot the dist distribution for intra and inter class
-        inter_intra_df = pd.DataFrame({"Distance":temp_list[:,0],
-                                "dist_type": ['intra' if i >0 else 'inter' for i in temp_list[:,1]]})
-        plt.figure()
-        grid = sns.FacetGrid(inter_intra_df, hue="dist_type")
-        grid.map_dataframe(sns.kdeplot, 'Distance')
-        grid.set_axis_labels('embedding pair distance','density')
-        grid.add_legend()
-        plt.title(project_name)
-        grid.savefig(save_path + '/dist_all.png',format='png')
-        plt.close()
-        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-        
-
 def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_name="",save_path=""):
     """
     Check the distance of embbeding pair.
@@ -498,10 +532,10 @@ def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_
     
     if is_plot:
         start_time = time.time()
-        df = pd.DataFrame({'Distance': np.array(all_dist) ,
-                    'class':  np.array(all_labels) ,
-                    "dist_type":np.array(dist_type)})
-        print('Start to plot intra and inter dist')
+        df = pd.DataFrame({'class':  np.array(all_labels),
+                           'Distance': np.array(all_dist) ,
+                            "dist_type":np.array(dist_type)})
+        print('Start to plot intra and inter distance density for each class')
         #plot and save the distribution of intra distance and inter distance for each class
         plt.figure()
         grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
@@ -510,7 +544,21 @@ def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_
         grid.add_legend()
         grid.savefig(save_path + '/dist_per_class.png',format='png')
         plt.close()
+        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
 
+        # Plot the dist distribution for intra and inter class
+        print('Start to plot the intra and inter distance density for all class')
+        start_time = time.time()
+        plt.figure()
+        grid = sns.FacetGrid(df, hue="dist_type")
+        grid.map_dataframe(sns.kdeplot, 'Distance')
+        grid.set_axis_labels('embedding pair distance','density')
+        grid.add_legend()
+        plt.title(project_name +" Distance distribution")
+        grid.savefig(save_path + '/dist_all.png',format='png')
+        plt.close()
+        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+        
 
 def check_gradient(model,LOG,log_key):
     """
