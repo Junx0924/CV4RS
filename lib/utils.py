@@ -212,7 +212,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1],metrics=['recall'], is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
+                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
     """
     Evaluate the retrieve performance
         Args:
