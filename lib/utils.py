@@ -129,6 +129,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     if 'evaluation_weight' in config.keys() and not is_init:
         X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
+    X_gallery = normalize(X_gallery,axis=1)
+    X_query = normalize(X_query,axis=1)
 
     # make sure the query and the gallery has same number of classes
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
@@ -219,7 +221,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             model: pretrained resnet50
             dl: dataloader
             use_penultimate: use the embedding layer if it is false
-            K: [1,2,4,8]
+            K: default [1,2,4,8]
             metrics: default ['recall']
         Return:
             scores: dict of score for different metrics
@@ -228,6 +230,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
     if 'evaluation_weight' in config.keys() and not is_init:
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
+    X = normalize(X,axis=1)
     
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_ids'][0])
     # leave itself out
