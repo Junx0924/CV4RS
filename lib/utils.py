@@ -18,7 +18,7 @@ from sklearn.manifold import TSNE
 import time
 import pandas as pd
 import seaborn as sns
-import csv,json
+import json
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -129,9 +129,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     if 'evaluation_weight' in config.keys() and not is_init:
         X_query = get_weighted_embed(X_query,config['evaluation_weight'],config['sub_embed_sizes'])
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
-    X_gallery = normalize(X_gallery,axis=1)
     X_query = normalize(X_query,axis=1)
-
+    X_gallery = normalize(X_gallery,axis=1)
     # make sure the query and the gallery has same number of classes
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
@@ -150,7 +149,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
                 if LOG !=None:
                     LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
-    if 'map' in metrics:
+    if 'map' in metrics or 'r_precision' in metrics:
         for R in K:
             map=[]
             precision=[]
@@ -189,7 +188,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         
     if is_plot_dist:
         # plot intra and inter dist distribution
-        check_inter_intra_dist(X_stack, T_stack,  is_plot=is_plot_dist, project_name=config['project'], save_path=result_path)
+        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot_dist, project_name=config['project'], save_path=result_path)
 
     if is_recover:
         ## recover n_closest images
@@ -199,17 +198,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             retrieve_save_path = result_path+'/recoveries_'+str(counter)+'.png'
             counter += 1
         retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, dl_query.dataset.conversion, dl_query.dataset.im_paths, dl_gallery.dataset.im_paths, retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        #plot_tsne(X_stack, result_path,config['project'])  
-        
-        # y_pred = np.array([np.sum(y[:1], axis =0) for y in T_query_pred])
-        # TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T_query,y_pred)
-        # save_path = result_path+'/confussionMatrix.csv'
-        # with open(save_path,'w',newline='') as csv_file:
-        #     writer = csv.writer(csv_file)
-        #     writer.writerow(['TP','FP','TN','FN'])
-        #     for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-        #         s =[int(tp),int(fp),int(tn),int(fn)]
-        #         writer.writerow(s)
+        plot_tsne(X_stack, result_path,config['project'])  
     return scores
 
 
@@ -248,7 +237,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
                 if LOG !=None:
                     LOG.progress_saver[log_key].log(metric+ '@'+str(k),s,group=metric)
 
-    if 'map' in metrics:
+    if 'map' in metrics or 'r_precision' in metrics:
         for R in K:
             map=[]
             precision=[]
@@ -294,18 +283,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             retrieve_save_path = result_path+'/recoveries_'+str(counter)+'.png'
             counter += 1
         retrieve_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        #plot_tsne(X, result_path, config['project']) 
-
-        # save the confussionMatrix based on labels
-        # y_pred = np.array([np.sum(y[:1], axis =0) for y in T_pred])
-        # TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        # save_path = result_path+'/confussionMatrix.csv'
-        # with open(save_path,'w',newline='') as csv_file:
-        #     writer = csv.writer(csv_file)
-        #     writer.writerow(['TP','FP','TN','FN'])
-        #     for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-        #         s =[int(tp),int(fp),int(tn),int(fn)]
-        #         writer.writerow(s)
+        plot_tsne(X, result_path, config['project']) 
     return scores
 
 
@@ -455,6 +433,13 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
             T: multi-hot labels
     """
     start_time = time.time()
+    np.random.seed(0)
+    # randomly sample up in case the dataset is too big to plot the distance of embedding pairs
+    n_samples = 9816
+    if len(X)> n_samples:
+        sample_idxs = np.random.choice(np.arange(len(X)), n_samples)
+        X = X[sample_idxs]
+        T = T[sample_idxs]
     print('Start to calculate the embedding distance for shared labels')
     # compute the l2 distance for each embedding
     dist = similarity.pairwise_distance(X)
@@ -469,7 +454,7 @@ def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
 
     if LOG != None:
-        for label_count in shared_label_counts:
+        for label_count in shared_labels_dist.keys():
             LOG.progress_saver[log_key].log('shared_labels@'+str(label_count),np.mean(shared_labels_dist[int(label_count)]), group ='dist')
 
     if is_plot:
@@ -514,7 +499,7 @@ def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_
         inds= image_dict[str(label)]
         # check if the number of samples in one class is more than 10% of the average number
         if len(inds)>= (len(X)/len(labels))*0.1:
-            # only count the up triangle area
+            # get the index of embedding pairs
             intra_pair_ind = [[[i,j] for j in range(i)] for i in range(1,len(inds))]
             intra_pair_ind = np.array([item for sublist in intra_pair_ind for item in sublist])
             intra_pairs = np.array([[inds[i],inds[j]] for i,j in intra_pair_ind])

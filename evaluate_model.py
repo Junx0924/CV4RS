@@ -58,14 +58,14 @@ lib.utils.evaluate_standard(model, config, dl_val,is_init=True,is_plot_dist=True
 # load final model
 checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
 model.load_state_dict(checkpoint['state_dict'])
-# plot the distance density and retrieved images of final model on val dataset
+# optional, plot the distance density and retrieved images of final model on val dataset
 lib.utils.evaluate_standard(model, config, dl_val,is_plot_dist=True,is_recover= True) 
 
 print("Evaluate final model on test dataset") 
 #### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model on test dataset\n"
-scores = lib.utils.evaluate_standard(model, config, dl_test,K=[1,2,4,8],metrics=['recall','map'],is_recover= True) 
+scores = lib.utils.evaluate_standard(model, config, dl_test,K=[1,2,4,8],metrics=['recall','map'],is_plot_dist=True,is_recover= True) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
   with open(config['result_path']+'/final_test/evaluate_final_model.txt','w+') as summary_file:
