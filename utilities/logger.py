@@ -68,24 +68,25 @@ class InfoPlotter():
 
 
 ################## GENERATE LOGGING FOLDER/FILES #######################
-def set_logging(config):
+def set_logging(config,start_new =True):
     dataset_name = config['dataset_selected']
     save_path =  config['log']['save_path']
     save_name =  config['log']['save_name']
 
     checkfolder = save_path+'/'+save_name
-    if save_name == '':
-        date = datetime.datetime.now()
-        time_string = '{}-{}-{}-{}-{}-{}'.format(date.year, date.month, date.day, date.hour, date.minute, date.second)
-        checkfolder = save_path+'/{}_'.format(dataset_name.upper())+time_string
-    counter     = 1
-    while os.path.exists(checkfolder):
-        checkfolder = save_path+'/'+ save_name +'_'+str(counter)
-        counter += 1
-    config['log']['save_name'] = checkfolder.split('/')[-1]
+    if start_new:
+        if save_name == '':
+            date = datetime.datetime.now()
+            time_string = '{}-{}-{}-{}-{}-{}'.format(date.year, date.month, date.day, date.hour, date.minute, date.second)
+            checkfolder = save_path+'/{}_'.format(dataset_name.upper())+time_string
+        counter     = 1
+        while os.path.exists(checkfolder):
+            checkfolder = save_path+'/'+ save_name +'_'+str(counter)
+            counter += 1
+        config['log']['save_name'] = checkfolder.split('/')[-1]
+        os.makedirs(checkfolder)
+        
     config['checkfolder'] = checkfolder
-
-    os.makedirs(checkfolder)
     with open(checkfolder+'/Parameter_Info.txt','w') as f:
         f.write(gimme_save_string(config))
     with open(checkfolder+"/hypa.pkl","wb") as f:
@@ -117,11 +118,10 @@ class LOGGER():
                 .groups: Dictionary of subsets belonging to one of the main subsets, e.g. ["Recall", "NMI", ...]
                     ['specific_metric_name']: Specific name of the metric of interest, e.g. Recall@1.
         """
-        self.config        = config
+        self.config        = set_logging(config,start_new = start_new)
         self.prefix      = '{}_'.format(prefix) if prefix is not None else ''
         self.sub_loggers = sub_loggers
         ### Make Logging Directories
-        if start_new: self.config = set_logging(config)
         checkfolder = self.config['checkfolder']
         ### Set Graph and CSV writer
         self.csv_writer, self.graph_writer, self.progress_saver = {},{},{}

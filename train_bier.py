@@ -110,7 +110,7 @@ def main():
         start_new = False
         checkfolder = config['load_from_checkpoint']
         checkpoint = torch.load(checkfolder +"/checkpoint_recall@1.pth.tar")
-        config['checkfolder'] = checkfolder
+        config['log']['save_name'] = checkfolder.split('/')[-1]
         with open(checkfolder +"/hypa.pkl","rb") as f:
             config_old = pkl.load(f)
             config['wandb']['wandb_id'] = config_old['wandb']['wandb_id']
