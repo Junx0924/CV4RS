@@ -35,7 +35,7 @@ def basic_training_parameters(parser):
     parser.add_argument('--savename', default="", type = str, help='the folder name to save the training results')
     parser.add_argument('--eval_epoch',type=int, default=10, help='epoch interval for validation')
     parser.add_argument('--eval_metric',  default=['recall','map'], nargs='+', type=str, help='metric for evaluate performance of multi-label learning')
-    parser.add_argument('--load_from_checkpoint', default="../", type=str,  help='the checkpoint folder to resume the training')
+    parser.add_argument('--load_from_checkpoint', default="", type=str,  help='the checkpoint folder to resume the training')
     parser.add_argument('--unfrozen_layers', default=[-1], nargs='+', type=int, help='layer index for unfrozen, select from 0 to 7')
     return parser
 
