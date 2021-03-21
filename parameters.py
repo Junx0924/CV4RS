@@ -14,7 +14,7 @@ def setup_parameters(parser):
 
 def basic_training_parameters(parser):
     ### General Training Parameters
-    parser.add_argument('--frozen',   action='store_true',help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthNet frozen the backbone except the first layer')
+    parser.add_argument('--frozen',   action='store_true',help='Flag. If set,frozen the backbone')
     parser.add_argument('--gpu_ids', default=[0], nargs='+', type=int)
     parser.add_argument('--num-workers', default=8, type=int)
     parser.add_argument('--random-seed', default = 0, type = int)
@@ -31,18 +31,19 @@ def basic_training_parameters(parser):
     parser.add_argument('--tau',               default=[55],nargs='+',type=int,help='Stepsize(s) before reducing learning rate.')
     parser.add_argument('--use_npmem',   action='store_true',help='Flag. If set, create npmem file and read data from npmem during training')
     parser.add_argument('--batch_size', default=128, type=int)
-    parser.add_argument('--num_samples_per_class',type=int, default=2)
-    parser.add_argument('--savename', default="", type = str)
-    parser.add_argument('--eval_epoch',type=int, default=10)
-    parser.add_argument('--eval_metric',  default=['F_Measure','hamming_loss','precision','accuracy','recall','subset_accuracy','Mirco_F1','Macro_F1'], nargs='+', type=str,   help='metric for evaluate performance of multi-label learning')
-    parser.add_argument('--load_from_checkpoint', default="", type=str)
+    parser.add_argument('--num_samples_per_class',type=int, default=2, help='number of images sampled for each class')
+    parser.add_argument('--savename', default="", type = str, help='the folder name to save the training results')
+    parser.add_argument('--eval_epoch',type=int, default=10, help='epoch interval for validation')
+    parser.add_argument('--eval_metric',  default=['recall','map'], nargs='+', type=str, help='metric for evaluate performance of multi-label learning')
+    parser.add_argument('--load_from_checkpoint', default="../", type=str,  help='the checkpoint folder to resume the training')
+    parser.add_argument('--unfrozen_layers', default=[-1], nargs='+', type=int, help='layer index for unfrozen, select from 0 to 7')
     return parser
 
 def divide_and_conquer(parser):
     ### for Method Divide and conquer
     parser.add_argument('--dac_mod_epoch', default=10, type = int, help = 'the steps for reclustering train dataset')
     parser.add_argument('--dac_nb_clusters', default=8, type = int, help='the number of learners')
-    parser.add_argument('--dac_finetune_epoch', default=110, type = int)
+    parser.add_argument('--dac_finetune_epoch', default=110, type = int, help='after the finetune epoch, there is no reclustering when training')
     parser.add_argument('--dac_class_specific_beta',   action='store_true',help='Flag. If set, the margin beta for margin loss will be trainable and class-specific')
     return parser
 
@@ -94,7 +95,7 @@ def wandb_parameters(parser):
     parser.add_argument('--project',         default='DAC_Sample_Runs',  type=str,   help='Name of the project - relates to W&B project names. In --savename default setting part of the savename.')
     parser.add_argument('--group',           default='Sample_Run',  type=str,   help='Name of the group - relates to W&B group names - all runs with same setup but different seeds are logged into one group. \
                                                                                               In --savename default setting part of the savename.')
-    parser.add_argument('--wandb_dry_run',     action='store_true')
+    parser.add_argument('--wandb_dry_run',     action='store_true', help='if set, wandb will not access the internet to update wandb records online')
     return parser 
 
 def load_common_config():
@@ -144,6 +145,7 @@ def load_common_config():
     config['eval_metric'] = args.pop('eval_metric')
     config['gpu_ids']= args.pop('gpu_ids')
     config['device'] = torch.device("cuda") if len(config['gpu_ids'])>0 else torch.device("cpu")
+    config['unfrozen_layers'] = args.pop('unfrozen_layers')
 
     ### Update wandb config  ###########
     if config['log_online']:
