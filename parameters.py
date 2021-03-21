@@ -154,7 +154,12 @@ def load_common_config():
         config['wandb']['project'] =args.pop('project')
         config['wandb']['group'] =args.pop('group')
         # update save_name
-        config['log']['save_name'] = savename if savename !="" else config['wandb']['group']+'_s{}'.format(config['random_seed'])
+        if os.exists.path(config['load_from_checkpoint']):
+            config['log']['save_name'] = config['load_from_checkpoint'].split('/')[-1]
+        elif  savename !="" :
+            config['log']['save_name'] = savename
+        else:
+            config['log']['save_name'] = config['wandb']['group']+'_s{}'.format(config['random_seed'])
         
     # update save_path
     config['log']['save_path'] = config['log']['save_path']+ '/' + dataset_name

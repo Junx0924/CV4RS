@@ -68,7 +68,7 @@ class InfoPlotter():
 
 
 ################## GENERATE LOGGING FOLDER/FILES #######################
-def set_logging(config,start_new =True):
+def set_logging(config,start_new):
     dataset_name = config['dataset_selected']
     save_path =  config['log']['save_path']
     save_name =  config['log']['save_name']
@@ -118,7 +118,7 @@ class LOGGER():
                 .groups: Dictionary of subsets belonging to one of the main subsets, e.g. ["Recall", "NMI", ...]
                     ['specific_metric_name']: Specific name of the metric of interest, e.g. Recall@1.
         """
-        self.config        = set_logging(config,start_new = start_new)
+        self.config        = set_logging(config, start_new)
         self.prefix      = '{}_'.format(prefix) if prefix is not None else ''
         self.sub_loggers = sub_loggers
         ### Make Logging Directories
