@@ -61,11 +61,12 @@ class Network(nn.Module):
         if config['frozen']:
             child_counter = 0
             for child in self.features:
-                if child_counter == 0 and config['dataset_selected'] =="BigEarthNet":
+                if child_counter in config['unfrozen_layers']:
                     continue
                 else:
                     for param in child.parameters():
                         param.requires_grad = False
+                child_counter +=1
 
         # add pooling layer
         k_s = 4 if config['dataset_selected'] =="BigEarthNet" else 7
