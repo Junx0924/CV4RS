@@ -127,13 +127,14 @@ def load_common_config():
     config['opt']['embedding']['weight_decay'] =args.pop('embedding_wd')
     dataset_name =  args.pop('dataset_name')
     config['dataset_selected'] = dataset_name
-    config['dataset_selected'] = dataset_name
     config['dataset'][dataset_name]['root'] = args.pop('source_path') + '/' + dataset_name
+    assert(os.path.exists(config['dataset'][dataset_name]['root']))
     config['random_seed'] = args.pop('random_seed')
     config['log_online'] = args.pop('log_online')
     config['load_from_checkpoint'] = args.pop('load_from_checkpoint')
     config['frozen'] = args.pop('frozen')
     config['log']['save_path'] = args.pop('save_path')
+    assert(os.path.exists(config['log']['save_path']))
     savename = args.pop('savename')
     config['log']['save_name'] = savename if savename !="" else dataset_name +'_s{}'.format(config['random_seed'])
     config['scheduler'] = args.pop('scheduler')
@@ -154,7 +155,8 @@ def load_common_config():
         config['wandb']['project'] =args.pop('project')
         config['wandb']['group'] =args.pop('group')
         # update save_name
-        if os.path.exists(config['load_from_checkpoint']):
+        if config['load_from_checkpoint'] !="":
+            assert(os.path.exists(config['load_from_checkpoint']))
             config['log']['save_name'] = config['load_from_checkpoint'].split('/')[-1]
         elif  savename !="" :
             config['log']['save_name'] = savename
