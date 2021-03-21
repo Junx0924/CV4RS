@@ -154,7 +154,7 @@ def load_common_config():
         config['wandb']['project'] =args.pop('project')
         config['wandb']['group'] =args.pop('group')
         # update save_name
-        if os.exists.path(config['load_from_checkpoint']):
+        if os.path.exists(config['load_from_checkpoint']):
             config['log']['save_name'] = config['load_from_checkpoint'].split('/')[-1]
         elif  savename !="" :
             config['log']['save_name'] = savename
