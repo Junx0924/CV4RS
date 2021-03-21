@@ -69,12 +69,11 @@ class InfoPlotter():
 
 ################## GENERATE LOGGING FOLDER/FILES #######################
 def set_logging(config,start_new):
-    dataset_name = config['dataset_selected']
-    save_path =  config['log']['save_path']
-    save_name =  config['log']['save_name']
-
-    checkfolder = save_path+'/'+save_name
     if start_new:
+        dataset_name = config['dataset_selected']
+        save_path =  config['log']['save_path']
+        save_name =  config['log']['save_name']
+        checkfolder = save_path+'/'+save_name
         if save_name == '':
             date = datetime.datetime.now()
             time_string = '{}-{}-{}-{}-{}-{}'.format(date.year, date.month, date.day, date.hour, date.minute, date.second)
@@ -85,6 +84,8 @@ def set_logging(config,start_new):
             counter += 1
         config['log']['save_name'] = checkfolder.split('/')[-1]
         os.makedirs(checkfolder)
+    else:
+        checkfolder = config['load_from_checkpoint']
         
     config['checkfolder'] = checkfolder
     with open(checkfolder+'/Parameter_Info.txt','w') as f:
