@@ -49,6 +49,11 @@ class MarginLoss(torch.nn.Module):
         self.batchminner = batchminner
 
     def forward(self, feature, labels):
+        """
+        Args:
+            feature ([tensor]): embedding vectors, shape(batchsize x sub embedding size)
+            labels ([tensor]):  if batchminner is multiLabelSemihard, shape(batchsize, L); else category labels shape(batchsize, L)
+        """
         anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
         anchors = feature[anchor_idx] 
         positives = feature[pos_idx]
