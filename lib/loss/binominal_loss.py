@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 class BinomialLoss(nn.Module):
-    def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,is_beta_trainable= False,**kwargs):
+    def __init__(self, nb_classes,C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005, class_specific_beta=False,is_beta_trainable= False,**kwargs):
         """
         Boosted bionminal loss
         Implement according to paper: https://arxiv.org/abs/1801.04815
@@ -20,14 +20,20 @@ class BinomialLoss(nn.Module):
         self.initial_acts =0.0 if eta_style == True else 0.5
         self.shrinkage = 1.0 if eta_style == True else 0.06
         
+        self.nb_classes = nb_classes
+        self.class_specific_beta = class_specific_beta
         self.is_beta_trainable = is_beta_trainable
-        if is_beta_trainable:
-            # beta is trainable
-            beta = torch.tensor([beta], dtype=torch.float32)
+        if self.is_beta_trainable:
+            if class_specific_beta:
+                assert nb_classes is not None
+                beta = torch.ones(nb_classes+1,dtype=torch.float32)*beta
+            else:
+                beta = torch.tensor([beta], dtype=torch.float32)
+        
             self.beta = torch.nn.Parameter(beta)
-            # Learning Rate for class margin parameters
+            # Learning Rate for class margin parameters in MarginLoss
             self.beta_lr = beta_lr 
-            self.nu = 0.1
+            self.nu = nu
         else:
             self.beta = beta
     
@@ -42,13 +48,25 @@ class BinomialLoss(nn.Module):
         # init boosting_weights for each label pair
         boosting_weights = torch.ones(n*n).cuda()
         # Pairwise labels
-        a = torch.cat(n*[torch.unsqueeze(T, 0)])
+        a = torch.cat(n*[torch.unsqueeze(T+1, 0)])  # plus 1 to avoid class label 0
         b = torch.transpose(a, 0, 1)
         pairs = torch.flatten(a==b)*1.0
         m = 1.0 * pairs + (-self.C * (1.0 - pairs))
         W = torch.flatten(1.0 - torch.eye(n)).cuda()
         # initial weight for each label pair (not include itself)
         W = W * pairs / torch.sum(pairs) + W * (1.0 - pairs) / torch.sum(1.0 - pairs)
+        
+        if self.is_beta_trainable:
+            if self.class_specific_beta:
+                # select beta for every sample according to the class label
+                class_labels = pairs*torch.flatten(a)
+                beta = self.beta[class_labels.type(torch.LongTensor)]
+            else:
+                beta = self.beta
+            beta_regularization_loss = torch.norm(beta, p=1) * self.nu
+        else:
+            beta = self.beta
+            beta_regularization_loss = 0.0
         
         loss =0.0
         acts = self.initial_acts
