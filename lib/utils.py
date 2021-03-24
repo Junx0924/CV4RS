@@ -16,9 +16,8 @@ import os
 from osgeo import gdal
 from sklearn.manifold import TSNE
 import time
-import pandas as pd
-import seaborn as sns
 import json
+import vaex as vx
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
@@ -28,7 +27,7 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
             model: pretrained resnet50
             dataloader: torch dataloader
             device: torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            use_penultimate: use the embedding layer if it is false
+            use_penultimate: bool, if set false, use the embedding layer
         return:
             numpy array of embeddings, labels, indexs 
     """
@@ -66,7 +65,7 @@ def get_weighted_embed(X,weights,sub_dim):
     """
     Get weighted embeddigns
         Args:
-            X: numpy array, embeddings
+            X: numpy array[n_samples X 512], embeddings
             weights: list of weight of each sub embeddings, like [0.1, 1, 1]
             sub_dim: list of size of sub embeddings, like [96,160,256]
         return:
@@ -116,8 +115,8 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         model: pretrained resnet50
         dl_query: query dataloader
         dl_gallery: gallery dataloader
-        use_penultimate: use the embedding layer if it is false
-        K: [1,2,4,8]
+        use_penultimate: bool, if set false, use the embedding layer
+        K: default [1,2,4,8]
         metrics: default ['recall']
     Return:
         score: dict of score for different metrics
@@ -131,6 +130,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         X_gallery = get_weighted_embed(X_gallery,config['evaluation_weight'],config['sub_embed_sizes'])
     X_query = normalize(X_query,axis=1)
     X_gallery = normalize(X_gallery,axis=1)
+    
     # make sure the query and the gallery has same number of classes
     assert dl_query.dataset.nb_classes() == dl_gallery.dataset.nb_classes()
 
@@ -186,9 +186,9 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
         
-    if is_plot_dist:
-        # plot intra and inter dist distribution
-        check_shared_label_dist(X_stack, T_stack,  is_plot=is_plot_dist, project_name=config['project'], save_path=result_path)
+    # plot inter and intra distance for images which have the most frequent class label
+    label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
+    check_intra_inter_dist(X_stack, T_stack, class_label = label_most ,is_plot= is_plot_dist, LOG= LOG, project_name=config['project'], save_path=result_path)
 
     if is_recover:
         ## recover n_closest images
@@ -203,15 +203,18 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
+                    LOG=None, log_key = 'Val',K = [1,2,4,8],metrics=['recall'], is_init=False,is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
     """
     Evaluate the retrieve performance
         Args:
             model: pretrained resnet50
             dl: dataloader
-            use_penultimate: use the embedding layer if it is false
+            use_penultimate: bool, if set true, use the second last layer of the model
             K: default [1,2,4,8]
             metrics: default ['recall']
+            is_init: bool,  get unweighted subembedding vectors for Diva
+            is_plot_dist: bool, if set true, plot the inter and intra embedding distance
+            is_recover: bool, if set true, retrieve 'n_closest' images for 'n_img_samples' query images
         Return:
             scores: dict of score for different metrics
     """
@@ -220,7 +223,6 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
     if 'evaluation_weight' in config.keys() and not is_init:
         X = get_weighted_embed(X,config['evaluation_weight'],config['sub_embed_sizes'])
     X = normalize(X,axis=1)
-    
     k_closest_points, _ = faissext.find_nearest_neighbors(X, queries= X, k=max(K)+1,gpu_id= config['gpu_ids'][0])
     # leave itself out
     T_pred = T[k_closest_points[:,1:]]
@@ -261,7 +263,7 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log('map'+ '@'+str(R),m,group='map')
                 LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
-                
+                       
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -270,10 +272,10 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         dset_type = 'init_' + dl.dataset.dset_type  if is_init else 'final_' + dl.dataset.dset_type
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
-        
-    if is_plot_dist:
-        # plot the distance density of embedding pairs
-        check_shared_label_dist(X, T, is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
+
+    # log or inter and intra distance for images which have the most frequent class label
+    label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
+    check_intra_inter_dist(X, T, class_label = label_most ,is_plot= is_plot_dist, LOG= LOG, project_name =config['project'], save_path=result_path)
     
     if is_recover:
         ## recover n_closest images
@@ -283,16 +285,18 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             retrieve_save_path = result_path+'/recoveries_'+str(counter)+'.png'
             counter += 1
         retrieve_standard(X,T, dl.dataset.conversion, dl.dataset.im_paths,retrieve_save_path,n_img_samples, n_closest,gpu_id=config['gpu_ids'][0])
-        plot_tsne(X, result_path, config['project']) 
+        #plot_tsne(X, result_path, config['project']) 
     return scores
 
 
 def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_closest = 4,gpu_id=None):
     """
-    Recover the n closest similar images for sampled images
+    Retrieve the n closest similar images for sampled images
         Args:
-            X: embeddings
-            img_paths: the original image paths of embeddings
+            X: np.array, embeddings
+            T: np.array, multi-hot labels
+            conversion: dict, class name for each category label
+            img_paths: np.array, the original image paths of embeddings
     """
     print('Start to recover {} similar images for {} sampled image'.format(n_closest,n_img_samples))
     start_time = time.time()
@@ -315,12 +319,16 @@ def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n
 
 def retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
     """
-    Recover the n closest similar gallery images for sampled query images
+    Retrieve the n closest similar gallery images for sampled query images
         Args:
-            X_query: query embeddings
-            X_gallery: gallery embeddings
-            query_img_paths: the original image paths of query embeddings
-            gallery_img_path: the original image paths of gallery embeddings
+            X_query: np.array, query embeddings
+            T_query: np.array, multi-hot labels
+            X_gallery: np.array, gallery embeddings
+            T_gallery: np.array, multi-hot labels
+            conversion: dict, class name for each category label
+            query_img_paths: np.array, the original image paths of query embeddings
+            gallery_img_path: np.array, the original image paths of gallery embeddings
+            
     """
     print('Start to recover {} similar gallery images for each sampled query image'.format(n_closest))
     start_time = time.time()
@@ -348,7 +356,8 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
     Plot images and save them
         Args:
             image_paths: numpy array
-            save_path
+            image_labels: numpy array, multi-hot labels
+            conversion: dict, class name for each category label
     """
     width = image_paths.shape[1]
     f,axes = plt.subplots(nrows =image_paths.shape[0],ncols=image_paths.shape[1])
@@ -374,7 +383,7 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
                 band_data = normalize(band_data,norm="max")*255
                 tif_img.append(band_data)
             img_data =np.moveaxis(np.array(tif_img,dtype=int), 0, -1)
-            zoom = 1.8
+            zoom = 2
         # plot the text
         labels =  np.where(temp_sample_labels[i]==1)[0] 
         query_labels =  np.where(temp_sample_labels[int(i/width)*width]==1)[0]
@@ -382,7 +391,8 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
         for j in range(len(labels)): 
             color='black' if labels[j] in query_labels else 'red'
             label_name = conversion[str(labels[j])] 
-            if len(label_name)>19: label_name = label_name[:19]+'\n'+label_name[19:]
+            if len(label_name)>25: 
+                label_name = label_name[:25].rsplit(' ', 1)[0]
             ax.text(0.01, 0.8-j*0.1,str(label_name),fontsize=15, color = color) 
         # plot the image
         imagebox = OffsetImage(img_data, zoom=zoom)
@@ -407,7 +417,7 @@ def classBalancedSamper(T,num_samples_per_class=2):
     """
     Get a list of category labels with its original index from multi-hot labels
         Args:
-            T: multi-hot labels, eg.numpy array[n_samples x 60]
+            T: np.array[n_samples x 60], multi-hot labels
             num_samples_per_class: default 2
         Return:
             list of category labels
@@ -425,150 +435,69 @@ def classBalancedSamper(T,num_samples_per_class=2):
         new_T_list.append([inds[1],int(c)])
     return np.array(new_T_list)
 
-def check_shared_label_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_name="",save_path=""):
+def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key = 'Val', project_name="",save_path=""):
     """
-    log the distance of embbeding pair which have shared labels.
+    Plot the inter and intra embedding distance for images which have certain class label
         Args:
-            X: embeddings
-            T: multi-hot labels
+            X: np.array[n_samples x 512], embeddings
+            T: np.array[n_samples x 60], multi-hot labels
     """
     start_time = time.time()
-    np.random.seed(0)
-    # randomly sample up in case the dataset is too big to plot the distance of embedding pairs
-    n_samples = 9816
-    if len(X)> n_samples:
-        sample_idxs = np.random.choice(np.arange(len(X)), n_samples)
-        X = X[sample_idxs]
-        T = T[sample_idxs]
-    print('Start to calculate the embedding distance for shared labels')
-    # compute the l2 distance for each embedding
-    dist = similarity.pairwise_distance(X)
-    # get the number of shared labels
-    shared = np.matmul(T,np.transpose(T))
-    # only store the up triangle area to reduce computing
-    ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(X))]
-    ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    shared_label_counts = np.unique(shared[ind_pairs[:,0],ind_pairs[:,1]])
-    shared_labels_dist ={int(key):[] for key in shared_label_counts}
-    {shared_labels_dist[int(shared[p[0],p[1]])].append(dist[p[0],p[1]]) for p in ind_pairs}
-    print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-
-    if LOG != None:
-        for label_count in shared_labels_dist.keys():
-            LOG.progress_saver[log_key].log('shared_labels@'+str(label_count),np.mean(shared_labels_dist[int(label_count)]), group ='dist')
-
-    if is_plot:
-        #Plot the dist distribution for shared labels
-        print('Start to plot the distance density for shared labels')
-        start_time = time.time()
-        temp_list = [[[d,key] for d in shared_labels_dist[key]] for key in shared_labels_dist.keys()]
-        temp_list = np.array([item for sublist in temp_list for item in sublist])
-        shared_df = pd.DataFrame({"Distance":temp_list[:,0],
-                                "shared_label_counts": [int(i) for i in temp_list[:,1]]})
-        plt.figure()
-        grid = sns.FacetGrid(shared_df, hue="shared_label_counts")
-        grid.map_dataframe(sns.kdeplot, 'Distance')
-        grid.set_axis_labels('embedding pair distance','density')
-        grid.add_legend()
-        plt.title(project_name)
-        grid.savefig(save_path + '/dist_shared.png',format='png')
-        plt.close()
-        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-        
-def check_inter_intra_dist(X, T, LOG=None, log_key='Val', is_plot=False,project_name="",save_path=""):
-    """
-    Check the distance of embbeding pair.
-        Args:
-            X: embeddings
-            T: multi-hot labels
-    """
-    start_time = time.time()
-    print('Start to calculate the intra and inter distance')
-    # compute the l2 distance for each embedding
-    dist = similarity.pairwise_distance(X)
-    # get the category labels for each embedding
-    T_list = [ np.where(t==1)[0] for t in T] 
-    T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
-    labels = np.unique(T_list[:,1])
-    image_dict = {str(c):[] for c in labels}
-    [image_dict[str(c)].append(ind) for ind,c in T_list]
-
-    # Compute distance for embedding pairs in each class
-    all_dist, all_labels, dist_type =[],[],[]
-    for label in image_dict.keys():
-        inds= image_dict[str(label)]
-        # check if the number of samples in one class is more than 10% of the average number
-        if len(inds)>= (len(X)/len(labels))*0.1:
-            # get the index of embedding pairs
-            intra_pair_ind = [[[i,j] for j in range(i)] for i in range(1,len(inds))]
-            intra_pair_ind = np.array([item for sublist in intra_pair_ind for item in sublist])
-            intra_pairs = np.array([[inds[i],inds[j]] for i,j in intra_pair_ind])
-            intra_dist = dist[intra_pairs[:,0],intra_pairs[:,1]]
-
-            other_inds = list(set(range(len(X))) - set(inds))
-            inter_pairs = [[[i,j] for j in other_inds] for i in inds]
-            inter_pairs = np.array([item for sublist in inter_pairs for item in sublist])
-            inter_dist  =  dist[inter_pairs[:,0],inter_pairs[:,1]]
-            
-            if LOG !=None:
-                LOG.progress_saver[log_key].log('class@'+str(label),np.mean(intra_dist)/np.mean(inter_dist), group ='distRatio')
-            if is_plot:
-                all_dist += list(intra_dist) + list(inter_dist)
-                all_labels += [str(label)]*(len(intra_dist)+ len(inter_dist))
-                dist_type += ['intra']*len(intra_dist) + ['inter']*len(inter_dist)
-    print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+    n = len(X)
+    assert class_label is not None 
+    print('Start to calculate the inter and intra embedding distance for images which have class label ' + str(class_label))
+    inds = np.where(T[:,class_label]==1)[0]
+    other_inds = list(set(range(len(X))) - set(inds))
+    m = len(inds)
+    # compute the l2 distance for each normalized embedding pairs
+    dist = similarity.pairwise_distance(X[inds])
+    # only store the uptriangle area without diagonals because they are symmetrical matrix
+    dist_intra = np.copy(dist[np.triu_indices(m, k = 1)])
+    # free memory
+    dist = None
+    del dist
+    dist_inter = np.sqrt(2 - 2*np.matmul(X[inds],np.transpose(X[other_inds]))).flatten()
     
+    # get the number of shared labels
+    shared = np.matmul(T[inds],np.transpose(T[inds]))
+    shared_intra  = np.copy(shared[np.triu_indices(m, k = 1)])
+    # free memory
+    shared = None
+    del shared
+    shared_inter = np.matmul(T[inds],np.transpose(T[other_inds])).flatten()
+    
+    # pairs which shared this class label
+    ds_intra = vx.from_arrays(x =dist_intra ,y=shared_intra)
+    ds_temp = vx.from_arrays(x =dist_inter ,y=shared_inter)
+    # distance to the images which don't share this class label and other labels
+    ds_inter = ds_temp[ds_temp.y ==0]
+    
+    print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+    if LOG !=None and class_label !=None:
+        LOG.progress_saver[log_key].log('class@'+str(class_label),float(ds_intra.mean(ds_intra.x))/float(ds_inter.mean(ds_inter.x)), group ='distRatio')
+    
+    # Plot the dist distribution for shared labels
     if is_plot:
-        start_time = time.time()
-        df = pd.DataFrame({'class':  np.array(all_labels),
-                           'Distance': np.array(all_dist) ,
-                            "dist_type":np.array(dist_type)})
-        print('Start to plot intra and inter distance density for each class')
-        #plot and save the distribution of intra distance and inter distance for each class
-        plt.figure()
-        grid = sns.FacetGrid(df, col='class', hue="dist_type",  col_wrap=5)
-        grid.map_dataframe(sns.kdeplot, 'Distance')
-        grid.set_axis_labels('embedding pair distance','density')
-        grid.add_legend()
-        grid.savefig(save_path + '/dist_per_class.png',format='png')
-        plt.close()
-        print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-
-        # Plot the dist distribution for intra and inter class
-        print('Start to plot the intra and inter distance density for all class')
+        print('Start to plot the distance density for image pairs which have class label ' + str(class_label))
         start_time = time.time()
         plt.figure()
-        grid = sns.FacetGrid(df, hue="dist_type")
-        grid.map_dataframe(sns.kdeplot, 'Distance')
-        grid.set_axis_labels('embedding pair distance','density')
-        grid.add_legend()
-        plt.title(project_name +" Distance distribution")
-        grid.savefig(save_path + '/dist_all.png',format='png')
+        ds_inter.plot1d(ds_inter.x, limits='minmax',label='inter', n =True)
+        ds_intra.plot1d(ds_intra.x, limits='minmax' ,label='intra', n =True)
+        plt.title(project_name)
+        plt.xlabel('Embedding pair distance')
+        plt.ylabel('Density')
+        plt.legend()
+        plt.savefig(save_path + '/dist_shared_class_' + str(class_label) + '.png',format='png')
         plt.close()
         print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-        
-
-def check_gradient(model,LOG,log_key):
-    """
-    Check the gradient of each layer in the model
-    The gradient is supposed to bigger at the embedding layer
-    gradually descrease to the first conv layer
-    """
-    # record the gradient of the weight of each layer in the model
-    for name, param in model.named_parameters():
-        if param.requires_grad == True and 'weight' in name and param.grad is not None:
-            grads = param.grad.detach().cpu().numpy().flatten()
-            grad_l2, grad_max  = np.mean(np.sqrt(np.mean(np.square(grads)))), np.mean(np.max(np.abs(grads)))
-            LOG.progress_saver[log_key].log(name+'_l2',grad_l2)
-            LOG.progress_saver[log_key].log(name+'_max',grad_max)
-
+      
 
 def plot_tsne(X,save_path,project_name="",n_components=2):
     """
     Get the tsne plot of embeddings
         Args:
-            X: embeddings
-            T: multi-hot labels
+            X: np.array[n_samples x 512], embeddings
+            T: np.array[n_samples x 60], multi-hot labels
             conversion: dictionary to convert category label to label name
     """
     # apply tsne to the embeddings
@@ -584,7 +513,7 @@ def plot_tsne(X,save_path,project_name="",n_components=2):
     plt.close()
 
 
-def plot_dataset_stat(dataset,save_path, dset_type='train'):
+def plot_dataset_stat(dataset,save_path):
     """
     Generally check the statistic of the dataset
      Check Avg. num labels per image
@@ -592,161 +521,49 @@ def plot_dataset_stat(dataset,save_path, dset_type='train'):
      Args:
         dataset: torch.dataset
     """
-    save_path = save_path +'/stat_' + dset_type
+    save_path = save_path +'/stat_' + dataset.dset_type
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    avg_labels_per_image = np.mean(np.sum(dataset.ys,axis= 1))
-    print("Avg. num labels per image = "+ str(avg_labels_per_image))
     images_per_label =[len(dataset.image_dict[label]) for label in dataset.image_dict.keys()]
     plt.figure(figsize=(15,6))
-    plt.bar([c for c in dataset.image_dict.keys()] ,height=np.array(images_per_label)/sum(images_per_label))
+    plt.bar([int(c) for c in dataset.image_dict.keys()] ,height=np.array(images_per_label)/len(dataset.ys))
     plt.xlabel("label")
     plt.ylabel("Percent of samples")
-    plt.title("Distribution of samples for "+ dataset.dataset_name + " "+ dset_type + " dataset")
+    plt.title("Distribution of samples for "+ dataset.dataset_name + " "+ dataset.dset_type + " dataset")
     plt.savefig(save_path +'/statistic_samples.png')
     plt.close()
 
     label_counts = np.sum(dataset.ys,axis= 1)
+    print("Avg. num labels per image = "+ str(np.mean(label_counts)))
     count_dict = {}
     for item in label_counts:
         count_dict[item] = count_dict.get(item, 0) + 1
-    num_labels = sorted([k for k in count_dict.keys()])
+    num_labels = sorted([int(k) for k in count_dict.keys()])
     counts = np.array([count_dict[k] for k in num_labels])
     plt.figure()
     plt.bar(num_labels,counts/np.sum(counts),edgecolor='w')
     plt.xlabel("label counts")
     plt.ylabel("Percent of samples")
-    plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
+    plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dataset.dset_type+ " dataset")
     plt.savefig(save_path+'/statistic_labels.png')
     plt.close()
 
-    #only store the up triangle area to reduce computing
-    # shared_dict ={}
-    # ind_pairs = [[[i,j] for j in range(i) ] for i in range(1,len(dataset.ys))]
-    # ind_pairs = np.array([item for sublist in ind_pairs for item in sublist])
-    # shared_info = [np.dot(dataset.ys[i],dataset.ys[j]) for i,j in ind_pairs]
-    # for c in shared_info:
-    #     shared_dict[c]= shared_dict.get(c,0) +1
-    # num_shared_labels = sorted([k for k in shared_dict.keys()])
-    # counts = np.array([ shared_dict[k]  for k in num_shared_labels])
-    # plt.bar(num_shared_labels,counts/np.sum(counts),edgecolor='w')
-    # plt.xlabel("shared label counts")
-    # plt.ylabel("Percent of sample pairs")
-    # plt.title("Distribution of image pairs for "+ dataset.dataset_name + " "+ dset_type+ " dataset")
-    # plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    # plt.close()    
-
-
-def plot_precision_for_class(T ,T_pred, K,save_path,project_name=""):
-    assert len(T_pred[0]) ==max(K)
-    assert len(K) <=4
-    re=[]
-    for k in K:
-        y_pred = np.array([np.sum(y[:k], axis =0) for y in T_pred])
-        y_pred[np.where(y_pred>1)]= 1
-        TP, FP, TN, FN = evaluation.functions.multilabelConfussionMatrix(T,y_pred)
-        recall= []
-        for tp,fp,tn,fn in zip(TP,FP,TN,FN):
-            r = tp/(tp + fp) if (tp+fp)>0 else 0
-            recall.append(r*100)
-        re.append(recall)
-    title = project_name +" precision based on class"
-    save_path = save_path + '/precision_per_class'
-    plt.figure(figsize=(20, 10))
-    plot_stacked_bar(
-    re, 
-    series_labels = ["precision@"+str(k) for k in K], 
-    category_labels=range(len(T[0])), 
-    show_values=True, 
-    value_format="{:.0f}",
-    y_label="precision",
-    )
-    plt.xlabel('class')
-    plt.title(title)
-    plt.savefig(save_path,format='png')
-    plt.close()
-
-    
-def plot_recall_for_sample(T, T_pred,K,save_path,bins=10,project_name=""):
-    """
-    Split the scores of recall into bins, check the frequency for each score interval
-    Args:
-        T: original
-    """
-    assert len(T_pred[0]) ==max(K)
-    assert len(K) <=4
-    hist_score =[]
-    for k in K:
-        y_pred = np.array([np.sum(y[:k], axis =0) for y in T_pred])
-        y_pred[np.where(y_pred>1)]= 1
-        score_per_sample = [evaluation.examplebasedclassification.recall(np.expand_dims(y_t, axis=0), np.expand_dims(y_p, axis=0)) for y_t,y_p in zip(T,y_pred)]
-        count,bin_edges = np.histogram(score_per_sample, bins=1.0/bins*np.arange(bins+1))
-        hist_score.append(count/sum(count)*100)
-    
-    title = project_name + " recall based on samples"
-    save_path = save_path + '/recall_histogram'
-    plt.figure(figsize=(20, 10))
-    plot_stacked_bar(
-    hist_score, 
-    series_labels = ["recall@"+str(k) for k in K], 
-    category_labels=[ str(int(bin_edges[i-1]*100))+'%'+'~'+str(int(bin_edges[i]*100)) +'%' for i in range(1,len(bin_edges))], 
-    show_values=True, 
-    value_format="{:.0f}",
-    y_label="Percent of samples",
-    )
-    plt.title(title)
-    plt.xlabel('recall interval')
-    plt.savefig(save_path,format='png')
-    plt.close()
-
-
-def plot_stacked_bar(data, series_labels, category_labels=None, 
-                     show_values=False, value_format="{}", y_label=None, 
-                     colors=None, grid=True, reverse=False):
-    """Plots a stacked bar chart with the data and labels provided.
-
-    Keyword arguments:
-    data            -- 2-dimensional numpy array or nested list
-                       containing data for each series in rows
-    series_labels   -- list of series labels (these appear in
-                       the legend)
-    category_labels -- list of category labels (these appear
-                       on the x-axis)
-    show_values     -- If True then numeric value labels will 
-                       be shown on each bar
-    value_format    -- Format string for numeric value labels
-                       (default is "{}")
-    y_label         -- Label for y-axis (str)
-    colors          -- List of color labels
-    grid            -- If True display grid
-    reverse         -- If True reverse the order that the
-                       series are displayed (left-to-right
-                       or right-to-left)
-    """
-    ny = len(data[0])
-    ind = list(range(ny))
-    axes = []
-    cum_size = np.zeros(ny)
-    data = np.array(data)
-    if reverse:
-        data = np.flip(data, axis=1)
-        category_labels = reversed(category_labels)
-    for i, row_data in enumerate(data):
-        color = colors[i] if colors is not None else None
-        axes.append(plt.bar(ind, row_data, bottom=cum_size, 
-                            label=series_labels[i], color=color))
-        cum_size += row_data
-    if category_labels:
-        plt.xticks(ind, category_labels)
-    if y_label:
-        plt.ylabel(y_label)
-    plt.legend()
-    if grid:
-        plt.grid()
-    if show_values:
-        for axis in axes:
-            for bar in axis:
-                w, h = bar.get_width(), bar.get_height()
-                plt.text(bar.get_x() + w/2, bar.get_y() + h/2, 
-                         value_format.format(h), ha="center", 
-                         va="center")
+    # plot the label share statistic of the class which has the most samples
+    label_most = max(dataset.image_dict, key = lambda k: len(dataset.image_dict[k]))
+    # get the number of shared labels
+    T = np.array(dataset.ys)
+    inds = np.where(T[:,int(label_most)]==1)[0]
+    T = T[inds]
+    shared = np.matmul(T,np.transpose(T))
+    # get rid of diagnal elements
+    shared = shared * (np.ones((len(inds),len(inds)))- np.diag(np.ones(len(inds))))
+    # only get the up triangle area without the diagonals
+    shared = shared[np.triu_indices(len(inds), k = 1)]
+    print("Avg. num labels shared per image = "+ str(np.mean(shared)))
+    hist, bin_edges =np.histogram(shared,bins=num_labels,density=True)
+    plt.bar(bin_edges[:len(hist)],hist*100,edgecolor='w')
+    plt.xlabel("shared label num")
+    plt.ylabel("Percent of sample pairs")
+    plt.title("Shared label counts for images which has class label " + dataset.conversion[label_most])
+    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
+    plt.close()    
