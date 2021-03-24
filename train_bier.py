@@ -39,7 +39,6 @@ def load_bier_config(config, args):
         config['decorrelation'][direction_name] = {'dim':str(item[0])+ '-' + str(item[1]),'weight':weight}
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
-    config['num_samples_per_class'] = args.pop('num_samples_per_class')
     return config
 
 def train_batch(model, criterion_dict,opt, config, batch):
