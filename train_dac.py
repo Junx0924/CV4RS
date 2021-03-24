@@ -29,6 +29,8 @@ def load_dac_config(config, args):
         config['sub_embed_sizes'] = [config['sz_embedding']//config['nb_clusters']]*config['nb_clusters']
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
+    config['batch_minner'] = args.pop('dac_batch_minner')
+    config['loss_name'] = args.pop('dac_loss')
     return config
 
 
@@ -111,11 +113,10 @@ def main():
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
     # config loss function and optimizer
-    config['batch_minner'] = 'multiLabelSemihard'
     to_optim = get_optim(config, model)
     criterion = [] 
     for i in range(config['nb_clusters']):
-        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin', config['batch_minner'])
+        criterion_i, to_optim = lib.loss.select(config,to_optim,config['loss_name'], config['batch_minner'])
         criterion.append(criterion_i)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:

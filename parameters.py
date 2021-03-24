@@ -7,7 +7,7 @@ import torch
 
 def setup_parameters(parser):
      ##### Setup Parameters
-    parser.add_argument('--dataset_name',      default='MLRSNet',   type=str,choices=['BigEarthNet', 'MLRSNet'], required = True,  help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
+    parser.add_argument('--dataset_name', default='MLRSNet', type=str, choices=['BigEarthNet', 'MLRSNet'], required = True,  help='Dataset to use. This version support BigEarthNet and MLRSNet with train/val/test split 40%/10%/50%')
     parser.add_argument('--source_path',  default="../Dataset",   type=str,  required = True, help='Path to training data.')
     parser.add_argument('--save_path',    default="../Training_result", type=str,  required = True, help='Where to save everything.')
     return parser
@@ -42,11 +42,19 @@ def basic_training_parameters(parser):
     
     return parser
 
+def baseline(parser):
+    parser.add_argument('--baseline_loss', default="margin", type = str, choices=['margin'],help='loss function')
+    parser.add_argument('--baseline_batch_minner', default="semihard", type = str, choices=['semihard', 'distance','multiLabelSemihard'],help='batchminning method')
+    return parser
+
 def divide_and_conquer(parser):
     ### for Method Divide and conquer
     parser.add_argument('--dac_mod_epoch', default=10, type = int, help = 'the steps for reclustering train dataset')
     parser.add_argument('--dac_nb_clusters', default=8, type = int, help='the number of learners')
     parser.add_argument('--dac_finetune_epoch', default=110, type = int, help='after the finetune epoch, there is no reclustering when training')
+    parser.add_argument('--dac_loss', default="margin", type = str, choices=['margin'],help='loss function')
+    parser.add_argument('--dac_batch_minner', default="semihard", type = str, choices=['semihard', 'distance','multiLabelSemihard'],help='batchminning method')
+    
     return parser
 
 def bier(parser):
@@ -65,6 +73,15 @@ def diva(parser):
     parser.add_argument('--diva_alpha_shared',   default=0.3,  type=float, help='weight for Class-shared feature') 
     parser.add_argument('--diva_alpha_intra',    default=0.3,  type=float, help='weight for Intra-class feature') 
     parser.add_argument('--diva_evaluation_weight', nargs='+', default=[0.5,1,1,1], type=float, help='to compute evaluation metrics on weighted (normalized) combinations')
+    ## batch minners for each feature
+    parser.add_argument('--diva_disc_batch_minner', default="distance", type = str, choices=['semihard', 'distance','multiLabelSemihard'],help='batchminning method for discriminative feature')
+    parser.add_argument('--diva_intra_batch_minner', default="intra_random", type = str, help='batchminning method for intra-class feature')
+    parser.add_argument('--diva_inter_batch_minner', default="random_distance", type = str, help='batchminning method for class-shared feature')
+    ## loss function for each feature
+    parser.add_argument('--diva_disc_loss', default="margin", type = str, choices=['margin'],help='loss function for discriminative feature')
+    parser.add_argument('--diva_intra_loss', default="margin", type = str, choices=['margin'],help='loss function for intra-class feature')
+    parser.add_argument('--diva_inter_loss', default="margin", type = str, choices=['margin'],help='loss function for class-shared feature')
+    parser.add_argument('--diva_selfSpecific_loss', default="fast_moco", type = str ,help='loss function for self-specific feature')
     
     ### (Fast) Momentum Contrast Loss for learning the selfsimiarility feature
     parser.add_argument('--diva_moco_momentum',      default=0.9, type=float, help='moco momentum of updating key encoder (default: 0.999)')
@@ -79,7 +96,7 @@ def diva(parser):
     return parser 
 
 def sndl(parser):
-    ## for Method Scalable Neighborhood Component Analysis
+    ## for Method Scalable Neighborhood Component Analysis loss
     parser.add_argument('--sndl_margin', default=0.0, type=float,help='classification margin')
     parser.add_argument('--sndl_temperature', default=0.05, type=float,  help='temperature parameter')
     parser.add_argument('--sndl_memory_momentum',  default=0.5, type=float,  help='momentum for non-parametric updates')                
@@ -104,6 +121,7 @@ def load_common_config():
     parser = divide_and_conquer(parser)
     parser = bier(parser)
     parser = sndl(parser)
+    parser = baseline(parser)
     args = vars(parser.parse_args())
 
     ##### Read config.json

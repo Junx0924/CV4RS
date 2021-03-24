@@ -32,10 +32,10 @@ def load_diva_config(config,args):
 
     config['hidden_adversarial_size'] = args.pop('diva_hidden_adversarial_size')
 
-    config['criterion']={'selfsimilarity':{'weight':args.pop('diva_alpha_ssl'),'loss':'fast_moco','batchminner':None},
-                         'intra':         {'weight':args.pop('diva_alpha_intra'),'loss':'margin', 'batchminner':'intra_random'},
-                         'shared':        {'weight':args.pop('diva_alpha_shared'),'loss': 'margin','batchminner':'random_distance'},
-                         'discriminative':{'weight':1,'loss': 'margin','batchminner':'semihard'},
+    config['criterion']={'selfsimilarity':{'weight':args.pop('diva_alpha_ssl'),'loss': args.pop('diva_selfSpecific_loss'),'batchminner':None},
+                         'intra':         {'weight':args.pop('diva_alpha_intra'),'loss': args.pop('diva_intra_loss'), 'batchminner':args.pop('diva_intra_batch_minner')},
+                         'shared':        {'weight':args.pop('diva_alpha_shared'),'loss':  args.pop('diva_inter_loss'),'batchminner':args.pop('diva_inter_batch_minner')},
+                         'discriminative':{'weight':1,'loss': args.pop('diva_disc_loss'),'batchminner':args.pop('diva_disc_batch_minner')},
                          'decorrelation':    {'weight':1,'loss':'adversarial','batchminner':None}
                         }
     

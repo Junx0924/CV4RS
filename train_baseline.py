@@ -47,9 +47,11 @@ def get_optim(config, model):
 
 
 def main():
-    config, _ = par.load_common_config()
+    config, args = par.load_common_config()
     config['project'] = 'Baseline'
     config['sub_embed_sizes'] = [config['sz_embedding']]
+    config['batch_minner'] = args.pop('baseline_batch_minner')
+    config['loss_name'] = args.pop('baseline_loss')
     start_new = True
     if os.path.exists(config['load_from_checkpoint']):
         start_new = False
@@ -84,9 +86,8 @@ def main():
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
    
     # config loss function and optimizer
-    config['batch_minner'] = 'multiLabelSemihard'
     to_optim = get_optim(config, model)
-    criterion, to_optim = lib.loss.select(config,to_optim,'margin', config['batch_minner'])
+    criterion, to_optim = lib.loss.select(config,to_optim,config['loss_name'], config['batch_minner'])
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:
         optimizer.load_state_dict(checkpoint['optimizer'])
