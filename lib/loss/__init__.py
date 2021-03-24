@@ -9,6 +9,7 @@ from .batchminner.semihard import Semihard
 from .batchminner.random_distance import Random_distance
 from .batchminner.intra_random import Intra_random
 from .batchminner.distance import Distance
+from .batchminner.multiLabel_semihard import MultiLabelSemihard
 
 def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
     batch_minner = select_batchminner(minner_name)
@@ -38,7 +39,9 @@ def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
                     
 def select_batchminner(name=""):
     if name =='semihard' :
-        batchminner = Semihard()
+        batchminner =Semihard()
+    elif name =='multiLabelSemihard':
+        batchminner = MultiLabelSemihard()
     elif name =='distance' :
         batchminner = Distance()
     elif name =='intra_random' :
