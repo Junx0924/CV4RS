@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 class BinomialLoss(nn.Module):
-    def __init__(self, nb_classes,C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005, class_specific_beta=False,is_beta_trainable= False,**kwargs):
+    def __init__(self, nb_classes,C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005, nu=0.1, class_specific_beta=False,is_beta_trainable= True,**kwargs):
         """
         Boosted bionminal loss
         Implement according to paper: https://arxiv.org/abs/1801.04815
@@ -63,10 +63,8 @@ class BinomialLoss(nn.Module):
                 beta = self.beta[class_labels.type(torch.LongTensor)]
             else:
                 beta = self.beta
-            beta_regularization_loss = torch.norm(beta, p=1) * self.nu
         else:
             beta = self.beta
-            beta_regularization_loss = 0.0
         
         loss =0.0
         acts = self.initial_acts
@@ -76,16 +74,16 @@ class BinomialLoss(nn.Module):
             Ds.append(torch.matmul(fvec, fvec.t()))
             D = torch.flatten(Ds[-1])
             # similarity matrix
-            my_act = self.alpha* (D - self.beta)* m
+            my_act = self.alpha* (D - beta)* m
             my_loss = torch.log(1.0 + torch.exp(-1.0*my_act))
-            beta_regularization_loss = torch.norm(self.beta, p=1) * self.nu if self.is_beta_trainable else 0.0
             tmp = torch.sum(my_loss* boosting_weights * W)/ len(normed_fvecs)
+            beta_regularization_loss = torch.norm(beta, p=1) * self.nu if self.is_beta_trainable else 0.0
             loss +=tmp + beta_regularization_loss
             if self.eta_style:
                 nu = 2.0/( 1.0 + 1.0 + i)
                 if self.shrinkage != 1.0:
                     acts = (1.0 - nu)* acts + nu * self.shrinkage * D
-                    inputs = self.alpha * (acts - self.beta) * m
+                    inputs = self.alpha * (acts - beta) * m
                     booster_loss = torch.sum(torch.log( 1.0 + torch.exp(-1.0*inputs)))
                     boosting_weights = -1*torch.autograd.grad(booster_loss, inputs,create_graph=True)[0].detach()
                 else:
@@ -94,7 +92,7 @@ class BinomialLoss(nn.Module):
                     boosting_weights = -1*torch.autograd.grad(booster_loss, acts,create_graph=True)[0].detach()
             else:
                 # simpler variant of the boosting algorithm
-                acts += self.shrinkage * ( D - self.beta) * self.alpha * m
+                acts += self.shrinkage * ( D - beta) * self.alpha * m
                 booster_loss = torch.sum(torch.log( 1.0 + torch.exp(-1.0*acts)))
                 cls_weight = 1.0* pairs + (1.0 - pairs) * 2.0
                 boosting_weights = -1* cls_weight* torch.autograd.grad(booster_loss, acts,create_graph=True)[0].detach()

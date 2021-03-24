@@ -55,6 +55,7 @@ class MarginLoss(torch.nn.Module):
             labels ([tensor]):  if batchminner is multiLabelSemihard, shape(batchsize, L); else category labels shape(batchsize, L)
         """
         anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
+        if isinstance( labels, torch.Tensor):  labels =  labels.detach()
         anchors = feature[anchor_idx] 
         positives = feature[pos_idx]
         negatives = feature[neg_idx]
