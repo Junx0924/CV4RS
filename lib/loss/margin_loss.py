@@ -25,24 +25,27 @@ class MarginLoss(torch.nn.Module):
         Loss value.
     """
 
-    def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.1,
+    def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.1, is_beta_trainable=True,
  		 class_specific_beta=False, batchminner = None,**kwargs):
         super(MarginLoss, self).__init__()
 
         self.nb_classes = nb_classes
         self.class_specific_beta = class_specific_beta
-        # beta is trainable
-        if class_specific_beta:
-            assert nb_classes is not None
-            beta = torch.ones(nb_classes,dtype=torch.float32)*beta
-        else:
-            beta = torch.tensor([beta], dtype=torch.float32)
+        self.is_beta_trainable = is_beta_trainable
+        if self.is_beta_trainable:
+            if class_specific_beta:
+                assert nb_classes is not None
+                beta = torch.ones(nb_classes,dtype=torch.float32)*beta
+            else:
+                beta = torch.tensor([beta], dtype=torch.float32)
         
-        self.beta = torch.nn.Parameter(beta)
-        # Learning Rate for class margin parameters in MarginLoss
-        self.beta_lr = beta_lr 
+            self.beta = torch.nn.Parameter(beta)
+            # Learning Rate for class margin parameters in MarginLoss
+            self.beta_lr = beta_lr 
+            self.nu = nu
+        else:
+            self.beta = beta
         self.margin = margin
-        self.nu = nu
         self.batchminner = batchminner
 
     def forward(self, feature, labels):
@@ -52,7 +55,7 @@ class MarginLoss(torch.nn.Module):
         negatives = feature[neg_idx]
         anchor_classes = labels[anchor_idx]
 
-        if anchor_classes is not None:
+        if self.is_beta_trainable:
             if self.class_specific_beta:
                 # select beta for every sample according to the class label
                 beta = self.beta[anchor_classes]

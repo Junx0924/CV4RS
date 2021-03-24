@@ -30,7 +30,6 @@ def load_dac_config(config, args):
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    config['class_specific_beta'] = args.pop('dac_class_specific_beta')
     return config
 
 

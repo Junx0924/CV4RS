@@ -57,8 +57,6 @@ def load_diva_config(config,args):
 
     config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    
-    config['class_specific_beta'] = args.pop('diva_class_specific_beta')
     return config
 
 def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):

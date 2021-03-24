@@ -40,7 +40,6 @@ def load_bier_config(config, args):
 
     config['hidden_adversarial_size'] = args.pop('bier_hidden_adversarial_size')
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
-    config['is_beta_trainable'] = args.pop('bier_beta_trainable')
     return config
 
 def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):

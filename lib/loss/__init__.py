@@ -15,8 +15,9 @@ def select(config,to_optim,loss_name="",minner_name= "",multi_hot = None):
     ds_name = config['dataset_selected']
     num_classes = int(config['dataset'][ds_name]["classes"])
     if 'margin' in loss_name:
-        criterion = MarginLoss(num_classes,batchminner = batch_minner,class_specific_beta=config['class_specific_beta'])
-        to_optim    += [{'params':criterion.parameters(), 'lr':criterion.beta_lr}]
+        criterion = MarginLoss(num_classes,batchminner = batch_minner,is_beta_trainable= config['is_beta_trainable'], class_specific_beta=config['class_specific_beta'])
+        if config['is_beta_trainable']:
+            to_optim    += [{'params':criterion.parameters(), 'lr':criterion.beta_lr}]
     elif 'moco' in loss_name: 
         criterion = Fast_moco(config) 
     elif  'adversarial' in loss_name : 

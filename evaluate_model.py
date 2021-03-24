@@ -32,19 +32,11 @@ if 'result_path' not in config.keys():
     if not os.path.exists(result_path): os.makedirs(result_path)
     config['result_path'] = result_path
     
-# update project name
-if  'diva_features' in config.keys() and len(config['diva_features']) ==1:
-    config['project'] ='Baseline'
-if config['project']=='bier': config['project']='Bier'
-if config['project']=='dac': config['project']='D&C'
-if config['project']=='diva': config['project']='Diva'
-
 # create dataloader for evaluation
 dl_val= lib.data.loader.make(config, 'eval', dset_type = 'val')
 dl_test= lib.data.loader.make(config, 'eval', dset_type = 'test')
-## optional, check the image distribution for val/test dataset
-#lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'], dset_type = 'val')
-#lib.utils.plot_dataset_stat(dl_test.dataset,save_path= config['result_path'], dset_type = 'test')
+## optional, check the sample distribution for val/test dataset
+lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'])
 
 # load initial model
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
@@ -53,19 +45,19 @@ model = lib.multifeature_resnet50.Network(config)
 _  = model.to(config['device'])
 
 # optional, plot the distance density and retrieved images of initial model on val dataset
-lib.utils.evaluate_standard(model, config, dl_val,is_init=True,is_plot_dist=True,is_recover= True)
+lib.utils.evaluate_standard(model, config, dl_val,is_init=True,is_plot_dist=True,is_recover= True) 
 
 # load final model
 checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")
 model.load_state_dict(checkpoint['state_dict'])
 # optional, plot the distance density and retrieved images of final model on val dataset
-lib.utils.evaluate_standard(model, config, dl_val,is_plot_dist=True,is_recover= True) 
+lib.utils.evaluate_standard(model, config, dl_val,is_plot_dist=True,is_recover= True)  
 
-print("Evaluate final model on test dataset") 
-#### CREATE A SUMMARY TEXT FILE
+print(config['project']+ ": evaluate final model on test dataset") 
+### CREATE A SUMMARY TEXT FILE
 summary_text = ""
 summary_text += "Evaluate final model on test dataset\n"
-scores = lib.utils.evaluate_standard(model, config, dl_test,K=[1,2,4,8],metrics=['recall','map'],is_plot_dist=True,is_recover= True) 
+scores = lib.utils.evaluate_standard(model, config, dl_test,K=[1,2,4,8],metrics=['recall','map'],is_recover= True) 
 for key in scores.keys(): 
   summary_text += "{} :{:.3f}\n".format(key, scores[key])
   with open(config['result_path']+'/final_test/evaluate_final_model.txt','w+') as summary_file:
