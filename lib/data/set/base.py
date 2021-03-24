@@ -155,7 +155,9 @@ class BaseDataset(torch.utils.data.Dataset):
         For testing we use the center crop of the image.
 
         Args:
-        img: np.array
+        img: flatten np array
+        Return: 
+        img: torch.Tensor, shape [12, 100, 100] for BigEarthNet, [3, 224, 224] for MLRSNet
         """
         img_shape =self.transform['input_shape']
         img = img.reshape(img_shape)
