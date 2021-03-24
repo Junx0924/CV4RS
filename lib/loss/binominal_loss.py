@@ -63,8 +63,10 @@ class BinomialLoss(nn.Module):
                 beta = self.beta[class_labels.type(torch.LongTensor)]
             else:
                 beta = self.beta
+            beta_regularization_loss = torch.norm(beta, p=1) * self.nu
         else:
             beta = self.beta
+            beta_regularization_loss = 0.0
         
         loss =0.0
         acts = self.initial_acts
@@ -77,7 +79,6 @@ class BinomialLoss(nn.Module):
             my_act = self.alpha* (D - beta)* m
             my_loss = torch.log(1.0 + torch.exp(-1.0*my_act))
             tmp = torch.sum(my_loss* boosting_weights * W)/ len(normed_fvecs)
-            beta_regularization_loss = torch.norm(beta, p=1) * self.nu if self.is_beta_trainable else 0.0
             loss +=tmp + beta_regularization_loss
             if self.eta_style:
                 nu = 2.0/( 1.0 + 1.0 + i)
