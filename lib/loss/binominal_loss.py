@@ -2,8 +2,6 @@ from __future__ import absolute_import
 
 import torch
 from torch import nn
-from torch.autograd import Variable
-import numpy as np
 
 class BinomialLoss(nn.Module):
     def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,is_beta_trainable= False,**kwargs):
@@ -36,7 +34,7 @@ class BinomialLoss(nn.Module):
     def forward(self,normed_fvecs, T):
         """
         Args:
-            normed_fvecs: multi-feature dictionary, each value contains sub embeddings [batchsize x sub embedding size]
+            normed_fvecs: multi-feature dictionary, each value contains sub embeddings with shape [batchsize x sub embedding size]
             T: tensor, category labels, shape(batchsize, )
         """
         if isinstance( T, torch.Tensor):  T =  T.detach()
