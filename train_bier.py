@@ -42,7 +42,7 @@ def load_bier_config(config, args):
     config['num_samples_per_class'] = args.pop('num_samples_per_class')
     return config
 
-def train_batch(model, criterion_dict,opt, config, batch,LOG=None, log_key =''):
+def train_batch(model, criterion_dict,opt, config, batch):
     X = batch[0] # images
     T = batch[1] # class labels
     I = batch[2] # image ids

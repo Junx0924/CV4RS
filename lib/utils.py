@@ -176,7 +176,12 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
-        
+    
+    # plot inter and intra distance for images which have the most frequent class label
+    label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
+    if LOG !=None:
+        check_intra_inter_dist(X_stack, T_stack, class_label = label_most , LOG= LOG, log_key='Val')
+          
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -185,10 +190,9 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         dset_type = 'init_' + dl_query.dataset.dset_type  if is_init else 'final_' + dl_query.dataset.dset_type
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
-        
-    # plot inter and intra distance for images which have the most frequent class label
-    label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
-    check_intra_inter_dist(X_stack, T_stack, class_label = label_most ,is_plot= is_plot_dist, LOG= LOG, project_name=config['project'], save_path=result_path)
+    
+    if is_plot_dist:
+        check_intra_inter_dist(X_stack, T_stack, class_label = label_most , is_plot= is_plot_dist,project_name= config['project'], save_path=result_path)
 
     if is_recover:
         ## recover n_closest images
@@ -263,7 +267,12 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
             if LOG !=None:
                 LOG.progress_saver[log_key].log('map'+ '@'+str(R),m,group='map')
                 LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
-                       
+    
+    # log inter and intra distance for images which have the most frequent class label
+    label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
+    if LOG != None:
+        check_intra_inter_dist(X, T, class_label = label_most, LOG= LOG, log_key=log_key)
+                           
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -272,10 +281,9 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         dset_type = 'init_' + dl.dataset.dset_type  if is_init else 'final_' + dl.dataset.dset_type
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
-
-    # log or inter and intra distance for images which have the most frequent class label
-    label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
-    check_intra_inter_dist(X, T, class_label = label_most ,is_plot= is_plot_dist, LOG= LOG, project_name =config['project'], save_path=result_path)
+   
+    if is_plot_dist:
+        check_intra_inter_dist(X, T, class_label = label_most ,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
     
     if is_recover:
         ## recover n_closest images

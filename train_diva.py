@@ -23,7 +23,7 @@ os.putenv("OMP_NUM_THREADS", "8")
 def load_diva_config(config,args):
     #### Update Diva parameter  ###########
     config['diva_features'] = args.pop('diva_features')
-    config['project'] = 'Diva' if len(config['diva_features'])>1 else 'Baseline' 
+    config['project'] = 'Diva'
     if 'sub_embed_sizes' not in config.keys():
         num_feature =  len(config['diva_features'])
         config['sub_embed_sizes'] =[config['sz_embedding'] //num_feature]*num_feature
@@ -35,7 +35,7 @@ def load_diva_config(config,args):
     config['criterion']={'selfsimilarity':{'weight':args.pop('diva_alpha_ssl'),'loss':'fast_moco','batchminner':None},
                          'intra':         {'weight':args.pop('diva_alpha_intra'),'loss':'margin', 'batchminner':'intra_random'},
                          'shared':        {'weight':args.pop('diva_alpha_shared'),'loss': 'margin','batchminner':'random_distance'},
-                         'discriminative':{'weight':1,'loss': 'margin','batchminner':'distance'},
+                         'discriminative':{'weight':1,'loss': 'margin','batchminner':'semihard'},
                          'decorrelation':    {'weight':1,'loss':'adversarial','batchminner':None}
                         }
     
@@ -56,10 +56,9 @@ def load_diva_config(config,args):
         assert len(config['diva_features']) == len(config['evaluation_weight'])
 
     config['include_aux_augmentations'] = True if 'selfsimilarity' in config['diva_features'] else False
-    config['num_samples_per_class'] = args.pop('num_samples_per_class')
     return config
 
-def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key ='',selfsim_model=None):
+def train_batch(model,criterion_dict, optimizer, config, batch,selfsim_model=None):
     if len(batch) ==4:
         X = batch[0] # images
         T = batch[1] # class labels
@@ -70,9 +69,10 @@ def train_batch(model,criterion_dict, optimizer, config, batch,LOG=None, log_key
         T = batch[1]# class labels
         I = batch[2] # image ids
     fvecs = model(X.to(config['device']))
+    
     T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
     new_I = T_list[:,0]
-    T = T_list[:,1]
+    T = torch.Tensor(T_list[:,1])
     fvecs = fvecs[new_I]
     if len(batch) ==4:
         X_aux = X_aux[new_I]
@@ -237,9 +237,9 @@ def main():
         _ = model.train()
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
             if 'selfsimilarity' in criterion_dict.keys():
-                losses = train_batch(model, criterion_dict,optimizer, config, batch, LOG, 'Grad', selfsim_model)
+                losses = train_batch(model, criterion_dict,optimizer, config, batch,selfsim_model)
             else:
-                losses = train_batch(model, criterion_dict,optimizer, config, batch, LOG, 'Grad')
+                losses = train_batch(model, criterion_dict,optimizer, config, batch)
             for key in losses:
                 if key not in loss_collect.keys():
                     loss_collect[key] = []

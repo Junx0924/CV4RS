@@ -29,7 +29,6 @@ def load_dac_config(config, args):
         config['sub_embed_sizes'] = [config['sz_embedding']//config['nb_clusters']]*config['nb_clusters']
         assert sum(config['sub_embed_sizes']) == config['sz_embedding']
     if config['nb_clusters'] == 1:  config['recluster']['enabled'] = False
-    config['num_samples_per_class'] = args.pop('num_samples_per_class')
     return config
 
 
@@ -39,11 +38,14 @@ def train_batch(model, criterion, optimizer, config, batch, cluster_id, epoch):
     I = batch[2] # image ids
 
     M = model(X.to(config['device']))
-    T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
-    new_I = T_list[:,0]
-    M = M[new_I]
-    T = torch.tensor(T_list[:,1])
-    T = T.to(config['device'])
+    if config['batch_minner'] != 'multiLabelSemihard':
+        # convert multi-hot labes to category labels
+        T_list = lib.utils.classBalancedSamper(T,config['num_samples_per_class'])
+        new_I = T_list[:,0]
+        M = M[new_I]
+        T = torch.tensor(T_list[:,1])
+    else:
+        T = torch.from_numpy(np.array(T, dtype=np.float32)).to(config['device'])
 
     if epoch >= config['finetune_epoch'] * 8 / 19:
         M_sub= M
@@ -109,10 +111,11 @@ def main():
     config['dataloader']['batch_size'] = num_classes* config['num_samples_per_class']
 
     # config loss function and optimizer
+    config['batch_minner'] = 'multiLabelSemihard'
     to_optim = get_optim(config, model)
     criterion = [] 
     for i in range(config['nb_clusters']):
-        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin','distance')
+        criterion_i, to_optim = lib.loss.select(config,to_optim,'margin', config['batch_minner'])
         criterion.append(criterion_i)
     optimizer = torch.optim.Adam(to_optim)
     if not start_new:

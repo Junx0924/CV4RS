@@ -113,6 +113,7 @@ def load_common_config():
    
     #### Update config.json from INPUT ARGUMENTS ###########
     config['nb_epochs'] = args.pop('nb_epochs')
+    config['num_samples_per_class'] = args.pop('num_samples_per_class')
     config['sz_embedding'] = args.pop('sz_embedding')
     config['pj_base_path'] = pj_base_path
     config['dataloader']['batch_size'] = args.pop('batch_size')

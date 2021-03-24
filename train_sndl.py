@@ -32,7 +32,7 @@ def load_sndl_config(config, args):
     config['sub_embed_sizes'] = [config['sz_embedding']]
     return config
 
-def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch,LOG=None, log_key =''):
+def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch):
     X = batch[0].to(config['device']) # images
     T = batch[1]# image labels,multi-hot
     I = batch[2].to(config['device'])# image index
