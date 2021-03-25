@@ -184,7 +184,7 @@ def main():
             losses ={key:[] for key in ['Train','binominal']}
 
         for batch in tqdm(dl_train,desc = 'Train epoch {}.'.format(e)):
-            loss= train_batch(model, criterion_dict, optimizer, config, batch, LOG,'Grad')
+            loss= train_batch(model, criterion_dict, optimizer, config, batch)
             [losses[key].append(loss[key]) for key in losses.keys()]
 
         time_per_epoch_2 = time.time()
