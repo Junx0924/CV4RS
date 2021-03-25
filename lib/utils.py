@@ -443,9 +443,39 @@ def classBalancedSamper(T,num_samples_per_class=2):
         new_T_list.append([inds[1],int(c)])
     return np.array(new_T_list)
 
+# http://blog.datadive.net/histogram-intersection-for-change-detection/
+def histogram_intersection(count1, count2, min_val,max_val,shape):
+    """Histogram intersection calculates the similarity of two discretized probability distributions (histograms), 
+    with possible value of the intersection lying between 0 (no overlap) and 1 (identical distributions)
+
+    Args:
+        count1 ([list]): [ unnormalized counts for data 1 ranged between min_val and max_val ]
+        count2 ([list]): [unnormalized counts for data 2 ranged between min_val and max_val]
+        min_val ([float]): [min_val]
+        max_val ([float]): [max_val]
+        shape ([int]): [number of bins]
+    """
+    def norm_count(count,bins):
+        total  = sum(count)
+        normed = count /(total *bins)
+        return normed
+    edges = np.linspace(min_val,max_val,shape+1)
+    bins = np.diff(edges)
+    # normalize the count
+    h1= norm_count(count1,bins)
+    h2= norm_count(count2,bins)
+    # calculate intersection area
+    sm = 0
+    for i in range(len(bins)):
+        sm += min(bins[i]*h1[i], bins[i]*h2[i])
+    return h1,h2,sm
+
+
 def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key = 'Val', project_name="",save_path=""):
     """
-    Plot the inter and intra embedding distance for images which have certain class label
+    Select samples which contain certain class_label.
+    Calculate embedding distance between selected samples and the whole data (X)
+    Plot the density of inter and intra distance of embedding pairs
         Args:
             X: np.array[n_samples x 512], embeddings
             T: np.array[n_samples x 60], multi-hot labels
@@ -455,8 +485,10 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     assert class_label is not None 
     print('Start to calculate the inter and intra embedding distance for images which have class label ' + str(class_label))
     inds = np.where(T[:,class_label]==1)[0]
-    other_inds = list(set(range(len(X))) - set(inds))
     m = len(inds)
+    print('Total embeddings: '+ str(n) )
+    print('class label '+ str(class_label) + ' contain:'+str(m))
+    other_inds = list(set(range(len(X))) - set(inds))
     size1 = (m*m-m)//2
     size2 = m*(n-m)
     dist_total =np.empty((size1 + size2))
@@ -480,20 +512,35 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     
     # pairs which shared this class label
     ds_total = vx.from_arrays(x =dist_total ,y=shared_total)
-    ds_intra = ds_total[ds_total.y==0]
-    ds_inter = ds_total[ds_total.y>0]
+    ds_intra = ds_total[ds_total.y>0]
+    ds_inter = ds_total[ds_total.y==0]
+    print('Intra pairs: ' +str(ds_intra.count('x')))
+    print('Inter pairs: ' +str(ds_inter.count('x')))
+    min_val, max_val = float(ds_total.min('x')),float(ds_total.max('x'))
+    # ds_intra =vx.from_arrays(x =dist_total[:size1] ,y=shared_total[:size1])
+    # ds_temp =vx.from_arrays(x =dist_total[size1:] ,y=shared_total[size1:])
+    # ds_inter = ds_temp[ds_temp.y==0]
+    # min_val, max_val = min(float(ds_intra.min('x')),float(ds_inter.min('x'))), max(float(ds_intra.max('x')),float(ds_inter.max('x')))
     
+    shape = 64
+    intra_count = ds_intra.count(binby=ds_intra.x,limits=[min_val, max_val],shape =shape )
+    inter_count = ds_inter.count(binby=ds_inter.x,limits=[min_val, max_val],shape =shape )
+    normed_intra,normed_inter, hist_overlap = histogram_intersection(intra_count, inter_count, min_val,max_val,shape)
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
     if LOG !=None and class_label !=None:
-        LOG.progress_saver[log_key].log('class@'+str(class_label),float(ds_intra.mean(ds_intra.x))/float(ds_inter.mean(ds_inter.x)), group ='distRatio')
+        LOG.progress_saver[log_key].log('class@'+str(class_label),hist_overlap, group ='overlap_area')
     
     # Plot the dist distribution for shared labels
     if is_plot:
         print('Start to plot the distance density for image pairs which have class label ' + str(class_label))
         start_time = time.time()
         plt.figure()
-        ds_inter.plot1d(ds_inter.x, limits='minmax',label='inter'  )
-        ds_intra.plot1d(ds_intra.x, limits='minmax' ,label='intra' )
+        bins = np.linspace(min_val, max_val,shape)
+        plt.plot(bins,normed_intra,label='intra')
+        plt.plot(bins,normed_inter,label='inter')
+        plt.fill_between(bins,normed_intra, alpha=0.30)
+        plt.fill_between(bins,normed_inter, alpha=0.30)
+        plt.text(max_val*0.7, min(max(normed_intra),max(normed_inter))*0.8,"overlap area: "+"{:.2f}".format(hist_overlap))
         plt.title(project_name)
         plt.xlabel('Embedding pair distance')
         plt.ylabel('Density')
@@ -501,7 +548,6 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
         plt.savefig(save_path + '/dist_shared_class_' + str(class_label) + '.png',format='png')
         plt.close()
         print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-      
 
 def plot_tsne(X,save_path,project_name="",n_components=2):
     """
@@ -557,24 +603,4 @@ def plot_dataset_stat(dataset,save_path):
     plt.ylabel("Percent of samples")
     plt.title("Distribution of label counts for "+ dataset.dataset_name + " "+ dataset.dset_type+ " dataset")
     plt.savefig(save_path+'/statistic_labels.png')
-    plt.close()
-
-    # plot the label share statistic of the class which has the most samples
-    label_most = max(dataset.image_dict, key = lambda k: len(dataset.image_dict[k]))
-    # get the number of shared labels
-    T = np.array(dataset.ys)
-    inds = np.where(T[:,int(label_most)]==1)[0]
-    T = T[inds]
-    shared = np.matmul(T,np.transpose(T))
-    # get rid of diagnal elements
-    shared = shared * (np.ones((len(inds),len(inds)))- np.diag(np.ones(len(inds))))
-    # only get the up triangle area without the diagonals
-    shared = shared[np.triu_indices(len(inds), k = 1)]
-    print("Avg. num labels shared per image = "+ str(np.mean(shared)))
-    hist, bin_edges =np.histogram(shared,bins=num_labels,density=True)
-    plt.bar(bin_edges[:len(hist)],hist*100,edgecolor='w')
-    plt.xlabel("shared label num")
-    plt.ylabel("Percent of sample pairs")
-    plt.title("Shared label counts for images which has class label " + dataset.conversion[label_most])
-    plt.savefig(save_path+'/statistic_shared_labels.png', format='png')
-    plt.close()    
+    plt.close() 
