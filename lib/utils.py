@@ -457,28 +457,31 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     inds = np.where(T[:,class_label]==1)[0]
     other_inds = list(set(range(len(X))) - set(inds))
     m = len(inds)
+    size1 = (m*m-m)//2
+    size2 = m*(n-m)
+    dist_total =np.empty((size1 + size2))
     # compute the l2 distance for each normalized embedding pairs
     dist = similarity.pairwise_distance(X[inds])
     # only store the uptriangle area without diagonals because they are symmetrical matrix
-    dist_intra = np.copy(dist[np.triu_indices(m, k = 1)])
+    dist_total[:size1] = np.copy(dist[np.triu_indices(m, k = 1)])
     # free memory
     dist = None
     del dist
-    dist_inter = np.sqrt(2 - 2*np.matmul(X[inds],np.transpose(X[other_inds]))).flatten()
+    dist_total[size1:] = np.sqrt(2 - 2*np.matmul(X[inds],np.transpose(X[other_inds]))).flatten()
     
     # get the number of shared labels
+    shared_total = np.empty((size1 + size2))
     shared = np.matmul(T[inds],np.transpose(T[inds]))
-    shared_intra  = np.copy(shared[np.triu_indices(m, k = 1)])
+    shared_total[:size1]  = np.copy(shared[np.triu_indices(m, k = 1)])
     # free memory
     shared = None
     del shared
-    shared_inter = np.matmul(T[inds],np.transpose(T[other_inds])).flatten()
+    shared_total[size1:]  = np.matmul(T[inds],np.transpose(T[other_inds])).flatten()
     
     # pairs which shared this class label
-    ds_intra = vx.from_arrays(x =dist_intra ,y=shared_intra)
-    ds_temp = vx.from_arrays(x =dist_inter ,y=shared_inter)
-    # distance to the images which don't share this class label and other labels
-    ds_inter = ds_temp[ds_temp.y ==0]
+    ds_total = vx.from_arrays(x =dist_total ,y=shared_total)
+    ds_intra = ds_total[ds_total.y==0]
+    ds_inter = ds_total[ds_total.y>0]
     
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
     if LOG !=None and class_label !=None:
@@ -489,8 +492,8 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
         print('Start to plot the distance density for image pairs which have class label ' + str(class_label))
         start_time = time.time()
         plt.figure()
-        ds_inter.plot1d(ds_inter.x, limits='minmax',label='inter', n =True)
-        ds_intra.plot1d(ds_intra.x, limits='minmax' ,label='intra', n =True)
+        ds_inter.plot1d(ds_inter.x, limits='minmax',label='inter'  )
+        ds_intra.plot1d(ds_intra.x, limits='minmax' ,label='intra' )
         plt.title(project_name)
         plt.xlabel('Embedding pair distance')
         plt.ylabel('Density')
