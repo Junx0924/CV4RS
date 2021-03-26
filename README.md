@@ -8,7 +8,7 @@
 * [Setup](#setup)
 * [Training](#training)
 * [Evaluation](#evaluation)
-* [Implemented Methods](#methods)
+* [Implemented Methods](#implemented-methods)
 * [Contact](#contact)
 
 ## General info
