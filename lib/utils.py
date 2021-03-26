@@ -92,20 +92,6 @@ def start_wandb(config):
     wandb.init(id= config['wandb']['wandb_id'], resume="allow",project=config['wandb']['project'], group=config['wandb']['group'], name=config['log']['save_name'], dir=config['log']['save_path'])
     wandb.config.update(config, allow_val_change= True)
     return config
-
-def json_dumps(**kwargs):
-    # __repr__ may contain `\n`, json replaces it by `\\n` + indent
-    return json.dumps(**kwargs).replace('\\n', '\n    ')
-
-
-class JSONEncoder(json.JSONEncoder):
-    def default(self, x):
-        # add encoding for other types if necessary
-        if isinstance(x, range):
-            return 'range({}, {})'.format(x.start, x.stop)
-        if not isinstance(x, (int, str, list, float, bool)):
-            return repr(x)
-        return json.JSONEncoder.default(self, x)
     
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
                           LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot_dist= False,is_recover=  False,n_img_samples=4,n_closest=4):
@@ -517,10 +503,6 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     print('Intra pairs: ' +str(ds_intra.count('x')))
     print('Inter pairs: ' +str(ds_inter.count('x')))
     min_val, max_val = float(ds_total.min('x')),float(ds_total.max('x'))
-    # ds_intra =vx.from_arrays(x =dist_total[:size1] ,y=shared_total[:size1])
-    # ds_temp =vx.from_arrays(x =dist_total[size1:] ,y=shared_total[size1:])
-    # ds_inter = ds_temp[ds_temp.y==0]
-    # min_val, max_val = min(float(ds_intra.min('x')),float(ds_inter.min('x'))), max(float(ds_intra.max('x')),float(ds_inter.max('x')))
     
     shape = 64
     intra_count = ds_intra.count(binby=ds_intra.x,limits=[min_val, max_val],shape =shape )
