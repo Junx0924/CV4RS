@@ -111,4 +111,4 @@ Training is done by using `evaluate_model.py` and setting the respective flags, 
 * **R-Precision@K**
 * **MAP@K**
 ## Contact
-Created by [@JunXiang](xj.junxiang@gmail.com) - feel free to contact me!
+Created by xj.junxiang@gmail.com - feel free to contact me!
