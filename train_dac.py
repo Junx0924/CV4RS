@@ -146,9 +146,6 @@ def main():
         LOG.progress_saver= checkpoint['progress']
         start_epoch = checkpoint['epoch'] + 1
         
-    ## optional, check the image distribution for train dataset
-    #lib.utils.plot_dataset_stat(dataloaders['init'].dataset,save_path= config['checkfolder'], dset_type = 'train')
-
     #################### START TRAINING ###############
     history_recall = 0
     if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():

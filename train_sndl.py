@@ -52,8 +52,6 @@ def train_batch(model, lemniscate,criterion_dict, optimizer, config, batch):
     loss['Train'] = total_loss.item()
     optimizer.zero_grad()
     total_loss.backward()
-    # log the gradient of each layer
-    #lib.utils.GradientMeasure(model,LOG,log_key)
     ### Update network weights!
     optimizer.step()
     return loss
@@ -136,8 +134,6 @@ def main():
         LOG.progress_saver= checkpoint['progress']
         start_epoch = checkpoint['epoch'] + 1
     
-     ## optional, check the image distribution for train dataset
-    #lib.utils.plot_dataset_stat(dl_train.dataset,save_path= config['checkfolder'], dset_type = 'train')
     #################### START TRAINING ###############
     history_recall = 0
     if LOG !=None and "recall" in LOG.progress_saver["Val"].groups.keys():
