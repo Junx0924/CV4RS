@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 def setup_parameters(parser):
     parser.add_argument('--load_from_checkpoint',  default='../',  type=str,  help='the checkpoint folder from training')
     parser.add_argument('--source_path',  default='../Dataset',  type=str,  help='Path to dataset')
-    parser.add_argument('--dataset_type',  default='val',  type=str, choices=['val','test','train'],  help='which data spilt to evaluate')
+    parser.add_argument('--dataset_type',  default='test',  type=str, choices=['val','test','train'],  help='which data spilt to evaluate')
     parser.add_argument('--is_evaluate_initial',   action='store_true',help='Flag. If set, the initial model (epoch 0) will be evaluated')
     return parser
 
@@ -53,10 +53,10 @@ _  = model.to(config['device'])
 ### CREATE A SUMMARY TEXT FILE
 summary_text, floder_name = "", ""
 if is_evaluate_initial:
-    summary_text = config['project']+ ": evaluate inital model on "+ dset_type +" dataset"
+    summary_text = config['project']+ ": evaluate inital model on "+ dset_type +" dataset\n" 
     floder_name = "/init_" + dset_type
 else:
-    summary_text = config['project']+ ": evaluate final model on "+ dset_type +" dataset"
+    summary_text = config['project']+ ": evaluate final model on "+ dset_type +" dataset\n"
     floder_name = "/final_" + dset_type
     # load final model
     checkpoint = torch.load(config['checkfolder']+"/checkpoint_recall@1.pth.tar")

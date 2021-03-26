@@ -1,5 +1,5 @@
-source /home/users/j/jun0924/venv/bin/activate
-export LD_LIBRARY_PATH=/home/users/j/jun0924/lib
+source /home/users/j/.../venv/bin/activate
+export LD_LIBRARY_PATH=/home/users/.../lib
 module load nvidia/cuda/10.0
 ### for training
 python ./train_bier.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path "/scratch/CV4RS/Dataset" --save_path "../Training_Results" --savename 'bier' --group bier  --num_samples_per_class 2 --frozen  --use_npmem --eval_epoch 10 --nb_epochs 120  
