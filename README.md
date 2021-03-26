@@ -8,7 +8,7 @@
 * [Setup](#setup)
 * [Training](#training)
 * [Evaluation](#evaluation)
-* [Methods](#methods)
+* [Implemented Methods](#methods)
 * [Contact](#contact)
 
 ## General info
@@ -92,7 +92,7 @@ python train_diva.py --log_online \
 ## Evaluation
 Training is done by using `evaluate_model.py` and setting the respective flags, all of which are listed and explained in `evaluate_model.py`. A set of exemplary runs is provided in `SampleRun.sh`. The evaluation results will be saved in your checkpoint folder, and will include a summary of metric scores, png files of retrieved samples, distance density plot of intra and inter group if it is evaluated on val set.
 
-## Impelimented Methods
+## Implemented Methods
 ### Loss functions
 * **Margin loss** [[Sampling Matters in Deep Embeddings Learning](https://arxiv.org/abs/1706.07567)]
 * **Binominal loss(boosted)**
