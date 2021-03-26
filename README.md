@@ -18,8 +18,7 @@ This project aims to compare the performance of multi-task approaches in content
 3.  Deep Metric Learning with BIER: Boosting Indepen-dent Embedding Robustly (Bier) [git](https://github.com/mop/bier)  [pdf](https://arxiv.org/abs/1801.04815)
 
 One single approach for further comparisons:
-1.  Improving Generalization via Scalable Neighborhood Component Analysis [git](https://github.com/microsoft/snca.pytorch)  [pdf](https://openaccess.thecvf.com/content_ECCV_2018/papers/Zhirong_Wu_Improving_Embedding_Generalization_ECCV_2018_paper.pdf) 
-Graph Relation Network: Modeling Relations Between Scenes for Multilabel Remote-Sensing Image Classification and Retrieval [pdf](https://elib.dlr.de/137923/1/09173783.pdf)
+1.   Graph Relation Network: Modeling Relations Between Scenes for Multilabel Remote-Sensing Image Classification and Retrieval (SNDL) [pdf](https://elib.dlr.de/137923/1/09173783.pdf)
 
 ## Datasets
 Data for:
