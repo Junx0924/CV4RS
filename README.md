@@ -16,6 +16,7 @@ This project aims to compare the performance of multi-task approaches in content
 1.  Diverse Visual Feature Aggregation for Deep MetricLearning (Diva) [git](https://github.com/Confusezius/ECCV2020_DiVA_MultiFeature_DML)  [pdf](https://arxiv.org/abs/2004.13458)
 2.  Divide and Conquer the Embedding Space for MetricLearning (D&C) [git](https://github.com/CompVis/metric-learning-divide-and-conquer)  [pdf](http://openaccess.thecvf.com/content_CVPR_2019/papers/Sanakoyeu_Divide_and_Conquer_the_Embedding_Space_for_Metric_Learning_CVPR_2019_paper.pdf)
 3.  Deep Metric Learning with BIER: Boosting Indepen-dent Embedding Robustly (Bier) [git](https://github.com/mop/bier)  [pdf](https://arxiv.org/abs/1801.04815)
+
 One single approach for further comparisons:
 1.  Improving Generalization via Scalable Neighborhood Component Analysis [git](https://github.com/microsoft/snca.pytorch)  [pdf](https://openaccess.thecvf.com/content_ECCV_2018/papers/Zhirong_Wu_Improving_Embedding_Generalization_ECCV_2018_paper.pdf) 
 Graph Relation Network: Modeling Relations Between Scenes for Multilabel Remote-Sensing Image Classification and Retrieval [pdf](https://elib.dlr.de/137923/1/09173783.pdf)
@@ -24,6 +25,7 @@ Graph Relation Network: Modeling Relations Between Scenes for Multilabel Remote-
 Data for:
 1. [BigEarthNet](http://bigearth.net) 
 2. [MLRSNet](https://github.com/cugbrs/MLRSNet)
+
 Downloaded data should be placed in a folder named Dataset and keep the original structure:
 ```
 Dataset
@@ -70,6 +72,7 @@ An exemplary setup of a virtual environment containing everything needed:
 ```
 ## Training
 Training is done by using `train_baseline.py` or `train_bier.py` or `train_dac.py` or`train_sndl.py` and setting the respective flags, all of which are listed and explained in `parameters.py`. A set of exemplary runs is provided in `SampleRun.sh`.
+
 **[I.]** **A basic sample run using default parameters would like this**:
 
 ```
@@ -90,7 +93,7 @@ python train_diva.py --log_online \
 ## Evaluation
 Training is done by using `evaluate_model.py` and setting the respective flags, all of which are listed and explained in `evaluate_model.py`. A set of exemplary runs is provided in `SampleRun.sh`. The evaluation results will be saved in your checkpoint folder, and will include a summary of metric scores, png files of retrieved samples, distance density plot of intra and inter group if it is evaluated on val set.
 
-## Methods
+## Impelimented Methods
 ### Loss functions
 * **Margin loss** [[Sampling Matters in Deep Embeddings Learning](https://arxiv.org/abs/1706.07567)]
 * **Binominal loss(boosted)**
