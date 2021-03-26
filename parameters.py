@@ -39,6 +39,7 @@ def basic_training_parameters(parser):
     
     parser.add_argument('--is_beta_fixed',   action='store_true',help='Flag. If set, the margin beta for margin/binomial loss will be nontrainable')
     parser.add_argument('--is_beta_classSpecific',   action='store_true',help='Flag. If set, the margin beta for margin loss will be class specific')
+    parser.add_argument('--is_log_intra_inter_overlap',   action='store_true',help='Flag. If set, the overlap for intra and inter group will be logged during training')
     
     return parser
 
@@ -164,6 +165,7 @@ def load_common_config():
     config['device'] = torch.device("cuda") if len(config['gpu_ids'])>0 else torch.device("cpu")
     config['class_specific_beta'] = args.pop('is_beta_classSpecific')
     config['is_beta_trainable'] = not args.pop('is_beta_fixed')
+    config['is_log_intra_inter_overlap'] = args.pop('is_log_intra_inter_overlap')
 
     ### Update wandb config  ###########
     if config['log_online']:

@@ -6,11 +6,21 @@ python ./train_bier.py  --log_online --dataset MLRSNet  --project MLRSNet  --sou
 python ./train_dac.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results" --savename 'dac' --group dac --dac_nb_clusters 8 --num_samples_per_class 2 --frozen  --use_npmem --eval_epoch 10 --nb_epochs 120 
 python ./train_diva.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'diva' --group diva --num_samples_per_class 2 --use_npmem --frozen   -eval_epoch 10 --nb_epochs 120 
 python ./train_baseline.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'baseline' --group baseline --num_samples_per_class 2 --use_npmem --frozen   --eval_epoch 10 --nb_epochs 120  
+python ./train_sndl.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'baseline' --group baseline  --batchsize 120 --use_npmem --frozen  --eval_epoch 10 --nb_epochs 120  
 
 python ./train_bier.py  --log_online --dataset BigEarthNet  --project BigEarthNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'bier' --group bier  --num_samples_per_class 2 --frozen  --use_npmem --eval_epoch 10 --nb_epochs 120  
 python ./train_dac.py  --log_online --dataset BigEarthNet  --project BigEarthNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'dac' --group dac --dac_nb_clusters 8 --num_samples_per_class 2 --frozen  --use_npmem --eval_epoch 10 --nb_epochs 120 
 python ./train_diva.py  --log_online --dataset BigEarthNet  --project BigEarthNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'diva' --group diva --num_samples_per_class 2 --use_npmem --frozen    --eval_epoch 10 --nb_epochs 120
 python ./train_baseline.py  --log_online --dataset BigEarthNet  --project BigEarthNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'baseline' --group baseline --num_samples_per_class 2 --use_npmem --frozen    --eval_epoch 10 --nb_epochs 120  
+python ./train_sndl.py  --log_online --dataset BigEarthNet  --project BigEarthNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --savename 'baseline' --group baseline  --batchsize 120 --use_npmem --frozen  --eval_epoch 10 --nb_epochs 120  
+
+### for resume training 
+python ./train_bier.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset" --save_path "../Training_Results"   --load_from_checkpoint "../Training_Results/MLRSNet/bier"  
+python ./train_dac.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results" --load_from_checkpoint "../Training_Results/MLRSNet/dac" 
+python ./train_diva.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --load_from_checkpoint "../Training_Results/MLRSNet/diva" 
+python ./train_baseline.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"  --load_from_checkpoint "../Training_Results/MLRSNet/baseline" 
+python ./train_sndl.py  --log_online --dataset MLRSNet  --project MLRSNet  --source_path ".../Dataset"  --save_path "../Training_Results"   --load_from_checkpoint "../Training_Results/MLRSNet/sndl"
+
 
 ### for evaluation
 python ./evaluate_model.py --load_from_checkpoint "../Training_Results/MLRSNet/dac" --source_path ".../Dataset" 

@@ -163,10 +163,10 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
     
-    # plot inter and intra distance for images which have the most frequent class label
-    label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
-    if LOG !=None:
-        check_intra_inter_dist(X_stack, T_stack, class_label = label_most , LOG= LOG, log_key='Val')
+    if config['is_log_intra_inter_overlap']:
+        label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
+        if LOG !=None:
+            check_intra_inter_dist(X_stack, T_stack, class_label = label_most , LOG= LOG, log_key='Val')
           
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
@@ -255,9 +255,10 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
                 LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
     
     # log inter and intra distance for images which have the most frequent class label
-    label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
-    if LOG != None:
-        check_intra_inter_dist(X, T, class_label = label_most, LOG= LOG, log_key=log_key)
+    if config['is_log_intra_inter_overlap']:
+        label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
+        if LOG != None:
+            check_intra_inter_dist(X, T, class_label = label_most, LOG= LOG, log_key=log_key)
                            
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
