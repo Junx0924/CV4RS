@@ -101,6 +101,7 @@ Training is done by using `evaluate_model.py` and setting the respective flags, 
 * **Adversarial loss**
 ### Batch miner
 * **Semihard** [[Facenet: A unified embedding for face recognition and clustering](https://arxiv.org/abs/1503.03832)]
+* **MultiLabelSemihard** a variation of semihard, take embedding vectors and multi-hot labels as input
 * **Distance** [[Sampling Matters in Deep Embeddings Learning](https://arxiv.org/abs/1706.07567)]
 ### Architectures
 * **ResNet50** [[Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385)]
