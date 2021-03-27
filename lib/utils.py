@@ -495,8 +495,8 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     ds_total = vx.from_arrays(x =dist_total ,y=shared_total)
     ds_intra = ds_total[ds_total.y>0]
     ds_inter = ds_total[ds_total.y==0]
-    print('Intra pairs: ' +str(ds_intra.count('x')))
-    print('Inter pairs: ' +str(ds_inter.count('x')))
+    print('Intra pairs: ' +str(ds_intra.count('x'))+ ",mean dist: " + "{:.2f}".format(ds_intra.mean('x')))
+    print('Inter pairs: ' +str(ds_inter.count('x'))+ ",mean dist: " + "{:.2f}".format(ds_inter.mean('x')))
     min_val, max_val = float(ds_total.min('x')),float(ds_total.max('x'))
     
     shape = 64
