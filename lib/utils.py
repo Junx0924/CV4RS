@@ -162,12 +162,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
             
     X_stack = np.vstack((X_query,X_gallery))
     T_stack = np.vstack((T_query,T_gallery))
-    
-    if config['is_log_intra_inter_overlap']:
-        label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
-        if LOG !=None:
-            check_intra_inter_dist(X_stack, T_stack, class_label = label_most , LOG= LOG, log_key='Val')
-          
+              
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -177,9 +172,11 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
     
-    if is_plot_dist:
-        check_intra_inter_dist(X_stack, T_stack, class_label = label_most , is_plot= is_plot_dist,project_name= config['project'], save_path=result_path)
-
+    logger = LOG if config['is_log_intra_inter_overlap'] else None
+    if logger !=None or is_plot_dist:
+        label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
+        check_intra_inter_dist(X_stack, T_stack, class_label = label_most, LOG= logger,log_key=log_key,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
+    
     if is_recover:
         ## recover n_closest images
         retrieve_save_path = result_path+'/recoveries.png'
@@ -193,7 +190,7 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
-                    LOG=None, log_key = 'Val',K = [1,2,4,8],metrics=['recall'], is_init=False,is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=8):
+                    LOG=None, log_key = 'Val',K = [1,2,4,8],metrics=['recall'], is_init=False,is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=4):
     """
     Evaluate the retrieve performance
         Args:
@@ -254,12 +251,6 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
                 LOG.progress_saver[log_key].log('map'+ '@'+str(R),m,group='map')
                 LOG.progress_saver[log_key].log('r_precision'+ '@'+str(R),p,group='r_precision')
     
-    # log inter and intra distance for images which have the most frequent class label
-    if config['is_log_intra_inter_overlap']:
-        label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
-        if LOG != None:
-            check_intra_inter_dist(X, T, class_label = label_most, LOG= LOG, log_key=log_key)
-                           
     if is_plot_dist or is_recover:
         if 'result_path' not in config.keys():
             result_path = config['checkfolder'] +'/evaluation_results'
@@ -269,8 +260,11 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
    
-    if is_plot_dist:
-        check_intra_inter_dist(X, T, class_label = label_most ,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
+    # log / plot inter and intra distance for images which have the most frequent class label
+    logger = LOG if config['is_log_intra_inter_overlap'] else None
+    if logger !=None or is_plot_dist:
+        label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
+        check_intra_inter_dist(X, T, class_label = label_most, LOG= logger,log_key=log_key,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
     
     if is_recover:
         ## recover n_closest images
