@@ -172,10 +172,9 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
     
-    logger = LOG if config['is_log_intra_inter_overlap'] else None
-    if logger !=None or is_plot_dist:
+    if  is_plot_dist:
         label_most = int(max(dl_query.dataset.image_dict, key=lambda k: len(dl_query.dataset.image_dict[k])))
-        check_intra_inter_dist(X_stack, T_stack, class_label = label_most, LOG= logger,log_key=log_key,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
+        check_intra_inter_dist(X_stack, T_stack, class_label = label_most, is_plot= is_plot_dist, project_name =config['project'], save_path=result_path, epoch = config['epoch'])
     
     if is_recover:
         ## recover n_closest images
@@ -260,11 +259,10 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
         result_path = config['result_path']+'/'+dset_type
         if not os.path.exists(result_path): os.makedirs(result_path)
    
-    # log / plot inter and intra distance for images which have the most frequent class label
-    logger = LOG if config['is_log_intra_inter_overlap'] else None
-    if logger !=None or is_plot_dist:
+    # plot inter and intra distance for images which have the most frequent class label
+    if is_plot_dist:
         label_most = int(max(dl.dataset.image_dict, key=lambda k: len(dl.dataset.image_dict[k])))
-        check_intra_inter_dist(X, T, class_label = label_most, LOG= logger,log_key=log_key,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path)
+        check_intra_inter_dist(X, T, class_label = label_most,is_plot= is_plot_dist, project_name =config['project'], save_path=result_path, epoch = config['epoch'])
     
     if is_recover:
         ## recover n_closest images
@@ -452,7 +450,7 @@ def histogram_intersection(count1, count2, min_val,max_val,shape):
     return h1,h2,sm
 
 
-def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key = 'Val', project_name="",save_path=""):
+def check_intra_inter_dist(X, T, class_label,is_plot = False, project_name="",save_path="",epoch =0):
     """
     Select samples which contain certain class_label.
     Calculate embedding distance between selected samples and the whole data (X)
@@ -460,6 +458,8 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
         Args:
             X: np.array[n_samples x 512], embeddings
             T: np.array[n_samples x 60], multi-hot labels
+        Return:
+            (float) hist_overlap, the intersetion area of two normalized histograms
     """
     start_time = time.time()
     n = len(X)
@@ -504,10 +504,14 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
     inter_count = ds_inter.count(binby=ds_inter.x,limits=[min_val, max_val],shape =shape )
     normed_intra,normed_inter, hist_overlap = histogram_intersection(intra_count, inter_count, min_val,max_val,shape)
     print("Calculate done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
-    if LOG !=None and class_label !=None:
-        LOG.progress_saver[log_key].log('class@'+str(class_label),hist_overlap, group ='overlap_area')
     
     # Plot the dist distribution for shared labels
+    final_save_path = save_path + '/dist_plot_class_' + str(class_label) + '_epoch_' + str(epoch) 
+    counter = 1
+    while os.path.exists(final_save_path):
+        final_save_path += '_'+str(counter)
+        counter += 1
+    final_save_path += '.png'
     if is_plot:
         print('Start to plot the distance density for image pairs which have class label ' + str(class_label))
         start_time = time.time()
@@ -522,9 +526,10 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False,LOG=None, log_key =
         plt.xlabel('Embedding pair distance')
         plt.ylabel('Density')
         plt.legend()
-        plt.savefig(save_path + '/dist_shared_class_' + str(class_label) + '.png',format='png')
+        plt.savefig(final_save_path,format='png')
         plt.close()
         print("Plot done! Time elapsed: {:.2f} s.\n".format(time.time()- start_time))
+    return hist_overlap
 
 def plot_tsne(X,save_path,project_name="",n_components=2):
     """
