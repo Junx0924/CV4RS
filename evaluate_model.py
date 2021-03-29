@@ -9,8 +9,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 def setup_parameters(parser):
-    parser.add_argument('--load_from_checkpoint',  default='../',  type=str,  help='the checkpoint folder from training')
-    parser.add_argument('--source_path',  default='../Dataset',  type=str,  help='Path to dataset')
+    parser.add_argument('--load_from_checkpoint',  default='../', required = True, type=str,  help='the checkpoint folder from training')
+    parser.add_argument('--save_path',  default='../',  type=str, required = True, help='the path to save the results')
+    parser.add_argument('--source_path',  default='../Dataset',  required = True,type=str,  help='Path to dataset')
     parser.add_argument('--dataset_type',  default='test',  type=str, choices=['val','test','train'],  help='which data spilt to evaluate')
     parser.add_argument('--is_evaluate_initial',   action='store_true',help='Flag. If set, the initial model (epoch 0) will be evaluated')
     parser.add_argument('--is_plot_dist',   action='store_true',help='Flag. If set, it will plot the distance density of inter and intra group')
@@ -24,6 +25,7 @@ source_path = args.pop('source_path')
 dset_type = args.pop('dataset_type')
 is_evaluate_initial = args.pop('is_evaluate_initial')
 is_plot_dist = args.pop('is_plot_dist')
+result_path = args.pop('save_path')
 
 # load config
 with open(checkpoint_folder +"/hypa.pkl","rb") as f:
@@ -33,10 +35,9 @@ config['checkfolder'] = checkpoint_folder
 ds_selected = config['dataset_selected']
 config['dataset'][ds_selected]['root'] = source_path +'/'+ds_selected
 
-if 'result_path' not in config.keys():
-    result_path = config['checkfolder'] +'/evaluation_results'
-    if not os.path.exists(result_path): os.makedirs(result_path)
-    config['result_path'] = result_path
+result_path = config['checkfolder'] +'/evaluation_results'
+if not os.path.exists(result_path): os.makedirs(result_path)
+config['result_path'] = result_path
     
 # create dataloader for evaluation
 dl= lib.data.loader.make(config, 'eval', dset_type = dset_type)
