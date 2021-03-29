@@ -90,7 +90,7 @@ python train_diva.py --log_online \
 * After the account is set, make sure to include your API key in `parameters.py` under `--wandb_key`.
 * Set the flag `--log_online` to use wandb logging, if the network is unavailable in your training environment, set the flag `--wandb_dryrun` to make wandb store the data locally, and you can upload the data with the command `wandb sync <$path/wandb/offline..>`
 ## Evaluation
-Training is done by using `evaluate_model.py` and setting the respective flags, all of which are listed and explained in `evaluate_model.py`. A set of exemplary runs is provided in `SampleRun.sh`. The evaluation results will be saved in your checkpoint folder, and will include a summary of metric scores, png files of retrieved samples, distance density plot of intra and inter group if it is evaluated on val set.
+Evaluation is done by using `evaluate_model.py` and setting the respective flags, all of which are listed and explained in `evaluate_model.py`. A set of exemplary runs is provided in `SampleRun.sh`. The evaluation results will be saved in your checkpoint folder, and will include a summary of metric scores, png files of retrieved samples, distance density plot of intra and inter group if it is evaluated on val set.
 
 ## Implemented Methods
 ### Loss functions
