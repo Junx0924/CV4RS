@@ -8,17 +8,17 @@ eps = 1e-8
 
 # refer to the paper: https://www.umbc.edu/rssipl/people/aplaza/Papers/Journals/2020.TGRS.GRN.pdf
 class NCACrossEntropy(nn.Module): 
-    ''' \sum_{j=C} log(p_{ij})
+    ''' 
         Store all the labels of the dataset.
         Only pass the indexes of the training instances during forward. 
     '''
     def __init__(self, labels, margin=0):
-        """
+        """Initializes labels for a training dataset tensor
+
         Args:
-            labels: all the labels for training dataset
-                    tensor shape [len(training dataset), num_classes], multi-hot encoding like [1,0,1,0]
-            margin: classification margin
-        """
+            labels (tensor): all the labels for training dataset, shape [len(training dataset), num_classes], multi-hot encoding like [1,0,1,0]
+            margin (int, optional): classification margin. Defaults to 0.
+        """        
         super(NCACrossEntropy, self).__init__()
         self.register_buffer('labels_sim', torch.FloatTensor(labels.size(0),labels.size(0)))
 
@@ -31,12 +31,9 @@ class NCACrossEntropy(nn.Module):
     def forward(self, embed_sim, indexes):
         """
         Args:
-            embed_sim : tensor,shape [batchsize x len(training dataset)]
-                        the similarity mat between the mini-batch embeddings and the memory bank
-            indexes: indexes for the mini-batch
-        return:
-            loss
-        """
+            embed_sim ( tensor): shape [batchsize x len(training dataset)],the similarity mat between the mini-batch embeddings and the memory bank
+            indexes (list): indexes for the mini-batch
+        """        
         batchSize = embed_sim.size(0)
         N = embed_sim.size(1)
         assert embed_sim.size(1) == self.labels_sim.size(1)

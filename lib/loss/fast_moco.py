@@ -23,6 +23,8 @@ class Fast_moco(torch.nn.Module):
         self.memory_queue = torch.cat([self.memory_queue, embeddings], dim=0)
 
     def create_memory_queue(self, model, dataloader, device, opt_key=None):
+        """Create a memory queue for the given model 
+        """        
         with torch.no_grad():
             _ = model.eval()
             _ = model.to(device)

@@ -7,13 +7,16 @@ import os
 
 """============================================================="""
 def increase_channels(conv, num_channels=None, copy_weights=0):
-    """
-    Takes as input a Conv2d layer and returns the Conv2d layer with `num_channels` input channels
-    and all the previous weights copied into the new layer.
+    """ Takes as input a Conv2d layer and returns the Conv2d layer with `num_channels` input channels
+        and all the previous weights copied into the new layer.
+
     Args:
-      conv: nn.Conv2d module
-      num_channels: the new number of input channel
-      copy_weights: Copying the weights of the `copy_weights` channel of the old layer to the extra channels of the new layer
+        conv (nn.Conv2d):  Conv2d labyer
+        num_channels ([type], optional): the new number of input channel. Defaults to None.
+        copy_weights (int, optional): copy the weights of the `copy_weights` channel of the old layer to the extra channels of the new layer
+
+    Returns:
+        nn.Conv2d:  Conv2d labyer
     """
     # number of input channels the new module should have
     new_in_channels = num_channels if num_channels is not None else conv.in_channels + 1
@@ -94,6 +97,16 @@ class Network(nn.Module):
                 self.parameters_dict['embedding'].append(param)
     
     def forward(self, x, use_penultimate=False):
+        """Performs a forward pass through the network .
+
+        Args:
+            x (torch tensor):  
+            use_penultimate (bool, optional):
+
+        Returns:
+            torch tensor: if use_penultimate set true, return normalized vectors of last linear layer, Defaults to False.
+            or dict: if use_penultimate set false, return dict of normalized vectors of embedding layer
+        """        
         x = self.features(x)
         x = self.features_pooling(x)
         x = self.features_dropout(x)

@@ -20,13 +20,15 @@ if not sys.warnoptions:
 
 
 def reserve_faiss_gpu_memory(gpu_id=0):
-    """
-    Reserves around 2.4 Gb memory on Titan Xp.
-    `r = reserve_faiss_gpu_memory()`
-    To release the memory run `del r`
+    """Reserves around 2 . 4g memory on Titan Xp .
+        To release the memory run `del r`
 
-    Something like 200 Mb will still be hold afterwards.
-    """
+    Args:
+        gpu_id (int, optional): [description]. Defaults to 0.
+
+    Returns:
+        [type]: [description]
+    """    
     res = faiss.StandardGpuResources()
     cfg = faiss.GpuIndexFlatConfig()
     cfg.useFloat16 = False
@@ -36,10 +38,8 @@ def reserve_faiss_gpu_memory(gpu_id=0):
 
 
 class MemoryReserver():
-    """
-    Faiss memory manager. If not used and another process takes up memory of
-    currently used GPU, then the program will crash.
-    """
+    """Vaniss memory manager .
+    """    
     def __init__(self):
         self.memory_holder = None
 
@@ -58,16 +58,16 @@ class MemoryReserver():
 
 
 def preprocess_features(x, x2=None, d=256):
-    """
-    Calculate PCA + Whitening + L2 normalization for each vector
+    """Calculate PCA + L2 normalization for each vector .
 
     Args:
-        x (ndarray): N x D, where N is number of vectors, D - dimensionality
-        x2 (ndarray): optional, if not None apply PCA+Whitening learned on x to x2.
+        x (numpy array): N x D, where N is number of vectors, D - dimensionality
+        x2 (numpy array): optional, if not None apply PCA+Whitening learned on x to x2.
         d (int): number of output dimensions (how many principal components to use).
+
     Returns:
-        transformed [N x d] matrix xt .
-    """
+        numpy array: transformed [N x d] matrix xt 
+    """    
     n, orig_d = x.shape
     pcaw = faiss.PCAMatrix(d_in=orig_d, d_out=d, eigen_power=-0.5, random_rotation=False)
     pcaw.train(x)

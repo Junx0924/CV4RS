@@ -6,14 +6,22 @@ import numpy as np
 import random
 
 class ClassBalancedSampler(torch.utils.data.sampler.Sampler):
-    """
-    Sampler that generates class balanced indices with classes chosen randomly.
+    """Sampler that generates class balanced indices .
     For example, choosing batch_size = 50 and nun_samples_per_class = 2
     will result in
     50 indices, which point to 2 samples from 50/2=25 randomly picked classes.
-    """
 
+    Yields:
+        list: indexes of images
+    """    
     def __init__(self, num_images, image_dict,num_samples_per_class=2):
+        """Initialize the class .
+
+        Args:
+            num_images (int): 
+            image_dict (dict): key: class labels, values: the index of images
+            num_samples_per_class (int, optional):  Defaults to 2.
+        """        
         self.image_dict         = image_dict
         self.samples_per_class  = num_samples_per_class
         num_class = len(image_dict)

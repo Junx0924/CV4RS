@@ -66,7 +66,7 @@ An exemplary setup of a virtual environment containing everything needed:
 (5) conda activate DL
 (6) conda install matplotlib scipy scikit-learn scikit-image tqdm vaex pillow xlrd
 (7) conda install pytorch torchvision faiss-gpu cudatoolkit=10.0 -c pytorch
-(8) pip install wandb pretrainedmodels
+(8) pip install wandb pretrainedmodels hypia
 (9) Run the scripts!
 ```
 ## Training

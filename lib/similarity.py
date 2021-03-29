@@ -25,15 +25,15 @@ _backends_ = [TORCH_SKLEARN_BACKEND, FAISS_BACKEND, FAISS_GPU_BACKEND]
 
 
 def pairwise_distance(a, squared=False):
-    """
-    Computes the pairwise distance matrix with numerical stability.
-    output[i, j] = || feature[i, :] - feature[j, :] ||_2
+    """Computes the pairwise distance matrix with numerical stability .
+        output[i, j] = || feature[i, :] - feature[j, :] ||_2
     Args:
-        feature: 2-D Tensor of size [number of data, feature dimension].
-        squared: Boolean, whether or not to square the pairwise distances.
+        a (2-D Tensor): size [number of data, feature dimension].
+        squared (bool, optional): whether or not to square the pairwise distances.. Defaults to False.
+
     Returns:
-        pairwise_distances: 2-D Tensor of size [number of data, number of data].
-    """
+        2-D Tensor:  size [number of data, number of data].
+    """    
     a = torch.as_tensor(np.atleast_2d(a))
     pairwise_distances_squared = torch.add(
         a.pow(2).sum(dim=1, keepdim=True).expand(a.size(0), -1),
@@ -75,14 +75,18 @@ def pairwise_distance(a, squared=False):
 
 
 def assign_by_euclidian_at_k(X, T, k, gpu_id=None, backend=_DEFAULT_BACKEND_):
-    """
+    """Assign target labels to k nearest neighbors .
+
     Args:
-        X : [nb_samples x nb_features], e.g. 100 x 64 (embeddings)
-        T: [nb_samples], category labels, e.g. [1,2,4,5,6...]
-        k : for each sample, assign target labels of k nearest points
+        X (numpy array): [nb_samples x nb_features], e.g. 100 x 64 (embeddings)
+        T (numpy array):  category labels, e.g. [1,2,4,5,6...]
+        k (int): for each sample, assign target labels of k nearest points
+        gpu_id ([type], optional): [description]. Defaults to None.
+        backend ([type], optional): [description]. Defaults to _DEFAULT_BACKEND_.
+
     Returns:
-        [nb_samples x k ] category labels
-    """
+        numpy array:  [nb_samples x k ] category labels
+    """    
     if backend == TORCH_SKLEARN_BACKEND:
         distances = sklearn.metrics.pairwise.pairwise_distances(X)
         # get nearest points
@@ -104,10 +108,17 @@ def assign_by_euclidian_at_k(X, T, k, gpu_id=None, backend=_DEFAULT_BACKEND_):
 
 
 def cluster_by_kmeans(X, nb_clusters, gpu_id=None, backend=_DEFAULT_BACKEND_):
-    """
-    xs : embeddings with shape [nb_samples, nb_features]
-    nb_clusters : in this case, must be equal to number of classes
-    """
+    """clusters X using Faissext
+
+    Args:
+        X (numpy array):  embeddings with shape [nb_samples, nb_features]
+        nb_clusters (int): in this case, must be equal to number of classes
+        gpu_id ( optional):   Defaults to None.
+        backend (optional):  Defaults to _DEFAULT_BACKEND_.
+
+    Returns:
+        [type]: [description]
+    """    
     if backend == TORCH_SKLEARN_BACKEND:
         C = sklearn.cluster.KMeans(nb_clusters).fit(X).labels_
     else:

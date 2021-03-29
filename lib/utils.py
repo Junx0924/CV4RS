@@ -21,16 +21,19 @@ import vaex as vx
 
 
 def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_run=False,desc=''):
-    """
-    Get the embeddings of the dataloader from model
-        Args:
-            model: pretrained resnet50
-            dataloader: torch dataloader
-            device: torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            use_penultimate: bool, if set false, use the embedding layer
-        return:
-            numpy array of embeddings, labels, indexs 
-    """
+    """Get the embeddings of the dataloader from model
+
+    Args:
+        model (Resnet50): pretrained resnet50
+        dataloader (torch): torch dataloader
+        device  : torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        use_penultimate (bool, optional): if set false, use the embedding layer. Defaults to False.
+        is_dry_run (bool, optional):  if set false, run wandb locally
+        desc (str, optional): description of the dataloading. Defaults to ''.
+
+    Returns:
+        llist: numpy array of embeddings, labels, indexs 
+    """    
     # list with N lists, where N = |{image, label, index}|
     model_is_training = model.training
     model.eval()
@@ -62,15 +65,16 @@ def predict_batchwise(model, dataloader, device,use_penultimate = False, is_dry_
 
 
 def get_weighted_embed(X,weights,sub_dim):
-    """
-    Get weighted embeddigns
-        Args:
-            X: numpy array[n_samples X 512], embeddings
-            weights: list of weight of each sub embeddings, like [0.1, 1, 1]
-            sub_dim: list of size of sub embeddings, like [96,160,256]
-        return:
-            weighted embeddings
-    """
+    """Get weighted embeddigns
+
+    Args:
+        X (numpy array): embeddings
+        weights (list ): weight of each sub embeddings, like [0.1, 1, 1]
+        sub_dim (list): size of sub embeddings, like [96,160,256]
+
+    Returns:
+        numpy array: weighted embeddings
+    """    
     assert len(weights) == len(sub_dim)
     assert X.shape[1] == sum(sub_dim)
     for i in range(len(sub_dim)):
@@ -81,6 +85,14 @@ def get_weighted_embed(X,weights,sub_dim):
 
 
 def start_wandb(config):
+    """Start wandb .
+
+    Args:
+        config (dict): dict which contains the key, group name, savename for Wandb
+
+    Returns:
+        dict: updated config
+    """    
     import wandb
     os.environ['WANDB_API_KEY'] = config['wandb']['wandb_key']
     if config['wandb']['dry_run']:
@@ -95,18 +107,27 @@ def start_wandb(config):
     
 def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate= False,  
                           LOG=None, log_key = 'Val',is_init=False,K = [1,2,4,8],metrics=['recall'], is_plot_dist= False,is_recover=  False,n_img_samples=4,n_closest=4):
-    """
-    Evaluate the retrieve performance
+    """Evaluate the retrieve performance .
+
     Args:
-        model: pretrained resnet50
-        dl_query: query dataloader
-        dl_gallery: gallery dataloader
-        use_penultimate: bool, if set false, use the embedding layer
-        K: default [1,2,4,8]
-        metrics: default ['recall']
-    Return:
-        score: dict of score for different metrics
-    """
+        model (resnet50): pretrained resnet50
+        config (dict): config file
+        dl_query (torch dataloader) 
+        dl_gallery (torch dataloader) 
+        use_penultimate (bool, optional): if set false, use the embedding layer
+        LOG (object, optional): logging object
+        log_key (str, optional):   Defaults to 'Val'.
+        is_init (bool, optional): if set, evaluate the model at its initial state. Defaults to False.
+        K (list, optional): K for KNN. Defaults to [1,2,4,8].
+        metrics (list, optional):  Defaults to ['recall'].
+        is_plot_dist (bool, optional): if set, plot the distance density. Defaults to False.
+        is_recover (bool, optional): if set, recover the retrieved images. Defaults to False.
+        n_img_samples (int, optional): number of query images. Defaults to 4.
+        n_closest (int, optional): number of retrieved images per query. Defaults to 4.
+
+    Returns:
+        dict: retrieval scores
+    """    
     # calculate embeddings with model and get targets
     X_query, T_query, _ = predict_batchwise(model, dl_query, config['device'],use_penultimate,desc="Extraction Query Features")
     X_gallery, T_gallery, _ = predict_batchwise(model, dl_gallery, config['device'],use_penultimate,desc='Extraction Gallery Features')
@@ -190,20 +211,26 @@ def evaluate_query_gallery(model, config, dl_query, dl_gallery, use_penultimate=
 
 def evaluate_standard(model, config,dl, use_penultimate= False, 
                     LOG=None, log_key = 'Val',K = [1,2,4,8],metrics=['recall'], is_init=False,is_plot_dist= False, is_recover=False,n_img_samples=4,n_closest=4):
-    """
-    Evaluate the retrieve performance
-        Args:
-            model: pretrained resnet50
-            dl: dataloader
-            use_penultimate: bool, if set true, use the second last layer of the model
-            K: default [1,2,4,8]
-            metrics: default ['recall']
-            is_init: bool,  get unweighted subembedding vectors for Diva
-            is_plot_dist: bool, if set true, plot the inter and intra embedding distance
-            is_recover: bool, if set true, retrieve 'n_closest' images for 'n_img_samples' query images
-        Return:
-            scores: dict of score for different metrics
-    """
+    """Evaluate the retrieve performance .
+
+    Args:
+        model (resnet50): pretrained resnet50
+        config (dict): config file
+        dl (torch dataloader): [description]
+        use_penultimate (bool, optional): if set false, use the embedding layer
+        LOG (object, optional): logging object
+        log_key (str, optional):   Defaults to 'Val'.
+        K (list, optional): K for KNN. Defaults to [1,2,4,8].
+        metrics (list, optional):  Defaults to ['recall'].
+        is_init (bool, optional): if set, evaluate the model at its initial state. Defaults to False.
+        is_plot_dist (bool, optional): if set, plot the distance density. Defaults to False.
+        is_recover (bool, optional): if set, recover the retrieved images. Defaults to False.
+        n_img_samples (int, optional): number of query images. Defaults to 4.
+        n_closest (int, optional): number of retrieved images per query. Defaults to 4.
+
+    Returns:
+        dict: retrieval scores
+    """    
     # calculate embeddings with model and get targets
     X, T, _ = predict_batchwise(model, dl, config['device'], use_penultimate, desc='Extraction Eval Features')
     if 'evaluation_weight' in config.keys() and not is_init:
@@ -277,14 +304,18 @@ def evaluate_standard(model, config,dl, use_penultimate= False,
 
 
 def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n_closest = 4,gpu_id=None):
-    """
-    Retrieve the n closest similar images for sampled images
-        Args:
-            X: np.array, embeddings
-            T: np.array, multi-hot labels
-            conversion: dict, class name for each category label
-            img_paths: np.array, the original image paths of embeddings
-    """
+    """Retrieve the n closest similar images for sampled images .
+
+    Args:
+        X ([type]): embeddings
+        T ([type]): multi-hot labels
+        conversion ([type]): class name for each category label
+        img_paths ([type]): the original image paths of embeddings
+        save_path ([type]): the path to save the retrieved images
+        n_img_samples (int, optional): Defaults to 4.
+        n_closest (int, optional):   Defaults to 4.
+        gpu_id ([type], optional):  Defaults to None.
+    """    
     print('Start to recover {} similar images for {} sampled image'.format(n_closest,n_img_samples))
     start_time = time.time()
     np.random.seed(0)
@@ -305,18 +336,21 @@ def retrieve_standard(X, T, conversion,img_paths,save_path, n_img_samples = 4, n
 
 
 def retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,query_img_paths,gallery_img_path, save_path, n_img_samples = 10, n_closest = 4,gpu_id=None):
-    """
-    Retrieve the n closest similar gallery images for sampled query images
-        Args:
-            X_query: np.array, query embeddings
-            T_query: np.array, multi-hot labels
-            X_gallery: np.array, gallery embeddings
-            T_gallery: np.array, multi-hot labels
-            conversion: dict, class name for each category label
-            query_img_paths: np.array, the original image paths of query embeddings
-            gallery_img_path: np.array, the original image paths of gallery embeddings
-            
-    """
+    """Retrieve the n closest similarity images for each query .
+
+    Args:
+        X_query (numpy array): query embeddings
+        T_query (numpy array): multi-hot labels
+        X_gallery (numpy array): gallery embeddings
+        T_gallery (numpy array):  multi-hot labels
+        conversion (dict): class name for each category label
+        query_img_paths (numpy array):the original image paths of query embeddings
+        gallery_img_path (numpy array): the original image paths of gallery embeddings
+        save_path (string): the path to save the retrieved images
+        n_img_samples (int, optional):   Defaults to 10.
+        n_closest (int, optional):   Defaults to 4.
+        gpu_id ([type], optional):   Defaults to None.
+    """    
     print('Start to recover {} similar gallery images for each sampled query image'.format(n_closest))
     start_time = time.time()
     assert X_gallery.shape[1] == X_gallery.shape[1]
@@ -339,13 +373,14 @@ def retrieve_query_gallery(X_query, T_query, X_gallery,T_gallery, conversion,que
 
 
 def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
-    """
-    Plot images and save them
-        Args:
-            image_paths: numpy array
-            image_labels: numpy array, multi-hot labels
-            conversion: dict, class name for each category label
-    """
+    """Plot images and save them to disk .
+
+    Args:
+        image_paths (numpy array): 
+        image_labels (numpy array): multi-hot labels
+        save_path ([type]): 
+        conversion (dict, optional): class name for each category label. Defaults to None.
+    """    
     width = image_paths.shape[1]
     f,axes = plt.subplots(nrows =image_paths.shape[0],ncols=image_paths.shape[1])
     temp_sample_paths = image_paths.flatten()
@@ -401,14 +436,15 @@ def plot_retrieved_images(image_paths,image_labels,save_path,conversion=None):
 
 
 def classBalancedSamper(T,num_samples_per_class=2):
-    """
-    Get a list of category labels with its original index from multi-hot labels
-        Args:
-            T: np.array[n_samples x 60], multi-hot labels
-            num_samples_per_class: default 2
-        Return:
-            list of category labels
-    """
+    """Get a list of category labels with its original index from multi - hot labels .
+
+    Args:
+        T ([type]):  multi-hot labels
+        num_samples_per_class (int, optional): Defaults to 2.
+
+    Returns:
+        [numpy array]: category labels
+    """    
     T_list = [ np.where(t==1)[0] for t in T] 
     T_list = np.array([[i,item] for i,sublist in enumerate(T_list) for item in sublist])
     classes = np.unique(T_list[:,1])
@@ -428,11 +464,11 @@ def histogram_intersection(count1, count2, min_val,max_val,shape):
     with possible value of the intersection lying between 0 (no overlap) and 1 (identical distributions)
 
     Args:
-        count1 ([list]): [ unnormalized counts for data 1 ranged between min_val and max_val ]
-        count2 ([list]): [unnormalized counts for data 2 ranged between min_val and max_val]
-        min_val ([float]): [min_val]
-        max_val ([float]): [max_val]
-        shape ([int]): [number of bins]
+        count1 (list):  unnormalized counts for data 1 ranged between min_val and max_val  
+        count2 (list):  unnormalized counts for data 2 ranged between min_val and max_val 
+        min_val (float):   
+        max_val (float):   
+        shape (int):  number of bins 
     """
     def norm_count(count,bins):
         total  = sum(count)
@@ -451,16 +487,22 @@ def histogram_intersection(count1, count2, min_val,max_val,shape):
 
 
 def check_intra_inter_dist(X, T, class_label,is_plot = False, project_name="",save_path="",epoch =0):
-    """
-    Select samples which contain certain class_label.
+    """Select samples which contain certain class_label.
     Calculate embedding distance between selected samples and the whole data (X)
     Plot the density of inter and intra distance of embedding pairs
-        Args:
-            X: np.array[n_samples x 512], embeddings
-            T: np.array[n_samples x 60], multi-hot labels
-        Return:
-            (float) hist_overlap, the intersetion area of two normalized histograms
-    """
+
+    Args:
+        X (numpy array): embeddings
+        T (numpy array): multi-hot labels
+        class_label (int):  
+        is_plot (bool, optional):   Defaults to False.
+        project_name (str, optional):   Defaults to "".
+        save_path (str, optional):  Defaults to "".
+        epoch (int, optional): Defaults to 0.
+
+    Returns:
+        float: the intersetion area of two normalized histograms
+    """    
     start_time = time.time()
     n = len(X)
     assert class_label is not None 
@@ -532,13 +574,14 @@ def check_intra_inter_dist(X, T, class_label,is_plot = False, project_name="",sa
     return hist_overlap
 
 def plot_tsne(X,save_path,project_name="",n_components=2):
-    """
-    Get the tsne plot of embeddings
-        Args:
-            X: np.array[n_samples x 512], embeddings
-            T: np.array[n_samples x 60], multi-hot labels
-            conversion: dictionary to convert category label to label name
-    """
+    """Get the tsne plot of embeddings .
+
+    Args:
+        X (numpy array): embeddings
+        save_path ([type]):  
+        project_name (str, optional):   Defaults to "".
+        n_components (int, optional):   Defaults to 2.
+    """    
     # apply tsne to the embeddings
     print("Apply tsne to embeddings")
     time_start = time.time()
@@ -553,13 +596,14 @@ def plot_tsne(X,save_path,project_name="",n_components=2):
 
 
 def plot_dataset_stat(dataset,save_path):
-    """
-    Generally check the statistic of the dataset
-     Check Avg. num labels per image
+    """Generally check the statistic of the dataset
+     Check Avg. num labels per image and make plots
      Check Avg. num of labels shared per image
-     Args:
-        dataset: torch.dataset
-    """
+
+    Args:
+        dataset (torch dataset) 
+        save_path (str) 
+    """    
     save_path = save_path +'/stat_' + dataset.dset_type
     if not os.path.exists(save_path):
         os.makedirs(save_path)

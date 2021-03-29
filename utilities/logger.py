@@ -6,9 +6,10 @@ import random
 import matplotlib
 # change the color style 
 matplotlib.rcParams['axes.prop_cycle']
-"""============================================================================================================="""
-################## WRITE TO CSV FILE #####################
+
 class CSV_Writer():
+    """Writes CSV writer .
+    """    
     def __init__(self, save_path):
         self.save_path = save_path
         self.written         = []
@@ -26,8 +27,9 @@ class CSV_Writer():
         self.written.append(group)
 
 
-################## PLOT SUMMARY IMAGE #####################
 class InfoPlotter():
+    """PLOT SUMMARY IMAGE
+    """    
     def __init__(self, save_path, title='Training Log', figsize=(25,19)):
         self.save_path = save_path
         self.title     = title
@@ -67,8 +69,10 @@ class InfoPlotter():
         plt.close()
 
 
-################## GENERATE LOGGING FOLDER/FILES #######################
+
 def set_logging(config,start_new):
+    """Generate logging folders
+    """    
     if start_new:
         dataset_name = config['dataset_selected']
         save_path =  config['log']['save_path']

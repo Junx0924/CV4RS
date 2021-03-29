@@ -41,9 +41,6 @@ if 'result_path' not in config.keys():
 # create dataloader for evaluation
 dl= lib.data.loader.make(config, 'eval', dset_type = dset_type)
 
-## optional, check the sample distribution for val/test dataset
-#lib.utils.plot_dataset_stat(dl_val.dataset,save_path= config['result_path'])
-
 # load initial model
 pj_base_path= os.path.dirname(os.path.realpath(__file__))
 config['pretrained_weights_file'] = pj_base_path + '/' + config['pretrained_weights_file'].split('/')[-1]

@@ -8,12 +8,14 @@ import itertools
 
 
 def get_label(img_path,label_indices):
-    """
+    """Get category labels for a single image
+
     Args:
-        img_path
-        label_indices: dictionary, {'label_name': 'label_indice'}
-    Return:
-       category labels for single image
+        img_path ([type]): [description]
+        label_indices (dictionary): eg. {'label_name': 'label_indice'}
+
+    Returns:
+        list: category labels for single image
     """
     patch_name = img_path.split('/')[-1]
     patch_json_path = img_path + '/' + patch_name +  '_labels_metadata.json'
@@ -26,13 +28,15 @@ def get_label(img_path,label_indices):
     return category_labels
 
 def Give(datapath,dset_type):
-    """
+    """Given a dataset path generate a list of image paths and multi-hot labels .
+
     Args:
-        datapath: eg. /scratch/CV4RS/Dataset/MLRSNet
-        dset_type: choose from train/val/test
-    Return:
-        image_list: contains [image_path, multi-hot label]
-    """
+        datapath (str): eg. /scratch/CV4RS/Dataset/MLRSNet
+        dset_type (str): choose from train/val/test
+
+    Returns:
+        list: contains [image_path, multi-hot label]
+    """    
     csv_dir =  os.path.dirname(__file__) + '/BigEarthNet_split'
     # read label names
     with open(csv_dir + '/label_indices.json', 'rb') as f:

@@ -5,14 +5,17 @@ from torch import nn
 
 class BinomialLoss(nn.Module):
     def __init__(self, C =25,alpha=2.0, beta=0.5, eta_style=True,beta_lr =0.0005,is_beta_trainable= False,**kwargs):
-        """
-        Boosted bionminal loss
+        """Boost a bionminal loss .
         Implement according to paper: https://arxiv.org/abs/1801.04815
+
         Args:
-            C: parameter for binomial deviance.
-            alpha: parameter for binomial deviance.
-            beta: margin for binomial deviance.
-        """
+            C (int, optional): cost for neagive pairs. Defaults to 25.
+            alpha (float, optional): the scaling parameter . Defaults to 2.0.
+            beta (float, optional): margin for binomial, Defaults to 0.5.
+            eta_style (bool, optional): [description]. Defaults to True.
+            beta_lr (float, optional): learning rate. Defaults to 0.0005.
+            is_beta_trainable (bool, optional): . Defaults to False.
+        """        
         super(BinomialLoss, self).__init__()
         self.C = C
         self.alpha = alpha
@@ -32,11 +35,13 @@ class BinomialLoss(nn.Module):
             self.beta = beta
     
     def forward(self,normed_fvecs, T):
-        """
+        """Compute the forward pass of the model .
+
         Args:
-            normed_fvecs: multi-feature dictionary, each value contains sub embeddings with shape [batchsize x sub embedding size]
-            T: tensor, category labels, shape(batchsize, )
-        """
+            normed_fvecs (dict):multi-feature dictionary, each value contains sub embeddings with shape [batchsize x sub embedding size]
+            T (tensor): category labels, shape(batchsize, )
+
+        """        
         if isinstance( T, torch.Tensor):  T =  T.detach()
         n = len(T)
         # init boosting_weights for each label pair

@@ -6,15 +6,17 @@ import math
 class LinearAverageOp(Function):
     @staticmethod
     def forward(self, embed, indexes, memory, params):
-        """
+        """Perform forward pass of the mini batch
+
         Args:
-            embed: embeddings of the mini batch
-            indexes: index of the mini batch
-            memory: tensor, shape (N, embeding dim)
-            params: temperature and momentum
-        return:
-            embed_sim: the similarity mat between the mini-batch embeddings and the memory bank
-        """
+            embed (torch tensor): embeddings of the mini batch
+            indexes (list):  shape (N, embeding dim)
+            memory (torch tensor): memory bank
+            params (float): temperature and momentum
+
+        Returns:
+            torch tensor: the similarity mat between the mini-batch embeddings and the memory bank
+        """        
         T = params[0].item()
         batchSize = embed.size(0)
 
@@ -53,14 +55,14 @@ class LinearAverageOp(Function):
 class LinearAverage(nn.Module):
 
     def __init__(self, embed_dim, N, T=0.05, momentum=0.5):
-        """
-        Build the memory bank for Scalable Neighborhood Component Analysis
-            Args:
-                embed_dim: embedding dim
-                N: the length of dataset
-                T: temperature
-                momentum: momentum for non-parametric updates
-        """
+        """Build the memory bank for Scalable Neighborhood Component Analysis
+
+        Args:
+            embed_dim (int): dimension of embedding vector
+            N (int): the length of dataset
+            T (float, optional): temperature, Defaults to 0.05.
+            momentum (float, optional): momentum for non-parametric updates. Defaults to 0.5.
+        """        
         super(LinearAverage, self).__init__()
         self.nLem = N
         self.register_buffer('params',torch.tensor([T, momentum]))
@@ -68,12 +70,14 @@ class LinearAverage(nn.Module):
         self.register_buffer('memory', torch.rand(N, embed_dim).mul_(2*stdv).add_(-stdv))
 
     def forward(self, embed, indexes):
-        """
+        """Returns the similarity matrices of the given embeddings .
+
         Args:
-            embed: embeddings of the mini batch
-            indexes: index of the mini batch
-        return:
-            embed_sim: the similarity mat between the mini-batch embeddings and the memory bank
-        """
+            embed (torch tensor): embeddings of the mini batch
+            indexes (list): index of the mini batch
+
+        Returns:
+            torch tensor: the similarity mat between the mini-batch embeddings and the memory bank
+        """        
         embed_sim = LinearAverageOp.apply(embed, indexes, self.memory, self.params)
         return embed_sim

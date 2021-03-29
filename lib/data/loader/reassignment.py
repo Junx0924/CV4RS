@@ -5,17 +5,19 @@ import numpy as np
 
 
 def reassign_clusters(C_prev, C_curr, I_prev, I_curr):
-    """
-    For project divide_and_conquer
+    """For project divide_and_conquer
+    reassign the images to new clusters
+
     Args:
-        C_prev: pervious cluster labels
-        C_curr: current cluster labels
-        I_prev: previous index of embeddings in each cluster
-        I_curr: current index of embeddings in each cluster
-    Return:
-        C_reassigned: reassigned cluster labels
-        costs
-    """
+        C_prev (list): pervious cluster labels
+        C_curr (list): current cluster labels
+        I_prev (list): previous index of embeddings in each cluster
+        I_curr (list): current index of embeddings in each cluster
+
+    Returns:
+        list: reassigned cluster labels
+        torch tensor:
+    """    
     nb_clusters = max(C_prev).item() + 1 # cluster ids start from 0
     assert set(
         i.item() for i in np.unique(I_prev)

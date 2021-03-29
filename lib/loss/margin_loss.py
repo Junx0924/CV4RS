@@ -5,28 +5,20 @@ import numpy as np
 
 
 class MarginLoss(torch.nn.Module):
-    """Margin based loss.
-    Parameters
-    ----------
-    nb_classes: int
-        Number of classes in the train dataset.
-        Used to initialize class-specific boundaries beta.
-    margin : float
-        Margin between positive and negative pairs.
-    nu : float
-        Regularisation Parameter for beta values if they are learned.
-    class_specific_beta : bool
-        Are class-specific boundaries beind used
-    batchminer: return semihard triplets
-    Inputs:
-        feature: embeddings, tensor, shape(batchsize, embed_dim)
-        labels: category labels, tensor, shape (batchsize,1)
-    Outputs:
-        Loss value.
-    """
-
     def __init__(self, nb_classes, beta=1.2,beta_lr =0.0005, margin=0.2, nu=0.1, is_beta_trainable=True,
  		 class_specific_beta=False, batchminner = None,**kwargs):
+        """Initialize the class .
+
+        Args:
+            nb_classes (int):  Number of classes in the train dataset. Used to initialize class-specific boundaries beta
+            beta (float, optional): margin beta. Defaults to 1.2.
+            beta_lr (float, optional): learning rate for beta. Defaults to 0.0005.
+            margin (float, optional): Margin between positive and negative pairs. Defaults to 0.2.
+            nu (float, optional): Regularisation Parameter for beta values if they are learned.. Defaults to 0.1.
+            is_beta_trainable (bool, optional): if set, beta is trainable. Defaults to True.
+            class_specific_beta (bool, optional): if set, beta is trainable for each class. Defaults to False.
+            batchminner (optional):  Defaults to None.
+        """        
         super(MarginLoss, self).__init__()
 
         self.nb_classes = nb_classes
@@ -49,11 +41,12 @@ class MarginLoss(torch.nn.Module):
         self.batchminner = batchminner
 
     def forward(self, feature, labels):
-        """
+        """Calculate the loss .
+
         Args:
-            feature ([tensor]): embedding vectors, shape(batchsize x sub embedding size)
-            labels ([tensor]):  if batchminner is multiLabelSemihard, shape(batchsize, L); else category labels shape(batchsize, L)
-        """
+            feature (tensor): embedding vectors, shape(batchsize x sub embedding size)
+            labels (tensor):  if batchminner is multiLabelSemihard, shape(batchsize, L); else category labels shape(batchsize, L)
+        """        
         anchor_idx, pos_idx, neg_idx = self.batchminner(feature, labels)
         if isinstance( labels, torch.Tensor):  labels =  labels.detach()
         anchors = feature[anchor_idx] 

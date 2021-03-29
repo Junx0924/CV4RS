@@ -1,7 +1,10 @@
 import numpy as np, torch
 
-## https://github.com/Junx0924/multilabel-deep-metric/blob/master/src/utils.py
+
 class MultiLabelSemihard():
+    """MultiLabel semihard.
+       reference: https://github.com/Junx0924/multilabel-deep-metric/blob/master/src/utils.py.
+    """    
     def __init__(self,max_negatives_per_pos =3,max_trips_per_anchor =3):
         self.max_negatives_per_pos =  max_negatives_per_pos
         self.max_trips_per_anchor =  max_trips_per_anchor
@@ -12,7 +15,7 @@ class MultiLabelSemihard():
             batch (tensor):  dim [batchsize,embedding dim]
             labels (tensor): multi-hot labels, dim [batchsize,L]
         Returns:
-            [tuple]: index [anchor, positive, negative]
+            tuple: index [anchor, positive, negative]
         """
         if isinstance(labels, torch.Tensor): labels = labels.detach()
         bs = batch.shape[0]

@@ -14,7 +14,7 @@ class Distance():
             labels (tensor): category labels, dim [batchsize,1]
 
         Returns:
-            [tuple]: index [anchor, positive, negative]
+            tuple: index [anchor, positive, negative]
         """
         if isinstance(labels, torch.Tensor): labels = labels.detach().cpu().numpy()
         bs = batch.shape[0]

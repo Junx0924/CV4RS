@@ -13,17 +13,21 @@ from . import utils
 
 
 def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids=None, backend='faiss'):
-    """
-    Get the clusted labels of the dataset
-        Args:
-            model: resnet50
-            data_loader: torch data loader
-            use_penultimate: if false, use the embedding layer to get embeddings
-        Return:
-            C: new cluster labels
-            T_all: labels of original embeddings
-            I_all: index of original embeddings
-    """
+    """Get the clusted labels of the dataset .
+
+    Args:
+        model ([type]): resnet50
+        data_loader ([type]): torch data loader
+        use_penultimate ([type]): if false, use the embedding layer to get embeddings
+        nb_clusters (int): 
+        gpu_ids (list, optional):  Defaults to None.
+        backend (str, optional): Defaults to 'faiss'.
+
+    Returns:
+        list:  new cluster labels
+        list: labels of original embeddings
+        list: index of original embeddings
+    """    
     is_dry_run = (nb_clusters == 1)
     device = torch.device("cuda") if len(gpu_ids)>0 else torch.device("cpu") 
     if not is_dry_run:
@@ -61,9 +65,19 @@ def get_cluster_labels(model, data_loader, use_penultimate, nb_clusters, gpu_ids
 
 
 def make_clustered_dataloaders(model, dataloader_init, config,reassign = False, I_prev = None, C_prev = None, LOG = None, initial_C_T_I=None):
-    """
-    Get different dataloaders for different clusters
-    """
+    """Make dataloaderoader .
+
+    Args:
+        model (resnet50): resnet50
+        dataloader_init (torch dataloader):  
+        config (dict): config
+        reassign (bool, optional):   Defaults to False.
+        I_prev (list, optional):  index of embedding vectors from last clustering
+        C_prev (list, optional):   cluster labels from last clustering.
+        LOG ( object, optional):  Defaults to None.
+        initial_C_T_I (list, optional): recording last clustering info. Defaults to None.
+    """    
+    
     def correct_indices(I):
         return torch.sort(torch.LongTensor(I))[1]
 

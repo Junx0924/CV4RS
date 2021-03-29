@@ -9,12 +9,18 @@ import lib.data.set as dataset
 from .sampler import ClassBalancedSampler
 
 def make(config, type, subset_indices = None, dset_type = None,include_aux_augmentations = False):
-    """
+    """A helper function for creating dataset objects .
+
     Args:
-        subset_indices: indices for selecting subset of dataset,
-                        for creating clustered dataloaders.
-        type: 'init', 'eval' or 'train'.
-    """
+        config (dict): [description]
+        type (str): 'init', 'eval' or 'train'.
+        subset_indices (list, optional): indices for selecting subset of dataset . Defaults to None.
+        dset_type (str, optional): 'train', 'val','test'. Defaults to None.
+        include_aux_augmentations (bool, optional): if set true, apply rotation to get augumented image data. Defaults to False.
+
+    Returns:
+        torch dataloader 
+    """    
     ds_name = config['dataset_selected']
     ds = dataset.select(
         datapath = config['dataset'][ds_name]['root'],
@@ -48,14 +54,16 @@ def make(config, type, subset_indices = None, dset_type = None,include_aux_augme
 
 
 def make_from_clusters(C, subset_indices, config):
-    """
-    For project divide_and_conquer
-    Get different dataloaders for different clusters
-        Args:
-            C: cluster labels
-            subset_indices: original data indexs for each cluster
-    """
-    
+    """Get different dataloaders for different clusters
+
+    Args:
+        C (list): cluster labels
+        subset_indices (list): original data indexs for each cluster
+        config (dict): [description]
+
+    Returns:
+        list: a list of dataloders
+    """    
     dataloaders = [[None] for c in range(config['nb_clusters'])]
     for c in range(config['nb_clusters']):
         dataloaders[c] = make(
@@ -68,11 +76,16 @@ def make_from_clusters(C, subset_indices, config):
 
 
 def merge(dls_non_iter):
-    """
-    For project divide_and_conquer
-    Merge a list of torch dataloaders to feed in tqmd
-    dls_non_iter: a list of torch dataloaders
-    """
+    """For project divide_and_conquer.
+       Merge a list of torch dataloaders to feed in tqmd
+
+    Args:
+        dls_non_iter (list): a list of torch dataloaders
+
+    Yields:
+        tensor: yield a batch
+        int: the index of dataloader
+    """    
     nb_batches_per_dl = [len(dl) for dl in dls_non_iter]
     nb_batches = max(nb_batches_per_dl)
     I = range(len(dls_non_iter))

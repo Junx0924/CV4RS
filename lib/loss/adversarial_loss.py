@@ -6,14 +6,15 @@ from torch.autograd import Variable
 """================================================================================================="""
 class Adversarial(torch.nn.Module):
     def __init__(self,hidden_adversarial_size,direction_dict,decorrnet_lr=0.00001):
-        """
-        Decorrelate sub embeddings
+        """Decorrelation sub embeddings .
+
         Args:
-            hidden_adversarial_size: the size for hidden layer
-            direction_dict: eg. {"discriminative-shared":{'dim':'96-120', 'weight':150}},
+            hidden_adversarial_size (int): the size for hidden layer
+            direction_dict (dict): {"discriminative-shared":{'dim':'96-120', 'weight':150}}, for example, 
             the name of soure embedding is 'discriminative' with size 96, target embedding is 'shared' with size 120,
             the weight for decorrelation is 150
-        """
+            decorrnet_lr (float, optional): Defaults to 0.00001.
+        """        
         super(Adversarial,self).__init__()
        
         self.directions = direction_dict # {direction:{dim: str ,weight: float}}
@@ -30,7 +31,7 @@ class Adversarial(torch.nn.Module):
     def forward(self, feature_dict):
         """
         Args:
-            feature_dict: eg.{'discriminative': sub_embeddings1, 'shared': sub_embeddings2}, 
+            feature_dict (dict): eg.{'discriminative': sub_embeddings1, 'shared': sub_embeddings2}, 
                            sub_embeddings1 [batch_size, dim1], sub_embeddings2 [batch_size, dim2]
         """
         feature_names = np.unique(np.array([key.split('-') for key in self.directions.keys()]).reshape(-1))

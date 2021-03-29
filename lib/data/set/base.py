@@ -13,13 +13,14 @@ import itertools
 
 
 def normalize(img):
-    """
-    Get channel-wise normalized image data
+    """Get channel - wise normalized image data
+
     Args:
-        img: np array (channel, width, height)
-    Return:
-        img: np array, channel-wise normalized
-    """
+        img (numpy array): shape (channel, width, height)
+
+    Returns:
+        numpy array: channel-wise normalized image data
+    """    
     img_channel = img.shape[0]
     if img_channel==3: 
         img = img/255
@@ -30,13 +31,14 @@ def normalize(img):
     return img
 
 def get_BigEarthNet(img_path):
-    """
-    Get image data from BigEarthNet dataset
-    Args: 
-        img_path
-    Return: 
-        img_data: flatten np array
-    """
+    """Get image data from BigEarthNet dataset
+
+    Args:
+        img_path (str): image path
+
+    Returns:
+        numpy: flatten image data
+    """    
     patch_name = img_path.split('/')[-1]
     band_names = ['B01', 'B02', 'B03', 'B04', 'B05','B06', 'B07', 'B08', 'B8A', 'B09', 'B11', 'B12']
     # get band image data
@@ -58,9 +60,9 @@ def get_MLRSNet(img_path):
     """
     Get image data from MLRSNet dataset
     Args: 
-        img_path
+        img_path (str)
     Return: 
-        img_data: flatten np array
+        numpy array: flattened img data
     """
     pic = Image.open(img_path)
     if len(pic.size)==2:
@@ -71,18 +73,18 @@ def get_MLRSNet(img_path):
     
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, image_list, dataset_name, npmem_file="", conversion = None,transform = None, is_training=False,dset_type = 'train', include_aux_augmentations= False):
-        """
-        The train data is randomly flip and cropped, the eval data is center cropped
+        """create dataset .
+
         Args:
-            image_list: contains file_paths and multi-hot labels
-            dataset_name: choose from {"MLRSNet", "BigEarthNet}
-            npmem_file: the path of npmem_file, if set use_npmem true, it will be automatically generated
-            conversion: dictionary, {'label': label_name}
-            transform: dictonary, keys: sz_crop, input_shape
-            is_training: if it is 'train', apply random flip and crop for the data split, else apply center crop
-            dset_type: dataset split (train/val/test), for saving the evaluation plots of each data split
-            include_aux_augmentations: if set true, apply rotation to get augumented image data
-        """
+            image_list (list): contains file_paths  and multi-hot labels 
+            dataset_name (str): choose from {"MLRSNet", "BigEarthNet}
+            npmem_file (str, optional): the path of npmem_file, if set use_npmem true, it will be automatically generated
+            conversion (dict, optional): dictionary, {'label': label_name}
+            transform (dict, optional): keys: sz_crop, input_shape. Defaults to None.
+            is_training (bool, optional):if set, apply random flip and crop to the data split, else apply center crop. Defaults to False.
+            dset_type (str, optional): select from {'train','val,'test'}. Defaults to 'train'.
+            include_aux_augmentations (bool, optional): if set true, apply rotation to get augumented image data. Defaults to False.
+        """        
         torch.utils.data.Dataset.__init__(self)
         self.dataset_name = dataset_name
         self.transform = transform
@@ -149,16 +151,17 @@ class BaseDataset(torch.utils.data.Dataset):
             [[self.image_dict[str(cc)].append(i) for cc in c] for i,c in zip(self.I,category_labels)]
 
     def process_image(self, img):
-        """
-        Preprocessing images. For training this function randomly crop images and
+        """Preprocessing images .
+        For training this function randomly crop images and
         flips the image randomly.
         For testing we use the center crop of the image.
 
         Args:
-        img: flatten np array
-        Return: 
-        img: torch.Tensor, shape [12, 100, 100] for BigEarthNet, [3, 224, 224] for MLRSNet
-        """
+            img (numpy array) 
+
+        Returns:
+            torch.Tensor: shape [12, 100, 100] for BigEarthNet, [3, 224, 224] for MLRSNet
+        """        
         img_shape =self.transform['input_shape']
         img = img.reshape(img_shape)
         img_dim = img_shape[1]
