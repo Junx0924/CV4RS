@@ -17,7 +17,7 @@ This project aims to compare the performance of multi-task approaches in content
 2.  Divide and Conquer the Embedding Space for MetricLearning (D&C) [git](https://github.com/CompVis/metric-learning-divide-and-conquer)  [pdf](http://openaccess.thecvf.com/content_CVPR_2019/papers/Sanakoyeu_Divide_and_Conquer_the_Embedding_Space_for_Metric_Learning_CVPR_2019_paper.pdf)
 3.  Deep Metric Learning with BIER: Boosting Indepen-dent Embedding Robustly (Bier) [git](https://github.com/mop/bier)  [pdf](https://arxiv.org/abs/1801.04815)
 
-One single approach for further comparisons:
+One single-task approach for further comparisons:
 1.   Graph Relation Network: Modeling Relations Between Scenes for Multilabel Remote-Sensing Image Classification and Retrieval (SNDL) [pdf](https://elib.dlr.de/137923/1/09173783.pdf)
 
 ## Datasets
