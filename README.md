@@ -83,8 +83,8 @@ python train_diva.py --log_online \
                     --num_samples_per_class 2  --use_npmem --eval_epoch 10 --nb_epochs 120  
 ```
 #### Some Notes:
-* During training, metrics listed in `--eval_metric` will be logged for validation/test set. If you also want to log the overlap of embedding distance from intra and inter group, simply set the flag `--is_log_intra_inter_overlap`. A checkpoint is saved for improvements on recall@1 on train set. The default metrics supported are Recall@K, R-Precision@K, MAP@K.
-* If a training is stopped accidentally, you can resume the training by set the flag `--load_from_checkpoint`, the training will be restarted from the last checkpoint epoch, and the training results will be written to the original checkpoint folder.
+* During training, metrics listed in `--eval_metric` will be logged for validation/test set. If you also want to log the overlap of embedding distance from intra and inter group, simply set the flag `--is_log_intra_inter_overlap`. A checkpoint is saved for improvements on recall@1 on validation set. The default metrics supported are Recall@K, R-Precision@K, MAP@K.
+* If the training is stopped accidentally, you can resume the training by set the flag `--load_from_checkpoint`, the training will be restarted from the last checkpoint epoch, and the training results will be written to the original checkpoint folder.
 ### Logging results with W&B
 * Create an account here (free): https://wandb.ai
 * After the account is set, make sure to include your API key in `parameters.py` under `--wandb_key`.
