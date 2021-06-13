@@ -93,16 +93,16 @@ def create_csv_split(csv_dir,datapath):
     image_labels =[]
         
     for entry in os.listdir(label_folder):
-        if entry.split['.'][-1] =="csv" :
+        if entry.split('.')[-1] =="csv" :
             with open(label_folder + entry) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 label_names =next(csv_reader,None)[1:]
                 if len(label_names)==60:
                     sort_ind = np.argsort(label_names) 
                     for row in csv_reader: 
-                        image_path = image_folder + entry.stem +'/'+row[0]
+                        image_path = image_folder + entry.split('.')[0] +'/'+row[0]
                         #image_list.append(image_path)
-                        image_list.append('/Images/'+ entry.stem +'/'+row[0])
+                        image_list.append('/Images/'+ entry.split('.')[0] +'/'+row[0])
                         temp = np.array(row[1:])
                         image_labels.append(temp[sort_ind])
                 else:
