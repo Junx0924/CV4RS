@@ -8,46 +8,46 @@ import os
 from PIL import Image
  
 
-def split(image_dict,split_ratio):
+def split(image_dict,split_ratio,tag:str='test'):
     """This function extract a new image dict from the given image dict by the split_ratio
 
     Args:
         image_dict (dict): {'class_label': [image_index1, image_index2, image_index3....]}
-        split_ratio (float): eg.0.8, split the image_dict into two image_dicts, the number of samples per class in image_dict1 is 80% of that of the original image dict
+        split_ratio (float): eg.0.8,  the number of samples per class is 80% of that of the original image dict
 
     Returns:
         dict: image_dict
         dict: a dict records the state  and the index for each unique image from the original image_dict
     """    
-    train_image_dict  = {} 
+    keep_split_ratio = 1 - split_ratio
+    keep_image_dict  = {} 
     other_image_dict  = {} 
     keys = sorted(list(image_dict.keys()))
     values = np.unique(list(itertools.chain.from_iterable(image_dict.values())))
     flag =  {ind:"undefine" for ind in values}
-
     for key in keys:
         samples_ind = image_dict[key]
         random.shuffle(samples_ind)
         sample_num = len(samples_ind)
-        train_image_dict[key] =[]
+        keep_image_dict[key] =[]
         other_image_dict[key] =[]
         # check if there are some sample id already in train/nontrain
         for ind in samples_ind:
             if flag[ind] =="undefine":
-                if len(train_image_dict[key])< int(sample_num*split_ratio):
-                    train_image_dict[key].append(ind)
-                    flag[ind] ="train"
+                if len(keep_image_dict[key])< int(sample_num*keep_split_ratio):
+                    keep_image_dict[key].append(ind)
+                    flag[ind] = "non"+tag
                 else:
-                    if len(other_image_dict[key])< (sample_num - int(sample_num*split_ratio)):
+                    if len(other_image_dict[key])< (sample_num - int(sample_num*keep_split_ratio)):
                         other_image_dict[key].append(ind)
-                        flag[ind] ="nontrain"
-            elif flag[ind] =="train":
-                if len(train_image_dict[key])< int(sample_num*split_ratio):
-                    train_image_dict[key].append(ind)
+                        flag[ind] = tag
+            elif flag[ind] == "non"+tag:
+                if len(keep_image_dict[key])< int(sample_num*keep_split_ratio):
+                    keep_image_dict[key].append(ind)
             else:
-                if len(other_image_dict[key])< (sample_num - int(sample_num*split_ratio)):
+                if len(other_image_dict[key])< (sample_num - int(sample_num*keep_split_ratio)):
                     other_image_dict[key].append(ind)
-    return train_image_dict,flag
+    return keep_image_dict,flag
 
 
 def read_csv(csv_filename,datapath):
@@ -121,14 +121,14 @@ def create_csv_split(csv_dir,datapath):
     image_labels = np.array(image_labels,dtype=int)
     image_dict  = {i:np.where(image_labels[:,i]==1)[0] for i in range(len(label_names))}
 
-    # split data into train/test 50%/50% balanced in class.
-    temp_image_dict,flag_test =split(image_dict, 0.5)
-    # split train into train/val 40%/10% balanced in class
-    temp_image_dict,flag_val =split(temp_image_dict, 0.8)
+    # split data into nontest/test 70%/30% balanced in class.
+    temp_image_dict, flag_test =split(image_dict, 0.3,'test')
+    # split train into train/val 40%/30% balanced in class
+    _,flag_val =split(temp_image_dict, 0.43,'val')
 
-    train   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="train"]
-    val  = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="nontrain"]
-    test   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_test.keys())) if flag_test[ind]=="nontrain"]
+    test   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_test.keys())) if flag_test[ind]=="test"]
+    val  = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="val"]
+    train   = [[image_list[ind]]+list(image_labels[ind,:]) for ind in sorted(list(flag_val.keys())) if flag_val[ind]=="nonval"]
     
     with open(csv_dir +'/label_name.json', 'w+') as label_file:
         json.dump(label_names_dict, label_file,separators=(",", ":"),allow_nan=False,indent=4)
